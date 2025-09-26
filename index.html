@@ -1,161 +1,99 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cajonera 3D Interactiva (Compatibilidad APKView)</title>
+  <meta charset="UTF-8">
+  <title>Cajonera 3D Lineal</title>
   <style>
-    body { margin: 0; font-family: Arial, sans-serif; display: flex; height: 100vh; }
-    #sidebar { width: 300px; background: #f4f4f4; padding: 10px; overflow-y: auto; box-sizing: border-box; }
-    #viewer { flex: 1; position: relative; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; cursor: pointer; }
-    tr:hover { background: #ddd; }
-    .highlight { background: #ffb3b3 !important; }
-    .note { font-size:12px; color:#444; margin-top:8px }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2 { text-align: center; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 8px 0; cursor: pointer; padding: 6px; background: #f5f5f5; border-radius: 6px; }
+    li:hover { background: #e0e0e0; }
+    canvas { border: 1px solid #000; margin: 15px auto; display: block; }
   </style>
 </head>
 <body>
-  <div id="sidebar">
-    <h3>Lista de piezas</h3>
-    <table id="piezaTable">
-      <thead>
-        <tr><th>Pieza</th><th>Medidas (cm)</th><th>Cant.</th></tr>
-      </thead>
-      <tbody>
-        <tr data-piece="laterales"><td>Laterales</td><td>89.5 × 45 × 1.8</td><td>2</td></tr>
-        <tr data-piece="superior"><td>Superior</td><td>122 × 45 × 1.8</td><td>1</td></tr>
-        <tr data-piece="inferior"><td>Inferior</td><td>122 × 45 × 1.8</td><td>1</td></tr>
-        <tr data-piece="trasero"><td>Trasero</td><td>122 × 89.5 × 0.5</td><td>1</td></tr>
-        <tr data-piece="divisiones"><td>Divisiones verticales</td><td>89.5 × 45 × 1.8</td><td>2</td></tr>
-        <tr data-piece="cajon"><td>Cajones (cuerpo)</td><td>38 × 35 × 12</td><td>9</td></tr>
-        <tr data-piece="frente"><td>Frentes</td><td>36 × 20 × 1.5</td><td>9</td></tr>
-        <tr data-piece="baseCajon"><td>Bases de cajón</td><td>36 × 38 × 0.5</td><td>9</td></tr>
-      </tbody>
-    </table>
-    <div class="note">Arrastra la vista con el ratón o el dedo. Haz clic en una fila para <strong>iluminar</strong> la pieza correspondiente en el modelo.</div>
-  </div>
+  <h1>Plano y Vista 3D de Cajonera</h1>
 
-  <div id="viewer"></div>
+  <h2>Listado de Piezas</h2>
+  <ul id="piecesList"></ul>
 
-  <!-- Fallback versión no-module para compatibilidad con WebView -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js"></script>
+  <h2>Visualización 3D (líneas)</h2>
+  <canvas id="view3D" width="600" height="400"></canvas>
+
   <script>
-    // Referencias DOM
-    const sidebar = document.getElementById('sidebar');
-    const viewer = document.getElementById('viewer');
+    const pieces = [
+      { id: 'laterales', name: 'Lateral', w: 89.5, h: 45, qty: 2 },
+      { id: 'frentes', name: 'Frente Cajón', w: 36, h: 20, qty: 9 },
+      { id: 'costados', name: 'Costado Cajón', w: 45, h: 20, qty: 18 },
+      { id: 'traseros', name: 'Trasero Cajón', w: 36, h: 20, qty: 9 },
+      { id: 'bases', name: 'Base Cajón', w: 36, h: 45, qty: 9 },
+      { id: 'tapa', name: 'Tapa Superior', w: 120, h: 45, qty: 1 },
+      { id: 'divisiones', name: 'División Interna', w: 120, h: 20, qty: 2 }
+    ];
 
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    viewer.appendChild(renderer.domElement);
+    const list = document.getElementById('piecesList');
+    pieces.forEach((p) => {
+      const li = document.createElement('li');
+      li.textContent = `${p.qty} x ${p.name} (${p.w}cm x ${p.h}cm)`;
+      li.onclick = () => highlightPiece(p.id, p);
+      list.appendChild(li);
+    });
 
-    // Scene + Camera
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
+    const canvas = document.getElementById('view3D');
+    const ctx = canvas.getContext('2d');
 
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
-    camera.position.set(200, 160, 240);
+    // dibujar cajonera en 3D lineal (isométrico simplificado)
+    function drawCajonera(highlightId = null){
+      ctx.clearRect(0,0,600,400);
 
-    // Controls (no es módulo)
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.screenSpacePanning = false;
+      function drawBox(x, y, w, h, d, id){
+        ctx.strokeStyle = (highlightId === id) ? 'red' : 'black';
+        ctx.beginPath();
+        // frente
+        ctx.rect(x, y, w, h);
+        // profundidad (isométrico sencillo)
+        ctx.moveTo(x+w, y);
+        ctx.lineTo(x+w+d, y-d);
+        ctx.lineTo(x+d, y-d);
+        ctx.lineTo(x, y);
+        ctx.moveTo(x+w, y+h);
+        ctx.lineTo(x+w+d, y+h-d);
+        ctx.lineTo(x+d, y+h-d);
+        ctx.lineTo(x, y+h);
+        // lados
+        ctx.moveTo(x+d, y-d);
+        ctx.lineTo(x+d, y+h-d);
+        ctx.moveTo(x+w+d, y-d);
+        ctx.lineTo(x+w+d, y+h-d);
+        ctx.stroke();
+      }
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0x888888); scene.add(ambient);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(100,200,100); scene.add(dir);
+      // estructura principal
+      drawBox(100, 50, 300, 250, 40, 'laterales');
 
-    // Materiales
-    const normalMat = new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true });
-    const highlightMat = new THREE.MeshBasicMaterial({ color: 0xff2b2b, wireframe: true });
+      // divisiones horizontales
+      drawBox(100, 133, 300, 1, 40, 'divisiones');
+      drawBox(100, 216, 300, 1, 40, 'divisiones');
 
-    const piezas = {};
-
-    function addBox(name, w, h, d, x, y, z) {
-      const geo = new THREE.BoxGeometry(w, h, d);
-      const mesh = new THREE.Mesh(geo, normalMat.clone());
-      mesh.position.set(x, y, z);
-      scene.add(mesh);
-      if (!piezas[name]) piezas[name] = [];
-      piezas[name].push(mesh);
-      return mesh;
-    }
-
-    const W = 122.0, H = 89.5, D = 45.0;
-    const t18 = 1.8, t15 = 1.5, t5 = 0.5;
-    const halfH = H / 2;
-
-    addBox('laterales', t18, H, D, -(W/2 - t18/2), halfH, 0);
-    addBox('laterales', t18, H, D,  (W/2 - t18/2), halfH, 0);
-
-    addBox('superior', W, t18, D, 0, H - t18/2, 0);
-    addBox('inferior', W, t18, D, 0, t18/2, 0);
-
-    addBox('trasero', W, H, t5, 0, halfH, -(D/2 - t5/2));
-
-    const col1X = -(W/6);
-    const col2X =  (W/6);
-    addBox('divisiones', t18, H, D, col1X, halfH, 0);
-    addBox('divisiones', t18, H, D, col2X, halfH, 0);
-
-    const innerWidthTotal = W - 2 * t18 - 2 * t18;
-    const columnInner = innerWidthTotal / 3;
-    const frontW = Number(columnInner.toFixed(2));
-    const frontH = 20.0;
-    const cajaDepth = 38.0;
-    const innerHeightTotal = H - t18 * 2;
-    const levelHeight = innerHeightTotal / 3;
-    const topInnerY = H - t18 - levelHeight/2;
-    const leftInnerX = -(W/2) + t18 + columnInner/2;
-
-    for (let fila = 0; fila < 3; fila++) {
-      for (let col = 0; col < 3; col++) {
-        const cx = leftInnerX + col * columnInner;
-        const cy = topInnerY - fila * levelHeight;
-        addBox('cajon', frontW - 2.0, frontH - 1.5, cajaDepth, cx, cy, 0);
-        addBox('frente', frontW, frontH, t15, cx, cy, (D/2 - t15/2));
-        addBox('baseCajon', frontW - 2.0, t5, cajaDepth - 2.0, cx, cy - (frontH/2 - t5/2), 0);
+      // frentes de cajones (9)
+      let fh = 80, fw = 90;
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          let px = 110 + c*(fw+5);
+          let py = 60 + r*(fh+5);
+          ctx.strokeStyle = (highlightId==='frentes')? 'red':'black';
+          ctx.strokeRect(px, py, fw, fh);
+        }
       }
     }
 
-    camera.lookAt(0, halfH, 0);
-    controls.target.set(0, halfH, 0);
-    controls.update();
-
-    function onWindowResize() {
-      const width = Math.max(300, window.innerWidth - sidebar.offsetWidth);
-      const height = window.innerHeight;
-      renderer.setSize(width, height);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
+    function highlightPiece(id, piece){
+      drawCajonera(id);
+      alert(`${piece.name}: ${piece.w}cm x ${piece.h}cm (Cantidad: ${piece.qty})`);
     }
-    window.addEventListener('resize', onWindowResize, false);
-    onWindowResize();
 
-    document.querySelectorAll('#piezaTable tbody tr').forEach(row => {
-      row.addEventListener('click', () => {
-        document.querySelectorAll('#piezaTable tbody tr').forEach(r => r.classList.remove('highlight'));
-        row.classList.add('highlight');
-        for (let key in piezas) {
-          piezas[key].forEach(m => { m.material = normalMat.clone(); });
-        }
-        const key = row.dataset.piece;
-        if (piezas[key]) {
-          piezas[key].forEach(m => { m.material = highlightMat.clone(); });
-        }
-      });
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
+    drawCajonera();
   </script>
-
 </body>
 </html>
