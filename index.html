@@ -1,185 +1,208 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Visitas Naturgy</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cajonera 3D Interactiva (Corregido)</title>
   <style>
-    body { margin:0; font-family: Arial, sans-serif; }
-    #map { height: 60vh; position: relative; }
-    #listPanel {
-      height: 40vh;
-      overflow-y: auto;
-      border-top: 2px solid #ccc;
-    }
-    table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { padding:6px; border:1px solid #ddd; text-align:left; }
-    th { background:#f4f4f4; position: sticky; top: 0; }
-    tr:hover { background:#f0f8ff; cursor:pointer; }
-
-    /* Botón flotante ubicación */
-    #locateBtn, #refreshBtn {
-      position: absolute;
-      right: 10px;
-      z-index: 1000;
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      color: white;
-    }
-    #locateBtn { top: 10px; background: #007bff; }
-    #refreshBtn { top: 60px; background: #17a2b8; }
-
-    /* Leyenda */
-    #legend {
-      padding: 5px;
-      font-size: 13px;
-      background: #fff;
-      border-bottom: 2px solid #ccc;
-      position: sticky;
-      top: 0;
-      z-index: 900;
-    }
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      margin-right: 12px;
-    }
-    .legend-color {
-      width: 14px;
-      height: 14px;
-      display: inline-block;
-      margin-right: 4px;
-      border: 1px solid #333;
-    }
+    body { margin: 0; font-family: Arial, sans-serif; display: flex; height: 100vh; }
+    #sidebar { width: 300px; background: #f4f4f4; padding: 10px; overflow-y: auto; box-sizing: border-box; }
+    #viewer { flex: 1; position: relative; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; cursor: pointer; }
+    tr:hover { background: #ddd; }
+    .highlight { background: #ffb3b3 !important; }
+    .note { font-size:12px; color:#444; margin-top:8px }
   </style>
 </head>
 <body>
-  <div id="map">
-    <button id="locateBtn">📍</button>
-    <button id="refreshBtn">🔄</button>
-  </div>
-  <div id="listPanel">
-    <div id="legend"></div>
-    <table>
+  <div id="sidebar">
+    <h3>Lista de piezas</h3>
+    <table id="piezaTable">
       <thead>
-        <tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr>
+        <tr><th>Pieza</th><th>Medidas (cm)</th><th>Cant.</th></tr>
       </thead>
-      <tbody id="dataTableBody"></tbody>
+      <tbody>
+        <tr data-piece="laterales"><td>Laterales</td><td>89.5 × 45 × 1.8</td><td>2</td></tr>
+        <tr data-piece="superior"><td>Superior</td><td>122 × 45 × 1.8</td><td>1</td></tr>
+        <tr data-piece="inferior"><td>Inferior</td><td>122 × 45 × 1.8</td><td>1</td></tr>
+        <tr data-piece="trasero"><td>Trasero</td><td>122 × 89.5 × 0.5</td><td>1</td></tr>
+        <tr data-piece="divisiones"><td>Divisiones verticales</td><td>89.5 × 45 × 1.8</td><td>2</td></tr>
+        <tr data-piece="cajon"><td>Cajones (cuerpo)</td><td>38 × 35 × 12</td><td>9</td></tr>
+        <tr data-piece="frente"><td>Frentes</td><td>36 × 20 × 1.5</td><td>9</td></tr>
+        <tr data-piece="baseCajon"><td>Bases de cajón</td><td>36 × 38 × 0.5</td><td>9</td></tr>
+      </tbody>
     </table>
+    <div class="note">Arrastra la vista con el ratón o el dedo. Haz clic en una fila para <strong>iluminar</strong> la pieza correspondiente en el modelo (sin popups).</div>
   </div>
 
-<script>
-const map = L.map('map').setView([25.6866, -100.3161], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  <div id="viewer"></div>
 
-// Colores pastel por calle
-const pastelColors = ['#FFB3BA', '#BAE1FF', '#BAFFC9', '#FFFFBA', '#FFDFBA', '#E3BAFF', '#B5EAD7'];
-const streetColors = {};
+  <!-- IMPORTS COMO MÓDULOS: esto soluciona el error "THREE.OrbitControls is not a constructor" -->
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/controls/OrbitControls.js';
 
-function getColorForStreet(street) {
-  if (!streetColors[street]) {
-    const color = pastelColors[Object.keys(streetColors).length % pastelColors.length];
-    streetColors[street] = color;
-    // Agregar a leyenda
-    const legendItem = document.createElement("div");
-    legendItem.className = "legend-item";
-    legendItem.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
-    document.getElementById("legend").appendChild(legendItem);
-  }
-  return streetColors[street];
-}
+    // Referencias DOM
+    const sidebar = document.getElementById('sidebar');
+    const viewer = document.getElementById('viewer');
 
-function escapeHtml(text) {
-  return text.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','\"':'&quot;'}[c]));
-}
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    viewer.appendChild(renderer.domElement);
 
-function loadData() {
-  document.getElementById("dataTableBody").innerHTML = '';
-  map.eachLayer(layer => {
-    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) map.removeLayer(layer);
-  });
+    // Scene + Camera
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0);
 
-  Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
-    download: true,
-    header: true,
-    complete: function(results) {
-      results.data.forEach(row => {
-        if (!row.lat || !row.lng) return;
-        const lat = parseFloat(row.lat);
-        const lng = parseFloat(row.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
+    camera.position.set(200, 160, 240);
 
-        const street = row["calle"] || "Sin calle";
-        const color = getColorForStreet(street);
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = false;
 
-        // marcador
-        const marker = L.circleMarker([lat, lng], {
-          radius: 8,
-          fillColor: color,
-          color: "#555",
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(map);
+    // Lights
+    const ambient = new THREE.AmbientLight(0x888888); scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(100,200,100); scene.add(dir);
 
-        const popupHtml = `
-          <strong>Colonia:</strong> ${row["Colonia"] || ''}<br/>
-          <strong>Póliza:</strong> ${row["Póliza"] || ''}<br/>
-          <strong>Dirección:</strong> ${row["calle"]||''} ${row["Número finca"]||''}<br/>
-          <strong>Contratante:</strong> ${row["Nombre Contratante"]||''}<br/>
-          <strong>Inspector:</strong> ${row["Inspector"]||''}<br/>
-          <button onclick="openRoute(${lat},${lng})" style="margin-top:6px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:#28a745;color:#fff;cursor:pointer">
-            🚗 Ver Ruta
-          </button>`;
-        marker.bindPopup(popupHtml);
+    // Materiales (wireframe para vista lineal)
+    const normalMat = new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true });
+    const highlightMat = new THREE.MeshBasicMaterial({ color: 0xff2b2b, wireframe: true });
 
-        // fila de tabla
-        const tr = document.createElement('tr');
-        tr.style.backgroundColor = color;
-        tr.innerHTML = `<td>${escapeHtml(row["Póliza"]||'')}</td>
-                        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-                        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-        tr.addEventListener('click', () => {
-          marker.openPopup();
-          map.setView([lat,lng], 17);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-        document.getElementById("dataTableBody").appendChild(tr);
-      });
+    // Contenedor de piezas
+    const piezas = {};
+
+    // Helper: crea una caja y la almacena por nombre
+    function addBox(name, w, h, d, x, y, z) {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const mesh = new THREE.Mesh(geo, normalMat.clone());
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+      if (!piezas[name]) piezas[name] = [];
+      piezas[name].push(mesh);
+      return mesh;
     }
-  });
-}
 
-// Función para abrir ruta
-function openRoute(lat, lng) {
-  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  window.open(gmaps, "_blank");
-}
+    // Dimensiones (cm)
+    const W = 122.0, H = 89.5, D = 45.0; // exterior
+    const t18 = 1.8, t15 = 1.5, t12 = 1.2, t5 = 0.5;
 
-// Botón de ubicación
-document.getElementById("locateBtn").addEventListener("click", () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      map.setView([lat, lng], 15);
-      L.marker([lat, lng]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
-    }, () => { alert("No se pudo obtener la ubicación."); });
-  } else { alert("Geolocalización no soportada en este dispositivo."); }
-});
+    // posiciones: usaremos sistema con Y arriba y el suelo en Y=0
+    const halfH = H / 2; // 44.75
 
-// Botón de refrescar
-document.getElementById("refreshBtn").addEventListener("click", loadData);
+    // Estructura principal (centros calculados para que la base quede en Y=0)
+    // Laterales (thickness x height x depth) centrados en su posición
+    addBox('laterales', t18, H, D, - (W/2 - t18/2), halfH, 0); // izquierdo
+    addBox('laterales', t18, H, D,   (W/2 - t18/2), halfH, 0); // derecho
 
-// Cargar datos al inicio
-loadData();
-</script>
+    // Superior y inferior (panels)
+    addBox('superior', W, t18, D, 0, H - t18/2, 0);
+    addBox('inferior', W, t18, D, 0, t18/2, 0);
+
+    // Trasero (panel delgado detrás)
+    addBox('trasero', W, H, t5, 0, halfH, - (D/2 - t5/2));
+
+    // Divisores verticales (2 divisores que crean 3 columnas)
+    const col1X = - (W/6); // aproximado
+    const col2X =   (W/6);
+    addBox('divisiones', t18, H, D, col1X, halfH, 0);
+    addBox('divisiones', t18, H, D, col2X, halfH, 0);
+
+    // Cajones 3x3: calc posiciones interiores
+    const innerWidthTotal = W - 2 * t18 - 2 * t18; // deja espacio para laterales/divisores
+    const columnInner = innerWidthTotal / 3; // ancho interior por columna
+    const frontW = Number(columnInner.toFixed(2)); // ancho de frente aproximado
+    const frontH = 20.0;
+
+    // Depth caja: dejamos espacio para grosor de frente + juego (usamos 38)
+    const cajaDepth = 38.0;
+
+    // niveles verticales: altura interna total = H - top - bottom - 2 horizontals
+    const horizontals = 2; // filas separaciones
+    const innerHeightTotal = H - t18 * 2; // espacio entre top e inferior
+    const levelHeight = innerHeightTotal / 3; // espacio por fila
+
+    // punto de referencia (centro en X=0, Y=halfH)
+    // calculamos el primer nivel (fila superior) center y luego iteramos
+    const topInnerY = H - t18 - levelHeight/2; // centro del primer nivel
+
+    // punto X inicial para primera columna center
+    const leftInnerX = - (W/2) + t18 + columnInner/2;
+
+    // crear cajas y frentes
+    for (let fila = 0; fila < 3; fila++) {
+      for (let col = 0; col < 3; col++) {
+        const cx = leftInnerX + col * columnInner;
+        const cy = topInnerY - fila * levelHeight;
+        // caja (cuerpo interno) - representada en 12 mm
+        addBox('cajon', frontW - 2.0, frontH - 1.5, cajaDepth, cx, cy, 0);
+        // frente (delgado, ligeramente por delante)
+        addBox('frente', frontW, frontH, t15, cx, cy, (D/2 - t15/2));
+        // base de cajon (fondo) en 5mm, centrada dentro de la caja
+        addBox('baseCajon', frontW - 2.0, t5, cajaDepth - 2.0, cx, cy - (frontH/2 - t5/2), 0);
+      }
+    }
+
+    // Ajuste inicial de cámara y control
+    camera.lookAt(0, halfH, 0);
+    controls.target.set(0, halfH, 0);
+    controls.update();
+
+    // Resizing inteligente
+    function onWindowResize() {
+      const width = Math.max(300, window.innerWidth - sidebar.offsetWidth);
+      const height = window.innerHeight;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', onWindowResize, false);
+    onWindowResize();
+
+    // Interacción de la tabla: iluminar piezas (sin popup)
+    document.querySelectorAll('#piezaTable tbody tr').forEach(row => {
+      row.addEventListener('click', () => {
+        // limpiar highlights
+        document.querySelectorAll('#piezaTable tbody tr').forEach(r => r.classList.remove('highlight'));
+        row.classList.add('highlight');
+        // reset materiales
+        for (let key in piezas) {
+          piezas[key].forEach(m => { m.material = normalMat.clone(); });
+        }
+        const key = row.dataset.piece;
+        if (piezas[key]) {
+          piezas[key].forEach(m => { m.material = highlightMat.clone(); });
+        }
+      });
+    });
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Fallback message if modules blocked (useful when opened via file:// and browser blocks modules)
+    // We add a small notice overlay if WebGL or module imports fail silently (best-effort)
+    if (!renderer.context) {
+      const msg = document.createElement('div');
+      msg.style.position = 'absolute';
+      msg.style.left = '10px';
+      msg.style.top = '10px';
+      msg.style.padding = '8px';
+      msg.style.background = '#ffe0e0';
+      msg.style.color = '#900';
+      msg.textContent = 'Si ves este mensaje: abre el archivo desde un servidor local o usa Acode/Code editor que soporte módulos.';
+      viewer.appendChild(msg);
+    }
+
+  </script>
+
 </body>
 </html>
