@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cajonera 3D Interactiva (Corregido)</title>
+  <title>Cajonera 3D Interactiva (Compatibilidad APKView)</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; display: flex; height: 100vh; }
     #sidebar { width: 300px; background: #f4f4f4; padding: 10px; overflow-y: auto; box-sizing: border-box; }
@@ -33,16 +33,15 @@
         <tr data-piece="baseCajon"><td>Bases de cajón</td><td>36 × 38 × 0.5</td><td>9</td></tr>
       </tbody>
     </table>
-    <div class="note">Arrastra la vista con el ratón o el dedo. Haz clic en una fila para <strong>iluminar</strong> la pieza correspondiente en el modelo (sin popups).</div>
+    <div class="note">Arrastra la vista con el ratón o el dedo. Haz clic en una fila para <strong>iluminar</strong> la pieza correspondiente en el modelo.</div>
   </div>
 
   <div id="viewer"></div>
 
-  <!-- IMPORTS COMO MÓDULOS: esto soluciona el error "THREE.OrbitControls is not a constructor" -->
-  <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js';
-    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/controls/OrbitControls.js';
-
+  <!-- Fallback versión no-module para compatibilidad con WebView -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
     // Referencias DOM
     const sidebar = document.getElementById('sidebar');
     const viewer = document.getElementById('viewer');
@@ -59,8 +58,8 @@
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
     camera.position.set(200, 160, 240);
 
-    // Controls
-    const controls = new OrbitControls(camera, renderer.domElement);
+    // Controls (no es módulo)
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.screenSpacePanning = false;
@@ -69,14 +68,12 @@
     const ambient = new THREE.AmbientLight(0x888888); scene.add(ambient);
     const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(100,200,100); scene.add(dir);
 
-    // Materiales (wireframe para vista lineal)
+    // Materiales
     const normalMat = new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true });
     const highlightMat = new THREE.MeshBasicMaterial({ color: 0xff2b2b, wireframe: true });
 
-    // Contenedor de piezas
     const piezas = {};
 
-    // Helper: crea una caja y la almacena por nombre
     function addBox(name, w, h, d, x, y, z) {
       const geo = new THREE.BoxGeometry(w, h, d);
       const mesh = new THREE.Mesh(geo, normalMat.clone());
@@ -87,72 +84,47 @@
       return mesh;
     }
 
-    // Dimensiones (cm)
-    const W = 122.0, H = 89.5, D = 45.0; // exterior
-    const t18 = 1.8, t15 = 1.5, t12 = 1.2, t5 = 0.5;
+    const W = 122.0, H = 89.5, D = 45.0;
+    const t18 = 1.8, t15 = 1.5, t5 = 0.5;
+    const halfH = H / 2;
 
-    // posiciones: usaremos sistema con Y arriba y el suelo en Y=0
-    const halfH = H / 2; // 44.75
+    addBox('laterales', t18, H, D, -(W/2 - t18/2), halfH, 0);
+    addBox('laterales', t18, H, D,  (W/2 - t18/2), halfH, 0);
 
-    // Estructura principal (centros calculados para que la base quede en Y=0)
-    // Laterales (thickness x height x depth) centrados en su posición
-    addBox('laterales', t18, H, D, - (W/2 - t18/2), halfH, 0); // izquierdo
-    addBox('laterales', t18, H, D,   (W/2 - t18/2), halfH, 0); // derecho
-
-    // Superior y inferior (panels)
     addBox('superior', W, t18, D, 0, H - t18/2, 0);
     addBox('inferior', W, t18, D, 0, t18/2, 0);
 
-    // Trasero (panel delgado detrás)
-    addBox('trasero', W, H, t5, 0, halfH, - (D/2 - t5/2));
+    addBox('trasero', W, H, t5, 0, halfH, -(D/2 - t5/2));
 
-    // Divisores verticales (2 divisores que crean 3 columnas)
-    const col1X = - (W/6); // aproximado
-    const col2X =   (W/6);
+    const col1X = -(W/6);
+    const col2X =  (W/6);
     addBox('divisiones', t18, H, D, col1X, halfH, 0);
     addBox('divisiones', t18, H, D, col2X, halfH, 0);
 
-    // Cajones 3x3: calc posiciones interiores
-    const innerWidthTotal = W - 2 * t18 - 2 * t18; // deja espacio para laterales/divisores
-    const columnInner = innerWidthTotal / 3; // ancho interior por columna
-    const frontW = Number(columnInner.toFixed(2)); // ancho de frente aproximado
+    const innerWidthTotal = W - 2 * t18 - 2 * t18;
+    const columnInner = innerWidthTotal / 3;
+    const frontW = Number(columnInner.toFixed(2));
     const frontH = 20.0;
-
-    // Depth caja: dejamos espacio para grosor de frente + juego (usamos 38)
     const cajaDepth = 38.0;
+    const innerHeightTotal = H - t18 * 2;
+    const levelHeight = innerHeightTotal / 3;
+    const topInnerY = H - t18 - levelHeight/2;
+    const leftInnerX = -(W/2) + t18 + columnInner/2;
 
-    // niveles verticales: altura interna total = H - top - bottom - 2 horizontals
-    const horizontals = 2; // filas separaciones
-    const innerHeightTotal = H - t18 * 2; // espacio entre top e inferior
-    const levelHeight = innerHeightTotal / 3; // espacio por fila
-
-    // punto de referencia (centro en X=0, Y=halfH)
-    // calculamos el primer nivel (fila superior) center y luego iteramos
-    const topInnerY = H - t18 - levelHeight/2; // centro del primer nivel
-
-    // punto X inicial para primera columna center
-    const leftInnerX = - (W/2) + t18 + columnInner/2;
-
-    // crear cajas y frentes
     for (let fila = 0; fila < 3; fila++) {
       for (let col = 0; col < 3; col++) {
         const cx = leftInnerX + col * columnInner;
         const cy = topInnerY - fila * levelHeight;
-        // caja (cuerpo interno) - representada en 12 mm
         addBox('cajon', frontW - 2.0, frontH - 1.5, cajaDepth, cx, cy, 0);
-        // frente (delgado, ligeramente por delante)
         addBox('frente', frontW, frontH, t15, cx, cy, (D/2 - t15/2));
-        // base de cajon (fondo) en 5mm, centrada dentro de la caja
         addBox('baseCajon', frontW - 2.0, t5, cajaDepth - 2.0, cx, cy - (frontH/2 - t5/2), 0);
       }
     }
 
-    // Ajuste inicial de cámara y control
     camera.lookAt(0, halfH, 0);
     controls.target.set(0, halfH, 0);
     controls.update();
 
-    // Resizing inteligente
     function onWindowResize() {
       const width = Math.max(300, window.innerWidth - sidebar.offsetWidth);
       const height = window.innerHeight;
@@ -163,13 +135,10 @@
     window.addEventListener('resize', onWindowResize, false);
     onWindowResize();
 
-    // Interacción de la tabla: iluminar piezas (sin popup)
     document.querySelectorAll('#piezaTable tbody tr').forEach(row => {
       row.addEventListener('click', () => {
-        // limpiar highlights
         document.querySelectorAll('#piezaTable tbody tr').forEach(r => r.classList.remove('highlight'));
         row.classList.add('highlight');
-        // reset materiales
         for (let key in piezas) {
           piezas[key].forEach(m => { m.material = normalMat.clone(); });
         }
@@ -180,28 +149,12 @@
       });
     });
 
-    // Render loop
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     }
     animate();
-
-    // Fallback message if modules blocked (useful when opened via file:// and browser blocks modules)
-    // We add a small notice overlay if WebGL or module imports fail silently (best-effort)
-    if (!renderer.context) {
-      const msg = document.createElement('div');
-      msg.style.position = 'absolute';
-      msg.style.left = '10px';
-      msg.style.top = '10px';
-      msg.style.padding = '8px';
-      msg.style.background = '#ffe0e0';
-      msg.style.color = '#900';
-      msg.textContent = 'Si ves este mensaje: abre el archivo desde un servidor local o usa Acode/Code editor que soporte módulos.';
-      viewer.appendChild(msg);
-    }
-
   </script>
 
 </body>
