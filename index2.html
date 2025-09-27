@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cajonera 3D Lineal</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 10px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1, h2 {
+      text-align: center;
+      font-size: 1.2em;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      width: 90%;
+      max-width: 500px;
+      margin: 10px 0;
+    }
+    li {
+      margin: 6px 0;
+      cursor: pointer;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      font-size: 1em;
+      text-align: center;
+    }
+    li:hover {
+      background: #e0e0e0;
+    }
+    canvas {
+      border: 1px solid #000;
+      margin: 15px 0;
+      width: 95%;
+      max-width: 600px;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Plano y Vista 3D de Cajonera</h1>
+
+  <h2>Listado de Piezas</h2>
+  <ul id="piecesList"></ul>
+
+  <h2>Visualización 3D (líneas)</h2>
+  <canvas id="view3D" width="600" height="400"></canvas>
+
+  <script>
+    const pieces = [
+      { id: 'laterales', name: 'Lateral', w: 89.5, h: 45, qty: 2 },
+      { id: 'frentes', name: 'Frente Cajón', w: 36, h: 20, qty: 9 },
+      { id: 'costados', name: 'Costado Cajón', w: 45, h: 20, qty: 18 },
+      { id: 'traseros', name: 'Trasero Cajón', w: 36, h: 20, qty: 9 },
+      { id: 'bases', name: 'Base Cajón', w: 36, h: 45, qty: 9 },
+      { id: 'tapa', name: 'Tapa Superior', w: 120, h: 45, qty: 1 },
+      { id: 'divisiones', name: 'División Interna', w: 120, h: 20, qty: 2 }
+    ];
+
+    const list = document.getElementById('piecesList');
+    pieces.forEach((p) => {
+      const li = document.createElement('li');
+      li.textContent = `${p.qty} x ${p.name} (${p.w}cm x ${p.h}cm)`;
+      li.onclick = () => highlightPiece(p.id, p);
+      list.appendChild(li);
+    });
+
+    const canvas = document.getElementById('view3D');
+    const ctx = canvas.getContext('2d');
+
+    function drawCajonera(highlightId = null){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      function drawBox(x, y, w, h, d, id){
+        ctx.strokeStyle = (highlightId === id) ? 'red' : 'black';
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.moveTo(x+w, y);
+        ctx.lineTo(x+w+d, y-d);
+        ctx.lineTo(x+d, y-d);
+        ctx.lineTo(x, y);
+        ctx.moveTo(x+w, y+h);
+        ctx.lineTo(x+w+d, y+h-d);
+        ctx.lineTo(x+d, y+h-d);
+        ctx.lineTo(x, y+h);
+        ctx.moveTo(x+d, y-d);
+        ctx.lineTo(x+d, y+h-d);
+        ctx.moveTo(x+w+d, y-d);
+        ctx.lineTo(x+w+d, y+h-d);
+        ctx.stroke();
+      }
+
+      drawBox(50, 30, 250, 200, 30, 'laterales');
+
+      drawBox(50, 103, 250, 1, 30, 'divisiones');
+      drawBox(50, 176, 250, 1, 30, 'divisiones');
+
+      let fh = 60, fw = 70;
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          let px = 60 + c*(fw+5);
+          let py = 40 + r*(fh+5);
+          ctx.strokeStyle = (highlightId==='frentes')? 'red':'black';
+          ctx.strokeRect(px, py, fw, fh);
+        }
+      }
+    }
+
+    function highlightPiece(id, piece){
+      drawCajonera(id);
+      alert(`${piece.name}: ${piece.w}cm x ${piece.h}cm (Cantidad: ${piece.qty})`);
+    }
+
+    drawCajonera();
+  </script>
+</body>
+</html>
