@@ -2,124 +2,184 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cajonera 3D Lineal</title>
+  <title>Visitas Naturgy</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 10px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { height: 60vh; position: relative; }
+    #listPanel {
+      height: 40vh;
+      overflow-y: auto;
+      border-top: 2px solid #ccc;
     }
-    h1, h2 {
-      text-align: center;
-      font-size: 1.2em;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-      width: 90%;
-      max-width: 500px;
-      margin: 10px 0;
-    }
-    li {
-      margin: 6px 0;
+    table { width:100%; border-collapse: collapse; font-size:14px; }
+    th, td { padding:6px; border:1px solid #ddd; text-align:left; }
+    th { background:#f4f4f4; position: sticky; top: 0; }
+    tr:hover { background:#f0f8ff; cursor:pointer; }
+
+    /* Botón flotante ubicación */
+    #locateBtn, #refreshBtn {
+      position: absolute;
+      right: 10px;
+      z-index: 1000;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
       cursor: pointer;
-      padding: 10px;
-      background: #f5f5f5;
-      border-radius: 6px;
-      font-size: 1em;
-      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      color: white;
     }
-    li:hover {
-      background: #e0e0e0;
+    #locateBtn { top: 10px; background: #007bff; }
+    #refreshBtn { top: 60px; background: #17a2b8; }
+
+    /* Leyenda */
+    #legend {
+      padding: 5px;
+      font-size: 13px;
+      background: #fff;
+      border-bottom: 2px solid #ccc;
+      position: sticky;
+      top: 0;
+      z-index: 900;
     }
-    canvas {
-      border: 1px solid #000;
-      margin: 15px 0;
-      width: 95%;
-      max-width: 600px;
-      height: auto;
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 12px;
+    }
+    .legend-color {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      margin-right: 4px;
+      border: 1px solid #333;
     }
   </style>
 </head>
 <body>
-  <h1>Plano y Vista 3D de Cajonera</h1>
+  <div id="map">
+    <button id="locateBtn">📍</button>
+    <button id="refreshBtn">🔄</button>
+  </div>
+  <div id="listPanel">
+    <div id="legend"></div>
+    <table>
+      <thead>
+        <tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr>
+      </thead>
+      <tbody id="dataTableBody"></tbody>
+    </table>
+  </div>
 
-  <h2>Listado de Piezas</h2>
-  <ul id="piecesList"></ul>
+<script>
+const map = L.map('map').setView([25.6866, -100.3161], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-  <h2>Visualización 3D (líneas)</h2>
-  <canvas id="view3D" width="600" height="400"></canvas>
+// Colores pastel por calle
+const pastelColors = ['#FFB3BA', '#BAE1FF', '#BAFFC9', '#FFFFBA', '#FFDFBA', '#E3BAFF', '#B5EAD7'];
+const streetColors = {};
 
-  <script>
-    const pieces = [
-      { id: 'laterales', name: 'Lateral', w: 89.5, h: 45, qty: 2 },
-      { id: 'frentes', name: 'Frente Cajón', w: 36, h: 20, qty: 9 },
-      { id: 'costados', name: 'Costado Cajón', w: 45, h: 20, qty: 18 },
-      { id: 'traseros', name: 'Trasero Cajón', w: 36, h: 20, qty: 9 },
-      { id: 'bases', name: 'Base Cajón', w: 36, h: 45, qty: 9 },
-      { id: 'tapa', name: 'Tapa Superior', w: 120, h: 45, qty: 1 },
-      { id: 'divisiones', name: 'División Interna', w: 120, h: 20, qty: 2 }
-    ];
+function getColorForStreet(street) {
+  if (!streetColors[street]) {
+    const color = pastelColors[Object.keys(streetColors).length % pastelColors.length];
+    streetColors[street] = color;
+    // Agregar a leyenda
+    const legendItem = document.createElement("div");
+    legendItem.className = "legend-item";
+    legendItem.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
+    document.getElementById("legend").appendChild(legendItem);
+  }
+  return streetColors[street];
+}
 
-    const list = document.getElementById('piecesList');
-    pieces.forEach((p) => {
-      const li = document.createElement('li');
-      li.textContent = `${p.qty} x ${p.name} (${p.w}cm x ${p.h}cm)`;
-      li.onclick = () => highlightPiece(p.id, p);
-      list.appendChild(li);
-    });
+function escapeHtml(text) {
+  return text.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','\"':'&quot;'}[c]));
+}
 
-    const canvas = document.getElementById('view3D');
-    const ctx = canvas.getContext('2d');
+function loadData() {
+  document.getElementById("dataTableBody").innerHTML = '';
+  map.eachLayer(layer => {
+    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) map.removeLayer(layer);
+  });
 
-    function drawCajonera(highlightId = null){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+  Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
+    download: true,
+    header: true,
+    complete: function(results) {
+      results.data.forEach(row => {
+        if (!row.lat || !row.lng) return;
+        const lat = parseFloat(row.lat);
+        const lng = parseFloat(row.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
 
-      function drawBox(x, y, w, h, d, id){
-        ctx.strokeStyle = (highlightId === id) ? 'red' : 'black';
-        ctx.beginPath();
-        ctx.rect(x, y, w, h);
-        ctx.moveTo(x+w, y);
-        ctx.lineTo(x+w+d, y-d);
-        ctx.lineTo(x+d, y-d);
-        ctx.lineTo(x, y);
-        ctx.moveTo(x+w, y+h);
-        ctx.lineTo(x+w+d, y+h-d);
-        ctx.lineTo(x+d, y+h-d);
-        ctx.lineTo(x, y+h);
-        ctx.moveTo(x+d, y-d);
-        ctx.lineTo(x+d, y+h-d);
-        ctx.moveTo(x+w+d, y-d);
-        ctx.lineTo(x+w+d, y+h-d);
-        ctx.stroke();
-      }
+        const street = row["calle"] || "Sin calle";
+        const color = getColorForStreet(street);
 
-      drawBox(50, 30, 250, 200, 30, 'laterales');
+        // marcador
+        const marker = L.circleMarker([lat, lng], {
+          radius: 8,
+          fillColor: color,
+          color: "#555",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).addTo(map);
 
-      drawBox(50, 103, 250, 1, 30, 'divisiones');
-      drawBox(50, 176, 250, 1, 30, 'divisiones');
+        const popupHtml = `
+          <strong>Colonia:</strong> ${row["Colonia"] || ''}<br/>
+          <strong>Póliza:</strong> ${row["Póliza"] || ''}<br/>
+          <strong>Dirección:</strong> ${row["calle"]||''} ${row["Número finca"]||''}<br/>
+          <strong>Contratante:</strong> ${row["Nombre Contratante"]||''}<br/>
+          <strong>Inspector:</strong> ${row["Inspector"]||''}<br/>
+          <button onclick="openRoute(${lat},${lng})" style="margin-top:6px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:#28a745;color:#fff;cursor:pointer">
+            🚗 Ver Ruta
+          </button>`;
+        marker.bindPopup(popupHtml);
 
-      let fh = 60, fw = 70;
-      for(let r=0;r<3;r++){
-        for(let c=0;c<3;c++){
-          let px = 60 + c*(fw+5);
-          let py = 40 + r*(fh+5);
-          ctx.strokeStyle = (highlightId==='frentes')? 'red':'black';
-          ctx.strokeRect(px, py, fw, fh);
-        }
-      }
+        // fila de tabla
+        const tr = document.createElement('tr');
+        tr.style.backgroundColor = color;
+        tr.innerHTML = `<td>${escapeHtml(row["Póliza"]||'')}</td>
+                        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
+                        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
+        tr.addEventListener('click', () => {
+          marker.openPopup();
+          map.setView([lat,lng], 17);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        document.getElementById("dataTableBody").appendChild(tr);
+      });
     }
+  });
+}
 
-    function highlightPiece(id, piece){
-      drawCajonera(id);
-      alert(`${piece.name}: ${piece.w}cm x ${piece.h}cm (Cantidad: ${piece.qty})`);
-    }
+// Función para abrir ruta
+function openRoute(lat, lng) {
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  window.open(gmaps, "_blank");
+}
 
-    drawCajonera();
-  </script>
+// Botón de ubicación
+document.getElementById("locateBtn").addEventListener("click", () => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      map.setView([lat, lng], 15);
+      L.marker([lat, lng]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
+    }, () => { alert("No se pudo obtener la ubicación."); });
+  } else { alert("Geolocalización no soportada en este dispositivo."); }
+});
+
+// Botón de refrescar
+document.getElementById("refreshBtn").addEventListener("click", loadData);
+
+// Cargar datos al inicio
+loadData();
+</script>
 </body>
 </html>
