@@ -1,125 +1,115 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cajonera 3D Lineal</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 10px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    h1, h2 {
-      text-align: center;
-      font-size: 1.2em;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-      width: 90%;
-      max-width: 500px;
-      margin: 10px 0;
-    }
-    li {
-      margin: 6px 0;
-      cursor: pointer;
-      padding: 10px;
-      background: #f5f5f5;
-      border-radius: 6px;
-      font-size: 1em;
-      text-align: center;
-    }
-    li:hover {
-      background: #e0e0e0;
-    }
-    canvas {
-      border: 1px solid #000;
-      margin: 15px 0;
-      width: 95%;
-      max-width: 600px;
-      height: auto;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Materiales Cajonera Interactiva</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+  th, td { border: 1px solid #999; padding: 8px; text-align: left; }
+  th { background-color: #f2f2f2; }
+  caption { font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+  .section { font-weight: bold; background-color: #e0e0e0; }
+</style>
 </head>
 <body>
-  <h1>Plano y Vista 3D de Cajonera</h1>
 
-  <h2>Listado de Piezas</h2>
-  <ul id="piecesList"></ul>
+<h1>Materiales Cajonera Caoba - Interactivo</h1>
 
-  <h2>Visualización 3D (líneas)</h2>
-  <canvas id="view3D" width="600" height="400"></canvas>
+<table>
+  <caption>Lista de Materiales</caption>
+  <thead>
+    <tr>
+      <th>Comprar</th>
+      <th>Sección</th>
+      <th>Material</th>
+      <th>Cantidad</th>
+      <th>Marca / Línea</th>
+      <th>Precio (MXN)</th>
+      <th>Uso / Comentario</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Color / Acabado -->
+    <tr class="section"><td></td><td colspan="6">Color / Acabado</td></tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="340"></td>
+      <td></td><td>Tinta Caoba #18</td><td>2 L</td><td>Sayer</td><td>340</td><td>Base de color para la cajonera y betas.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="340"></td>
+      <td></td><td>Fondo PU 103</td><td>2 L</td><td>DICA</td><td>340</td><td>Sellador para MDF; mezcla 2:1 con catalizador.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="180"></td>
+      <td></td><td>Catalizador PU</td><td>1 L</td><td>DICA 103</td><td>180</td><td>Para mezclar con fondo y barniz.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="340"></td>
+      <td></td><td>Barniz PU semimate</td><td>2 L</td><td>DICA 103</td><td>340</td><td>Para acabado final; 2–3 manos delgadas.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="120"></td>
+      <td></td><td>Diluyente PU</td><td>1 L</td><td>DICA</td><td>120</td><td>Para diluir y limpiar pistola.</td>
+    </tr>
 
-  <script>
-    const pieces = [
-      { id: 'laterales', name: 'Lateral', w: 89.5, h: 45, qty: 2 },
-      { id: 'frentes', name: 'Frente Cajón', w: 36, h: 20, qty: 9 },
-      { id: 'costados', name: 'Costado Cajón', w: 45, h: 20, qty: 18 },
-      { id: 'traseros', name: 'Trasero Cajón', w: 36, h: 20, qty: 9 },
-      { id: 'bases', name: 'Base Cajón', w: 36, h: 45, qty: 9 },
-      { id: 'tapa', name: 'Tapa Superior', w: 120, h: 45, qty: 1 },
-      { id: 'divisiones', name: 'División Interna', w: 120, h: 20, qty: 2 }
-    ];
+    <!-- Beta / Decoración de vetas -->
+    <tr class="section"><td></td><td colspan="6">Beta / Decoración de vetas</td></tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="60"></td>
+      <td></td><td>Brochas planas pequeñas</td><td>2–3 piezas</td><td>Genérico</td><td>60 c/u</td><td>Para marcar betas y retoques.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="50"></td>
+      <td></td><td>Trapos / estopa</td><td>5–6 piezas</td><td>Genérico</td><td>50</td><td>Para limpieza de polvo y retoques suaves.</td>
+    </tr>
 
-    const list = document.getElementById('piecesList');
-    pieces.forEach((p) => {
-      const li = document.createElement('li');
-      li.textContent = `${p.qty} x ${p.name} (${p.w}cm x ${p.h}cm)`;
-      li.onclick = () => highlightPiece(p.id, p);
-      list.appendChild(li);
-    });
+    <!-- Preparación de superficie -->
+    <tr class="section"><td></td><td colspan="6">Preparación de superficie</td></tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="50"></td>
+      <td></td><td>Lijas papel grano 220</td><td>1 paquete</td><td>Genérico</td><td>50</td><td>Suavizar antes del fondo y entre manos.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="50"></td>
+      <td></td><td>Lijas papel grano 320</td><td>1 paquete</td><td>Genérico</td><td>50</td><td>Entre manos de barniz para emparejar.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="50"></td>
+      <td></td><td>Lijas esponja media/fina</td><td>2–3 piezas</td><td>Genérico</td><td>50 c/u</td><td>Para cantos y bordes de cajones.</td>
+    </tr>
 
-    const canvas = document.getElementById('view3D');
-    const ctx = canvas.getContext('2d');
+    <!-- Básicos / Medición / Aplicación -->
+    <tr class="section"><td></td><td colspan="6">Básicos / Medición / Aplicación</td></tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="60"></td>
+      <td></td><td>Recipientes medidores 500 ml–1 L</td><td>2 piezas</td><td>Genérico</td><td>60</td><td>Para mezclar tinta, fondo y barniz con catalizador.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="precio" data-precio="50"></td>
+      <td></td><td>Cinta de carrocero</td><td>1 rollo</td><td>Genérico</td><td>50</td><td>Proteger bordes o áreas que no se pintan.</td>
+    </tr>
+  </tbody>
+</table>
 
-    function drawCajonera(highlightId = null){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+<h2>Total aproximado de materiales seleccionados: $<span id="total">0</span> MXN</h2>
 
-      function drawBox(x, y, w, h, d, id){
-        ctx.strokeStyle = (highlightId === id) ? 'red' : 'black';
-        ctx.beginPath();
-        ctx.rect(x, y, w, h);
-        ctx.moveTo(x+w, y);
-        ctx.lineTo(x+w+d, y-d);
-        ctx.lineTo(x+d, y-d);
-        ctx.lineTo(x, y);
-        ctx.moveTo(x+w, y+h);
-        ctx.lineTo(x+w+d, y+h-d);
-        ctx.lineTo(x+d, y+h-d);
-        ctx.lineTo(x, y+h);
-        ctx.moveTo(x+d, y-d);
-        ctx.lineTo(x+d, y+h-d);
-        ctx.moveTo(x+w+d, y-d);
-        ctx.lineTo(x+w+d, y+h-d);
-        ctx.stroke();
-      }
+<script>
+  const checkboxes = document.querySelectorAll('.precio');
+  const totalSpan = document.getElementById('total');
 
-      drawBox(50, 30, 250, 200, 30, 'laterales');
-
-      drawBox(50, 103, 250, 1, 30, 'divisiones');
-      drawBox(50, 176, 250, 1, 30, 'divisiones');
-
-      let fh = 60, fw = 70;
-      for(let r=0;r<3;r++){
-        for(let c=0;c<3;c++){
-          let px = 60 + c*(fw+5);
-          let py = 40 + r*(fh+5);
-          ctx.strokeStyle = (highlightId==='frentes')? 'red':'black';
-          ctx.strokeRect(px, py, fw, fh);
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      let total = 0;
+      checkboxes.forEach(box => {
+        if (box.checked) {
+          total += parseFloat(box.dataset.precio);
         }
-      }
-    }
+      });
+      totalSpan.textContent = total;
+    });
+  });
+</script>
 
-    function highlightPiece(id, piece){
-      drawCajonera(id);
-      alert(`${piece.name}: ${piece.w}cm x ${piece.h}cm (Cantidad: ${piece.qty})`);
-    }
-
-    drawCajonera();
-  </script>
 </body>
 </html>
