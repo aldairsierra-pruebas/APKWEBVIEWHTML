@@ -2,104 +2,222 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Materiales Cajonera Caoba</title>
+<title>Materiales Cajonera Interactivo</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; }
-  table { border-collapse: collapse; width: 100%; }
+  h1, h2 { text-align: center; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
   th, td { border: 1px solid #999; padding: 8px; text-align: left; }
   th { background-color: #f2f2f2; }
-  caption { font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+  .section { font-weight: bold; background-color: #e0e0e0; }
+  input[type="number"] { width: 60px; }
 </style>
 </head>
 <body>
 
-<table>
-  <caption>Lista de Materiales Cajonera Caoba</caption>
+<h1>Materiales Cajonera Caoba</h1>
+
+<h2>Pendientes</h2>
+<table id="pendientes">
   <thead>
     <tr>
+      <th>Comprado</th>
       <th>Sección</th>
       <th>Material</th>
-      <th>Cantidad sugerida</th>
+      <th>Cantidad</th>
       <th>Marca / Línea</th>
-      <th>Precio aproximado (MXN)</th>
+      <th>Precio (MXN)</th>
       <th>Uso / Comentario</th>
     </tr>
   </thead>
   <tbody>
     <!-- Color / Acabado -->
     <tr>
-      <td rowspan="5">Color / Acabado</td>
+      <td><input type="checkbox" class="move"></td>
+      <td>Color / Acabado</td>
       <td>Tinta Caoba #18</td>
       <td>2 L</td>
       <td>Sayer</td>
-      <td>$340</td>
+      <td contenteditable="true" class="precio">340</td>
       <td>Base de color para la cajonera y betas.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Color / Acabado</td>
       <td>Fondo PU 103</td>
       <td>2 L</td>
       <td>DICA</td>
-      <td>$340</td>
+      <td contenteditable="true" class="precio">340</td>
       <td>Sellador para MDF; mezcla 2:1 con catalizador.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Color / Acabado</td>
       <td>Catalizador PU</td>
       <td>1 L</td>
       <td>DICA 103</td>
-      <td>$180</td>
+      <td contenteditable="true" class="precio">180</td>
       <td>Para mezclar con fondo y barniz.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Color / Acabado</td>
       <td>Barniz PU semimate</td>
       <td>2 L</td>
       <td>DICA 103</td>
-      <td>$340</td>
+      <td contenteditable="true" class="precio">340</td>
       <td>Para acabado final; 2–3 manos delgadas.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Color / Acabado</td>
       <td>Diluyente PU</td>
       <td>1 L</td>
       <td>DICA</td>
-      <td>$120</td>
+      <td contenteditable="true" class="precio">120</td>
       <td>Para diluir y limpiar pistola.</td>
     </tr>
 
     <!-- Beta / Decoración de vetas -->
     <tr>
-      <td rowspan="3">Beta / Decoración de vetas</td>
+      <td><input type="checkbox" class="move"></td>
+      <td>Beta / Decoración</td>
       <td>Brochas planas pequeñas</td>
       <td>2–3 piezas</td>
       <td>Genérico</td>
-      <td>$60 c/u</td>
+      <td contenteditable="true" class="precio">60</td>
       <td>Para marcar betas y retoques.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Beta / Decoración</td>
       <td>Trapos / estopa</td>
       <td>5–6 piezas</td>
       <td>Genérico</td>
-      <td>$50</td>
+      <td contenteditable="true" class="precio">50</td>
       <td>Para limpieza de polvo y retoques suaves.</td>
     </tr>
 
     <!-- Preparación de superficie -->
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Preparación</td>
       <td>Lijas papel grano 220</td>
       <td>1 paquete</td>
       <td>Genérico</td>
-      <td>$50</td>
+      <td contenteditable="true" class="precio">50</td>
       <td>Suavizar antes del fondo y entre manos.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Preparación</td>
       <td>Lijas papel grano 320</td>
       <td>1 paquete</td>
       <td>Genérico</td>
-      <td>$50</td>
+      <td contenteditable="true" class="precio">50</td>
       <td>Entre manos de barniz para emparejar.</td>
     </tr>
     <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Preparación</td>
       <td>Lijas esponja media/fina</td>
       <td>2–3 piezas</td>
       <td>Genérico</td>
-      <td>$50 c/u</td>
+      <td contenteditable="true" class="precio">50</td>
       <td>Para cantos y bordes de cajones.</td>
     </tr>
+
+    <!-- Básicos / Medición / Aplicación -->
+    <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Básicos / Medición</td>
+      <td>Recipientes medidores 500 ml–1 L</td>
+      <td>2 piezas</td>
+      <td>Genérico</td>
+      <td contenteditable="true" class="precio">60</td>
+      <td>Para mezclar tinta, fondo y barniz con catalizador.</td>
+    </tr>
+    <tr>
+      <td><input type="checkbox" class="move"></td>
+      <td>Básicos / Medición</td>
+      <td>Cinta de carrocero</td>
+      <td>1 rollo</td>
+      <td>Genérico</td>
+      <td contenteditable="true" class="precio">50</td>
+      <td>Proteger bordes o áreas que no se pintan.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Comprados</h2>
+<table id="comprados">
+  <thead>
+    <tr>
+      <th>Comprado</th>
+      <th>Sección</th>
+      <th>Material</th>
+      <th>Cantidad</th>
+      <th>Marca / Línea</th>
+      <th>Precio (MXN)</th>
+      <th>Uso / Comentario</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Aquí se moverán los materiales -->
+  </tbody>
+</table>
+
+<h2>Total Pendientes: $<span id="totalPend">0</span> MXN</h2>
+<h2>Total Comprados: $<span id="totalComp">0</span> MXN</h2>
+
+<script>
+  const pendientes = document.getElementById('pendientes').querySelector('tbody');
+  const comprados = document.getElementById('comprados').querySelector('tbody');
+  const totalPend = document.getElementById('totalPend');
+  const totalComp = document.getElementById('totalComp');
+
+  function calcularTotal() {
+    let totalP = 0, totalC = 0;
+    pendientes.querySelectorAll('.precio').forEach(cell => totalP += parseFloat(cell.textContent)||0);
+    comprados.querySelectorAll('.precio').forEach(cell => totalC += parseFloat(cell.textContent)||0);
+    totalPend.textContent = totalP;
+    totalComp.textContent = totalC;
+    localStorage.setItem('pendientesHTML', pendientes.innerHTML);
+    localStorage.setItem('compradosHTML', comprados.innerHTML);
+  }
+
+  function setupMoveCheckboxes(table) {
+    table.querySelectorAll('.move').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const row = cb.closest('tr');
+        if(cb.checked) {
+          comprados.appendChild(row);
+        } else {
+          pendientes.appendChild(row);
+        }
+        calcularTotal();
+        setupMoveCheckboxes(pendientes);
+        setupMoveCheckboxes(comprados);
+      });
+    });
+  }
+
+  function setupEditable() {
+    document.querySelectorAll('.precio').forEach(cell => {
+      cell.addEventListener('input', calcularTotal);
+    });
+  }
+
+  // Inicializar
+  setupMoveCheckboxes(pendientes);
+  setupMoveCheckboxes(comprados);
+  setupEditable();
+
+  // Cargar desde localStorage
+  if(localStorage.getItem('pendientesHTML')) pendientes.innerHTML = localStorage.getItem('pendientesHTML');
+  if(localStorage.getItem('compradosHTML')) comprados.innerHTML = localStorage.getItem('compradosHTML');
+  calcularTotal();
+</script>
+
+</body>
+</html>
