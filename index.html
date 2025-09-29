@@ -1,185 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Visitas Naturgy</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
-  <style>
-    body { margin:0; font-family: Arial, sans-serif; }
-    #map { height: 60vh; position: relative; }
-    #listPanel {
-      height: 40vh;
-      overflow-y: auto;
-      border-top: 2px solid #ccc;
-    }
-    table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { padding:6px; border:1px solid #ddd; text-align:left; }
-    th { background:#f4f4f4; position: sticky; top: 0; }
-    tr:hover { background:#f0f8ff; cursor:pointer; }
-
-    /* Botón flotante ubicación */
-    #locateBtn, #refreshBtn {
-      position: absolute;
-      right: 10px;
-      z-index: 1000;
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      color: white;
-    }
-    #locateBtn { top: 10px; background: #007bff; }
-    #refreshBtn { top: 60px; background: #17a2b8; }
-
-    /* Leyenda */
-    #legend {
-      padding: 5px;
-      font-size: 13px;
-      background: #fff;
-      border-bottom: 2px solid #ccc;
-      position: sticky;
-      top: 0;
-      z-index: 900;
-    }
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      margin-right: 12px;
-    }
-    .legend-color {
-      width: 14px;
-      height: 14px;
-      display: inline-block;
-      margin-right: 4px;
-      border: 1px solid #333;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Materiales Cajonera Caoba</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #999; padding: 8px; text-align: left; }
+  th { background-color: #f2f2f2; }
+  caption { font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+</style>
 </head>
 <body>
-  <div id="map">
-    <button id="locateBtn">📍</button>
-    <button id="refreshBtn">🔄</button>
-  </div>
-  <div id="listPanel">
-    <div id="legend"></div>
-    <table>
-      <thead>
-        <tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr>
-      </thead>
-      <tbody id="dataTableBody"></tbody>
-    </table>
-  </div>
 
-<script>
-const map = L.map('map').setView([25.6866, -100.3161], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+<table>
+  <caption>Lista de Materiales Cajonera Caoba</caption>
+  <thead>
+    <tr>
+      <th>Sección</th>
+      <th>Material</th>
+      <th>Cantidad sugerida</th>
+      <th>Marca / Línea</th>
+      <th>Precio aproximado (MXN)</th>
+      <th>Uso / Comentario</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Color / Acabado -->
+    <tr>
+      <td rowspan="5">Color / Acabado</td>
+      <td>Tinta Caoba #18</td>
+      <td>2 L</td>
+      <td>Sayer</td>
+      <td>$340</td>
+      <td>Base de color para la cajonera y betas.</td>
+    </tr>
+    <tr>
+      <td>Fondo PU 103</td>
+      <td>2 L</td>
+      <td>DICA</td>
+      <td>$340</td>
+      <td>Sellador para MDF; mezcla 2:1 con catalizador.</td>
+    </tr>
+    <tr>
+      <td>Catalizador PU</td>
+      <td>1 L</td>
+      <td>DICA 103</td>
+      <td>$180</td>
+      <td>Para mezclar con fondo y barniz.</td>
+    </tr>
+    <tr>
+      <td>Barniz PU semimate</td>
+      <td>2 L</td>
+      <td>DICA 103</td>
+      <td>$340</td>
+      <td>Para acabado final; 2–3 manos delgadas.</td>
+    </tr>
+    <tr>
+      <td>Diluyente PU</td>
+      <td>1 L</td>
+      <td>DICA</td>
+      <td>$120</td>
+      <td>Para diluir y limpiar pistola.</td>
+    </tr>
 
-// Colores pastel por calle
-const pastelColors = ['#FFB3BA', '#BAE1FF', '#BAFFC9', '#FFFFBA', '#FFDFBA', '#E3BAFF', '#B5EAD7'];
-const streetColors = {};
+    <!-- Beta / Decoración de vetas -->
+    <tr>
+      <td rowspan="3">Beta / Decoración de vetas</td>
+      <td>Brochas planas pequeñas</td>
+      <td>2–3 piezas</td>
+      <td>Genérico</td>
+      <td>$60 c/u</td>
+      <td>Para marcar betas y retoques.</td>
+    </tr>
+    <tr>
+      <td>Trapos / estopa</td>
+      <td>5–6 piezas</td>
+      <td>Genérico</td>
+      <td>$50</td>
+      <td>Para limpieza de polvo y retoques suaves.</td>
+    </tr>
 
-function getColorForStreet(street) {
-  if (!streetColors[street]) {
-    const color = pastelColors[Object.keys(streetColors).length % pastelColors.length];
-    streetColors[street] = color;
-    // Agregar a leyenda
-    const legendItem = document.createElement("div");
-    legendItem.className = "legend-item";
-    legendItem.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
-    document.getElementById("legend").appendChild(legendItem);
-  }
-  return streetColors[street];
-}
-
-function escapeHtml(text) {
-  return text.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','\"':'&quot;'}[c]));
-}
-
-function loadData() {
-  document.getElementById("dataTableBody").innerHTML = '';
-  map.eachLayer(layer => {
-    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) map.removeLayer(layer);
-  });
-
-  Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
-    download: true,
-    header: true,
-    complete: function(results) {
-      results.data.forEach(row => {
-        if (!row.lat || !row.lng) return;
-        const lat = parseFloat(row.lat);
-        const lng = parseFloat(row.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        const street = row["calle"] || "Sin calle";
-        const color = getColorForStreet(street);
-
-        // marcador
-        const marker = L.circleMarker([lat, lng], {
-          radius: 8,
-          fillColor: color,
-          color: "#555",
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(map);
-
-        const popupHtml = `
-          <strong>Colonia:</strong> ${row["Colonia"] || ''}<br/>
-          <strong>Póliza:</strong> ${row["Póliza"] || ''}<br/>
-          <strong>Dirección:</strong> ${row["calle"]||''} ${row["Número finca"]||''}<br/>
-          <strong>Contratante:</strong> ${row["Nombre Contratante"]||''}<br/>
-          <strong>Inspector:</strong> ${row["Inspector"]||''}<br/>
-          <button onclick="openRoute(${lat},${lng})" style="margin-top:6px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:#28a745;color:#fff;cursor:pointer">
-            🚗 Ver Ruta
-          </button>`;
-        marker.bindPopup(popupHtml);
-
-        // fila de tabla
-        const tr = document.createElement('tr');
-        tr.style.backgroundColor = color;
-        tr.innerHTML = `<td>${escapeHtml(row["Póliza"]||'')}</td>
-                        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-                        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-        tr.addEventListener('click', () => {
-          marker.openPopup();
-          map.setView([lat,lng], 17);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-        document.getElementById("dataTableBody").appendChild(tr);
-      });
-    }
-  });
-}
-
-// Función para abrir ruta
-function openRoute(lat, lng) {
-  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  window.open(gmaps, "_blank");
-}
-
-// Botón de ubicación
-document.getElementById("locateBtn").addEventListener("click", () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      map.setView([lat, lng], 15);
-      L.marker([lat, lng]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
-    }, () => { alert("No se pudo obtener la ubicación."); });
-  } else { alert("Geolocalización no soportada en este dispositivo."); }
-});
-
-// Botón de refrescar
-document.getElementById("refreshBtn").addEventListener("click", loadData);
-
-// Cargar datos al inicio
-loadData();
-</script>
-</body>
-</html>
+    <!-- Preparación de superficie -->
+    <tr>
+      <td>Lijas papel grano 220</td>
+      <td>1 paquete</td>
+      <td>Genérico</td>
+      <td>$50</td>
+      <td>Suavizar antes del fondo y entre manos.</td>
+    </tr>
+    <tr>
+      <td>Lijas papel grano 320</td>
+      <td>1 paquete</td>
+      <td>Genérico</td>
+      <td>$50</td>
+      <td>Entre manos de barniz para emparejar.</td>
+    </tr>
+    <tr>
+      <td>Lijas esponja media/fina</td>
+      <td>2–3 piezas</td>
+      <td>Genérico</td>
+      <td>$50 c/u</td>
+      <td>Para cantos y bordes de cajones.</td>
+    </tr>
