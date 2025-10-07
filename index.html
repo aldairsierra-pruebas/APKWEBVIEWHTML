@@ -13,14 +13,19 @@
       height: 40vh;
       overflow-y: auto;
       border-top: 2px solid #ccc;
+      background: white;
+      transition: transform 0.3s ease-in-out;
+    }
+    #listPanel.hidden {
+      transform: translateY(100%);
     }
     table { width:100%; border-collapse: collapse; font-size:14px; }
     th, td { padding:6px; border:1px solid #ddd; text-align:left; }
-    th { background:#f4f4f4; position: sticky; top: 0; }
+    th { background:#f4f4f4; position: sticky; top: 0; cursor:pointer; }
     tr:hover { background:#f0f8ff; cursor:pointer; }
 
-    /* Botón flotante ubicación */
-    #locateBtn, #refreshBtn {
+    /* Botones flotantes */
+    #locateBtn, #refreshBtn, #toggleListBtn {
       position: absolute;
       right: 10px;
       z-index: 1000;
@@ -35,6 +40,7 @@
     }
     #locateBtn { top: 10px; background: #007bff; }
     #refreshBtn { top: 60px; background: #17a2b8; }
+    #toggleListBtn { top: 110px; background: #28a745; }
 
     /* Leyenda */
     #legend {
@@ -64,6 +70,7 @@
   <div id="map">
     <button id="locateBtn">📍</button>
     <button id="refreshBtn">🔄</button>
+    <button id="toggleListBtn">📋</button>
   </div>
   <div id="listPanel">
     <div id="legend"></div>
@@ -82,12 +89,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 
 // Colores pastel por calle
 const pastelColors = ['#FFB3BA', '#BAE1FF', '#BAFFC9', '#FFFFBA', '#FFDFBA', '#E3BAFF', '#B5EAD7'];
 const streetColors = {};
+let markers = [];
 
 function getColorForStreet(street) {
   if (!streetColors[street]) {
     const color = pastelColors[Object.keys(streetColors).length % pastelColors.length];
     streetColors[street] = color;
-    // Agregar a leyenda
     const legendItem = document.createElement("div");
     legendItem.className = "legend-item";
     legendItem.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
@@ -101,15 +108,16 @@ function escapeHtml(text) {
 }
 
 function loadData() {
-  document.getElementById("dataTableBody").innerHTML = '';
-  map.eachLayer(layer => {
-    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) map.removeLayer(layer);
-  });
+  const tbody = document.getElementById("dataTableBody");
+  tbody.innerHTML = '';
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
 
   Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
     download: true,
     header: true,
     complete: function(results) {
+      let index = 0;
       results.data.forEach(row => {
         if (!row.lat || !row.lng) return;
         const lat = parseFloat(row.lat);
@@ -118,16 +126,12 @@ function loadData() {
 
         const street = row["calle"] || "Sin calle";
         const color = getColorForStreet(street);
+        const colorHex = color.replace('#', '');
+        index++;
 
-        // marcador
-        const marker = L.circleMarker([lat, lng], {
-          radius: 8,
-          fillColor: color,
-          color: "#555",
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(map);
+        const iconUrl = `https://chart.googleapis.com/chart?chst=d_map_pin_letter&chld=${index}|${colorHex}|000000`;
+        const icon = L.icon({ iconUrl, iconSize: [30, 50], iconAnchor: [15, 50] });
+        const marker = L.marker([lat, lng], { icon }).addTo(map);
 
         const popupHtml = `
           <strong>Colonia:</strong> ${row["Colonia"] || ''}<br/>
@@ -139,31 +143,34 @@ function loadData() {
             🚗 Ver Ruta
           </button>`;
         marker.bindPopup(popupHtml);
+        markers.push(marker);
 
-        // fila de tabla
         const tr = document.createElement('tr');
         tr.style.backgroundColor = color;
-        tr.innerHTML = `<td>${escapeHtml(row["Póliza"]||'')}</td>
-                        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-                        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
+        tr.dataset.lat = lat;
+        tr.dataset.lng = lng;
+        tr.dataset.calle = street;
+        tr.innerHTML = `
+          <td>${escapeHtml(row["Póliza"]||'')}</td>
+          <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
+          <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
         tr.addEventListener('click', () => {
           marker.openPopup();
           map.setView([lat,lng], 17);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
-        document.getElementById("dataTableBody").appendChild(tr);
+        tbody.appendChild(tr);
       });
     }
   });
 }
 
-// Función para abrir ruta
 function openRoute(lat, lng) {
   const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
   window.open(gmaps, "_blank");
 }
 
-// Botón de ubicación
+// Botones flotantes
 document.getElementById("locateBtn").addEventListener("click", () => {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
@@ -171,15 +178,69 @@ document.getElementById("locateBtn").addEventListener("click", () => {
       const lng = pos.coords.longitude;
       map.setView([lat, lng], 15);
       L.marker([lat, lng]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
-    }, () => { alert("No se pudo obtener la ubicación."); });
-  } else { alert("Geolocalización no soportada en este dispositivo."); }
+    }, () => alert("No se pudo obtener la ubicación."));
+  } else alert("Geolocalización no soportada en este dispositivo.");
 });
 
-// Botón de refrescar
 document.getElementById("refreshBtn").addEventListener("click", loadData);
 
-// Cargar datos al inicio
+document.getElementById("toggleListBtn").addEventListener("click", () => {
+  document.getElementById("listPanel").classList.toggle("hidden");
+});
+
 loadData();
+
+/* === ORDENAMIENTO DE TABLA === */
+document.querySelectorAll("th").forEach((header, index) => {
+  header.addEventListener("click", () => sortTableByColumn(index));
+});
+
+let currentSort = { column: null, asc: true };
+
+function sortTableByColumn(columnIndex) {
+  const table = document.querySelector("table");
+  const tbody = table.querySelector("tbody");
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+
+  const asc = currentSort.column === columnIndex ? !currentSort.asc : true;
+  currentSort = { column: columnIndex, asc };
+
+  rows.sort((a, b) => {
+    const cellA = a.children[columnIndex].innerText.trim().toLowerCase();
+    const cellB = b.children[columnIndex].innerText.trim().toLowerCase();
+    const numA = parseFloat(cellA.replace(/[^\d.-]/g, ""));
+    const numB = parseFloat(cellB.replace(/[^\d.-]/g, ""));
+
+    if (!isNaN(numA) && !isNaN(numB)) return asc ? numA - numB : numB - numA;
+    return asc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+  });
+
+  tbody.innerHTML = "";
+  rows.forEach(r => tbody.appendChild(r));
+  document.querySelectorAll("th").forEach(th => th.textContent = th.textContent.replace(/[▲▼]/g, ""));
+  const arrow = asc ? " ▲" : " ▼";
+  table.querySelectorAll("th")[columnIndex].textContent += arrow;
+
+  updateMarkersFromTable();
+}
+
+/* === REGENERAR ÍCONOS SEGÚN ORDEN === */
+function updateMarkersFromTable() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  const rows = document.querySelectorAll("#dataTableBody tr");
+  rows.forEach((tr, i) => {
+    const lat = parseFloat(tr.dataset.lat);
+    const lng = parseFloat(tr.dataset.lng);
+    const street = tr.dataset.calle;
+    const color = streetColors[street];
+    const colorHex = color.replace('#','');
+    const iconUrl = `https://chart.googleapis.com/chart?chst=d_map_pin_letter&chld=${i+1}|${colorHex}|000000`;
+    const icon = L.icon({ iconUrl, iconSize: [30, 50], iconAnchor: [15, 50] });
+    const marker = L.marker([lat, lng], { icon }).addTo(map);
+    markers.push(marker);
+  });
+}
 </script>
 </body>
 </html>
