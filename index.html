@@ -9,7 +9,7 @@
 fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
   .then(r => r.json())
   .then(data => {
-    if (data.version !== currentVersion) {
+    if (data.version <  currentVersion) {
       const overlay = document.createElement("div");
       overlay.style = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
