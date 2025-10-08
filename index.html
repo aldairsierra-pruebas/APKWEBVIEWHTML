@@ -5,31 +5,75 @@
   <title>Visitas Naturgy</title>
 
   <script>
-    const currentVersion = "1.0"; // tu versión actual
-fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
-  .then(r => r.json())
-  .then(data => {
-    if (data.version <  currentVersion) {
-      const overlay = document.createElement("div");
-      overlay.style = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); color: white; display: flex;
-        flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; padding: 20px; z-index: 9999;
-      `;
-      overlay.innerHTML = `
-        <h2 style="margin-bottom: 15px;">${data.message}</h2>
-        <a href="${data.url}"
-           style="background: #28a745; color: #fff; text-decoration: none;
-                  padding: 12px 24px; border-radius: 8px; font-size: 18px;">
-           Descargar actualización
-        </a>
-      `;
-      document.body.appendChild(overlay);
+  /**
+   * Compara dos cadenas de versión de tipo "1.2.3".
+   * Devuelve:
+   *   -1 si version1 es menor que version2.
+   *   0 si las versiones son iguales.
+   *   1 si version1 es mayor que version2.
+   */
+  function compareVersions(version1, version2) {
+    const parts1 = version1.split('.').map(Number);
+    const parts2 = version2.split('.').map(Number);
+    const maxLength = Math.max(parts1.length, parts2.length);
+
+    for (let i = 0; i < maxLength; i++) {
+      const part1 = parts1[i] || 0; // Si no hay parte, se usa 0
+      const part2 = parts2[i] || 0; // Si no hay parte, se usa 0
+
+      if (part1 > part2) return 1;
+      if (part1 < part2) return -1;
     }
-  })
-  .catch(() => console.warn("No se pudo verificar la versión."));
+    return 0;
+  }
+
+  // Define tu versión actual
+  const currentVersion = "1.0"; 
+
+  // URL del archivo de actualización. El parámetro nocache evita problemas de caché.
+  const updateUrl = "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now();
+
+  fetch(updateUrl)
+    .then(response => {
+      // Verifica que la respuesta sea exitosa
+      if (!response.ok) {
+        throw new Error('No se pudo cargar el archivo de actualización.');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Compara la versión del archivo remoto con la versión actual usando la nueva función
+      if (compareVersions(data.version, currentVersion) > 0) {
+        const overlay = document.createElement("div");
+        overlay.id = "update-overlay"; // Añade un ID para una mejor identificación
+
+        // Usa una plantilla de cadena para los estilos, es más claro
+        overlay.style.cssText = `
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(0,0,0,0.8); color: white; display: flex;
+          flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; padding: 20px; z-index: 9999;
+          font-family: Arial, sans-serif;
+        `;
+
+        overlay.innerHTML = `
+          <h2 style="margin-bottom: 15px; font-size: 24px;">${data.message}</h2>
+          <p style="margin-bottom: 25px; font-size: 16px;">Tu versión: ${currentVersion} | Nueva versión: ${data.version}</p>
+          <a href="${data.url}"
+             style="background: #28a745; color: #fff; text-decoration: none;
+                    padding: 12px 24px; border-radius: 8px; font-size: 18px;
+                    transition: background-color 0.3s ease;">
+             Descargar actualización
+          </a>
+        `;
+        document.body.appendChild(overlay);
+      }
+    })
+    .catch(error => {
+      console.warn("No se pudo verificar la versión:", error);
+    });
 </script>
+
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
