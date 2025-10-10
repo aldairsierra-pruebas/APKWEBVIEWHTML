@@ -4,70 +4,51 @@
   <meta charset="UTF-8">
   <title>Visitas Naturgy</title>
 
+<!-- ====== COMPROBACIÓN DE VERSIÓN ====== -->
 <script>
-function compareVersions(version1, version2) {
-  const parts1 = version1.split('.').map(Number);
-  const parts2 = version2.split('.').map(Number);
-  const maxLength = Math.max(parts1.length, parts2.length);
-  for (let i = 0; i < maxLength; i++) {
-    const part1 = parts1[i] || 0;
-    const part2 = parts2[i] || 0;
-    if (part1 > part2) return 1;
-    if (part1 < part2) return -1;
+function compareVersions(v1, v2) {
+  const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] || 0) - (b[i] || 0);
+    if (diff) return diff > 0 ? 1 : -1;
   }
   return 0;
 }
-
-const currentVersion = "2.0"; 
-const updateUrl = "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now();
-
-fetch(updateUrl)
-  .then(response => {
-    if (!response.ok) throw new Error('No se pudo cargar el archivo de actualización.');
-    return response.json();
-  })
-  .then(data => {
-    if (compareVersions(data.version, currentVersion) > 0) {
+const currentVersion = "2.1";
+fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
+  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(d => {
+    if (compareVersions(d.version, currentVersion) < 0) {
       const overlay = document.createElement("div");
-      overlay.id = "update-overlay";
       overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); color: white; display: flex;
-        flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; padding: 20px; z-index: 9999; font-family: Arial, sans-serif;
+        position:fixed;top:0;left:0;width:100%;height:100%;
+        background:rgba(0,0,0,.8);color:white;display:flex;
+        flex-direction:column;align-items:center;justify-content:center;
+        text-align:center;z-index:9999;font-family:Arial;
       `;
       overlay.innerHTML = `
-        <h2 style="margin-bottom: 15px; font-size: 24px;">${data.message}</h2>
-        <p style="margin-bottom: 25px; font-size: 16px;">Tu versión: ${currentVersion} | Nueva versión: ${data.version}</p>
-        <a href="${data.url}"
-           style="background: #28a745; color: #fff; text-decoration: none;
-                  padding: 12px 24px; border-radius: 8px; font-size: 18px;
-                  transition: background-color 0.3s ease;">
-           Descargar actualización
-        </a>
-      `;
+        <h2>${d.message}</h2>
+        <p>Versión actual: ${currentVersion} | Nueva: ${d.version}</p>
+        <a href="${d.url}" style="background:#28a745;color:#fff;
+          padding:10px 20px;border-radius:6px;text-decoration:none;font-size:18px;">Actualizar</a>`;
       document.body.appendChild(overlay);
     }
   })
-  .catch(error => console.warn("No se pudo verificar la versión:", error));
+  .catch(() => console.warn("No se pudo verificar la versión"));
 </script>
 
+<!-- ====== LIBRERÍAS ====== -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+
+<!-- ====== ESTILOS ====== -->
 <style>
   body { margin:0; font-family: Arial, sans-serif; }
   #map { height: 100vh; transition: height 0.3s ease; }
   #listPanel {
-    height: 40vh;
-    overflow-y: auto;
-    border-top: 2px solid #ccc;
-    background: #fff;
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    transition: transform 0.3s ease;
-    z-index: 900;
+    height: 40vh; overflow-y: auto; border-top: 2px solid #ccc; background: #fff;
+    position: fixed; bottom: 0; width: 100%; transition: transform 0.3s ease; z-index: 900;
   }
   #listPanel.hidden { transform: translateY(100%); }
   table { width:100%; border-collapse: collapse; font-size:14px; }
@@ -76,17 +57,27 @@ fetch(updateUrl)
   tr:hover { background:#f0f8ff; cursor:pointer; }
 
   #locateBtn, #refreshBtn, #toggleBtn {
-    position: absolute; right: 10px; z-index: 1000; border: none;
-    border-radius: 50%; width: 40px; height: 40px; font-size: 18px;
-    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: white;
+    position: absolute; right: 10px; z-index: 1000;
+    border: none; border-radius: 50%; width: 40px; height: 40px;
+    font-size: 18px; cursor: pointer; color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   }
   #locateBtn { top: 10px; background: #007bff; }
   #refreshBtn { top: 60px; background: #17a2b8; }
   #toggleBtn { top: 110px; background: #6f42c1; }
 
-  #legend { padding: 5px; font-size: 13px; background: #fff; border-bottom: 2px solid #ccc; position: sticky; top: 0; z-index: 900; }
-  .legend-item { display: inline-flex; align-items: center; margin-right: 12px; }
-  .legend-color { width: 14px; height: 14px; display: inline-block; margin-right: 4px; border: 1px solid #333; }
+  #legend {
+    padding: 5px; font-size: 13px; background: #fff;
+    border-bottom: 2px solid #ccc; position: sticky; top: 0; z-index: 900;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .legend-item {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #f7f7f7; border: 1px solid #ccc; border-radius: 4px;
+    padding: 3px 6px; cursor: pointer; transition: background .2s;
+  }
+  .legend-item:hover { background: #e6e6e6; }
+  .legend-color { width: 14px; height: 14px; border: 1px solid #333; border-radius: 3px; }
+  .legend-item.active { outline: 2px solid #007bff; }
 </style>
 </head>
 <body>
@@ -99,9 +90,7 @@ fetch(updateUrl)
   <div id="listPanel">
     <div id="legend"></div>
     <table>
-      <thead>
-        <tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr>
-      </thead>
+      <thead><tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr></thead>
       <tbody id="dataTableBody"></tbody>
     </table>
   </div>
@@ -110,127 +99,101 @@ fetch(updateUrl)
 const map = L.map('map').setView([25.6866, -100.3161], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-const pastelColors = ['#FFB3BA','#BAE1FF','#BAFFC9','#FFFFBA','#FFDFBA','#E3BAFF','#B5EAD7'];
+const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
 const streetColors = {};
-let currentData = [];
-let markers = [];
+let currentData = [], markers = [], filteredStreet = null;
 
-function getColorForStreet(street) {
+function getColor(street) {
   if (!streetColors[street]) {
-    const color = pastelColors[Object.keys(streetColors).length % pastelColors.length];
+    const color = vividColors[Object.keys(streetColors).length % vividColors.length];
     streetColors[street] = color;
-    const legendItem = document.createElement("div");
-    legendItem.className = "legend-item";
-    legendItem.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
-    document.getElementById("legend").appendChild(legendItem);
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `<span class="legend-color" style="background:${color}"></span>${street}`;
+    item.addEventListener("click", () => toggleFilter(street, item));
+    document.getElementById("legend").appendChild(item);
   }
   return streetColors[street];
 }
 
-function escapeHtml(text) {
-  return text.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','\"':'&quot;'}[c]));
-}
-
-// Nueva función para crear icono SVG numerado
-function createNumberedIcon(num, colorHex) {
+function createIcon(num, color) {
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">
-      <path d="M18 48s-14-16.5-14-26A14 14 0 1 1 32 22c0 9.5-14 26-14 26z" fill="#${colorHex}" stroke="#333" stroke-width="1"/>
-      <text x="18" y="22" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#000" text-anchor="middle">${num}</text>
-    </svg>`;
-  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  return L.icon({ iconUrl: url, iconSize: [30, 45], iconAnchor: [15, 45] });
+  <svg xmlns="http://www.w3.org/2000/svg" width="42" height="56" viewBox="0 0 42 56">
+    <path d="M21 56s-16-19-16-30A16 16 0 1 1 37 26c0 11-16 30-16 30z"
+          fill="${color}" stroke="#222" stroke-width="2"/>
+    <text x="21" y="26" font-family="Arial" font-size="16" font-weight="700"
+          fill="#fff" text-anchor="middle">${num}</text>
+  </svg>`;
+  return L.icon({ iconUrl: "data:image/svg+xml," + encodeURIComponent(svg), iconSize: [36, 50], iconAnchor: [18, 50] });
 }
 
 function loadData() {
-  document.getElementById("dataTableBody").innerHTML = '';
-  clearMarkers();
-  currentData = [];
-
+  clearAll();
   Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
-    download: true,
-    header: true,
-    complete: function(results) {
-      results.data.forEach(row => {
-        if (!row.lat || !row.lng) return;
-        const lat = parseFloat(row.lat);
-        const lng = parseFloat(row.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
-        currentData.push(row);
-      });
-      renderTableAndMarkers();
-    }
+    download: true, header: true,
+    complete: r => { currentData = r.data.filter(x=>x.lat&&x.lng); renderAll(); }
   });
 }
 
-function renderTableAndMarkers() {
-  const tbody = document.getElementById("dataTableBody");
-  tbody.innerHTML = '';
-  clearMarkers();
+function renderAll() {
+  document.getElementById("dataTableBody").innerHTML = "";
+  markers.forEach(m => map.removeLayer(m)); markers = [];
 
-  currentData.forEach((row,index)=>{
+  currentData.forEach((row,i)=>{
     const street = row["calle"] || "Sin calle";
-    const color = getColorForStreet(street);
-    const lat = parseFloat(row.lat);
-    const lng = parseFloat(row.lng);
-    const num = index + 1;
-    const colorHex = color.replace('#','');
-    const icon = createNumberedIcon(num,colorHex);
+    if (filteredStreet && street !== filteredStreet) return;
+    const color = getColor(street);
+    const icon = createIcon(i+1, color);
+    const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
 
     const marker = L.marker([lat,lng],{icon}).addTo(map);
-
-    const popupHtml = `
-      <strong>Colonia:</strong> ${row["Colonia"]||''}<br/>
-      <strong>Póliza:</strong> ${row["Póliza"]||''}<br/>
-      <strong>Dirección:</strong> ${row["calle"]||''} ${row["Número finca"]||''}<br/>
-      <strong>Contratante:</strong> ${row["Nombre Contratante"]||''}<br/>
-      <strong>Inspector:</strong> ${row["Inspector"]||''}<br/>
-      <button onclick="openRoute(${lat},${lng})" style="margin-top:6px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:#28a745;color:#fff;cursor:pointer">
-        🚗 Ver Ruta
-      </button>`;
-    marker.bindPopup(popupHtml);
+    marker.bindPopup(`
+      <b>${row["Nombre Contratante"]||''}</b><br>
+      ${row["calle"]||''} ${row["Número finca"]||''}<br>
+      <small>${row["Colonia"]||''}</small><br>
+      <button onclick="openRoute(${lat},${lng})" style="margin-top:5px;padding:4px 8px;background:#28a745;color:#fff;border:none;border-radius:4px;">🚗 Ruta</button>
+    `);
     markers.push(marker);
 
-    const tr = document.createElement('tr');
-    tr.style.backgroundColor = color;
-    tr.dataset.lat = lat;
-    tr.dataset.lng = lng;
-    tr.dataset.calle = street;
-    tr.innerHTML = `
-      <td>${escapeHtml(row["Póliza"]||'')}</td>
-      <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-      <td>${escapeHtml((row["calle"]||'')+' '+(row["Número finca"]||''))}</td>`;
-    tr.addEventListener('click',()=>{marker.openPopup();map.setView([lat,lng],17);window.scrollTo({top:0,behavior:'smooth'});});
-    tbody.appendChild(tr);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${row["Póliza"]||''}</td><td>${row["Nombre Contratante"]||''}</td>
+                    <td>${(row["calle"]||'')+' '+(row["Número finca"]||'')}</td>`;
+    tr.style.background = color + "30"; // leve transparencia
+    tr.addEventListener("click", ()=>{ marker.openPopup(); map.setView([lat,lng],17); });
+    document.getElementById("dataTableBody").appendChild(tr);
   });
 }
 
-function clearMarkers() { markers.forEach(m=>map.removeLayer(m)); markers=[]; }
+function toggleFilter(street, item) {
+  const legendItems = document.querySelectorAll(".legend-item");
+  if (filteredStreet === street) {
+    filteredStreet = null;
+    legendItems.forEach(el => el.classList.remove("active"));
+  } else {
+    filteredStreet = street;
+    legendItems.forEach(el => el.classList.toggle("active", el === item));
+  }
+  renderAll();
+}
+
+function clearAll() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = []; currentData = [];
+  document.getElementById("legend").innerHTML = ""; Object.keys(streetColors).forEach(k => delete streetColors[k]);
+}
+
 function openRoute(lat,lng){window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,"_blank");}
 
-document.getElementById("locateBtn").addEventListener("click",()=>{
-  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{
-    const lat=pos.coords.latitude,lng=pos.coords.longitude;
-    map.setView([lat,lng],15);
-    L.marker([lat,lng]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
-  },()=>{alert("No se pudo obtener la ubicación.");});}else{alert("Geolocalización no soportada en este dispositivo.");}
-});
-document.getElementById("refreshBtn").addEventListener("click",loadData);
-document.getElementById("toggleBtn").addEventListener("click",()=>{document.getElementById("listPanel").classList.toggle("hidden");});
-
-document.querySelectorAll("th").forEach((header,index)=>{header.addEventListener("click",()=>sortTableByColumn(index));});
-let currentSort={column:null,asc:true};
-function sortTableByColumn(columnIndex){
-  const headers=document.querySelectorAll("th");
-  const keyNames=["Póliza","Nombre Contratante","calle"];
-  const key=keyNames[columnIndex];
-  const asc=currentSort.column===columnIndex?!currentSort.asc:true;
-  currentSort={column:columnIndex,asc};
-  currentData.sort((a,b)=>{const valA=(a[key]||'').toString().toLowerCase();const valB=(b[key]||'').toString().toLowerCase();return asc?valA.localeCompare(valB,'es'):valB.localeCompare(valA,'es');});
-  headers.forEach(th=>th.textContent=th.textContent.replace(/[▲▼]/g,""));
-  headers[columnIndex].textContent+=asc?" ▲":" ▼";
-  renderTableAndMarkers();
-}
+document.getElementById("locateBtn").onclick = () => {
+  if (navigator.geolocation)
+    navigator.geolocation.getCurrentPosition(p => {
+      const {latitude, longitude} = p.coords;
+      map.setView([latitude, longitude], 15);
+      L.marker([latitude, longitude]).addTo(map).bindPopup("📍 Estás aquí").openPopup();
+    });
+};
+document.getElementById("refreshBtn").onclick = loadData;
+document.getElementById("toggleBtn").onclick = () => document.getElementById("listPanel").classList.toggle("hidden");
 
 loadData();
 </script>
