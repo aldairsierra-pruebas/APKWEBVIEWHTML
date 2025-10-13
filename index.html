@@ -279,7 +279,100 @@
   document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
 
   // inicio
-  loadData();
+  // Librerías para rutas (debes agregarlas ANTES de usar L.Routing)
+const script1 = document.createElement('script');
+script1.src = "https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js";
+document.head.appendChild(script1);
+const style1 = document.createElement('link');
+style1.rel = "stylesheet";
+style1.href = "https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css";
+document.head.appendChild(style1);
+
+// Variable global para la ruta
+let routingControl = null;
+
+// Botón extra para la ruta
+const routeBtn = document.createElement('button');
+routeBtn.id = 'routeBtn';
+routeBtn.textContent = '🗺️';
+routeBtn.style.position = 'absolute';
+routeBtn.style.right = '10px';
+routeBtn.style.top = '160px';
+routeBtn.style.zIndex = '1000';
+routeBtn.style.border = 'none';
+routeBtn.style.borderRadius = '50%';
+routeBtn.style.width = '40px';
+routeBtn.style.height = '40px';
+routeBtn.style.fontSize = '18px';
+routeBtn.style.cursor = 'pointer';
+routeBtn.style.color = 'white';
+routeBtn.style.background = '#28a745';
+routeBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+document.getElementById('map').appendChild(routeBtn);
+
+// Función para trazar ruta óptima
+routeBtn.addEventListener('click', async () => {
+  if (routingControl) {
+    map.removeControl(routingControl);
+    routingControl = null;
+    routeBtn.style.background = '#28a745';
+    return;
+  }
+
+  const visibleMarkers = markers.filter(m => map.hasLayer(m));
+  if (visibleMarkers.length < 2) {
+    alert('Se necesitan al menos dos marcadores visibles para trazar una ruta.');
+    return;
+  }
+
+  routeBtn.style.background = '#ffc107';
+
+  // Extraer coordenadas [lng, lat]
+  const coords = visibleMarkers.map(m => [m.getLatLng().lng, m.getLatLng().lat]);
+
+  // API de OpenRouteService (puedes conseguir tu propia API key gratis)
+  const apiKey = "5b3ce3597851110001cf6248837e02c9323d4ff4a9e2da24c1b21f1b"; // demo pública limitada
+  const body = { coordinates: coords, format: "geojson" };
+
+  try {
+    const res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) throw new Error('Error al calcular la ruta');
+    const data = await res.json();
+    const routeCoords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+    routingControl = L.Routing.control({
+      waypoints: visibleMarkers.map(m => m.getLatLng()),
+      fitSelectedRoutes: true,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      showAlternatives: false,
+      createMarker: () => null
+    }).addTo(map);
+
+    // Línea visual
+    const polyline = L.polyline(routeCoords, { color: 'blue', weight: 5 }).addTo(map);
+    routingControl._routeLine = polyline;
+    map.fitBounds(polyline.getBounds());
+    routeBtn.style.background = '#007bff';
+
+  } catch (err) {
+    console.error(err);
+    alert('No se pudo calcular la ruta. Intenta de nuevo.');
+    routeBtn.style.background = '#28a745';
+  }
+});
+
+// inicio
+loadData();
+
 </script>
 </body>
 </html>
