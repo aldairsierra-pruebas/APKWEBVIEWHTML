@@ -331,7 +331,7 @@ routeBtn.addEventListener('click', async () => {
   const coords = visibleMarkers.map(m => [m.getLatLng().lng, m.getLatLng().lat]);
 
   // API de OpenRouteService (puedes conseguir tu propia API key gratis)
-  const apiKey = "5b3ce3597851110001cf6248837e02c9323d4ff4a9e2da24c1b21f1b"; // demo pública limitada
+  const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU3NzdkNWYyYmFlZDQ3MjQ4YzgyOWFmM2MwOTBjMDUxIiwiaCI6Im11cm11cjY0In0="; // demo pública limitada
   const body = { coordinates: coords, format: "geojson" };
 
   try {
