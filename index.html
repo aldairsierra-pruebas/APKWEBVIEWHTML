@@ -233,8 +233,16 @@
     if (visibles.length === 0) return;
     currentIndex = (currentIndex + 1) % visibles.length;
     const marker = visibles[currentIndex];
+      try { marker.openPopup(); } catch(e){ /* noop */ }
+      map.setView(marker.getLatLng(), 17);
+      map.once('moveend', () => {
     marker.openPopup();
-    map.setView(marker.getLatLng(), 17);
+  });
+      clearTimeout(window.__nextPopupTimeout);
+  window.__nextPopupTimeout = setTimeout(() => {
+    marker.openPopup();
+  }, 600);
+});
   });
 
   function toggleFilter(street, itemElement) {
