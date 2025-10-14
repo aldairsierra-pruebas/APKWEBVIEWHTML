@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Visitas Naturgy</title>
 
-  <!-- Comprobación de versión (safe: espera DOM si es necesario) -->
+  <!-- Comprobación de versión -->
   <script>
     function compareVersions(v1, v2) {
       const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
@@ -61,7 +61,7 @@
     th { background:#f4f4f4; position: sticky; top: 0; cursor: pointer; }
     tr:hover { background:#f0f8ff; cursor:pointer; }
 
-    #locateBtn, #refreshBtn, #toggleBtn, #nextBtn {
+    #locateBtn, #refreshBtn, #toggleBtn {
       position: absolute; right: 10px; z-index: 1000;
       border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; color:white;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
@@ -69,7 +69,6 @@
     #locateBtn { top:10px; background:#007bff; }
     #refreshBtn { top:60px; background:#17a2b8; }
     #toggleBtn { top:110px; background:#6f42c1; }
-    #nextBtn { top:160px; background:#28a745; } /* nuevo botón verde */
 
     #legend {
       padding: 6px; font-size:13px; background:#fff; border-bottom:2px solid #ccc; position: sticky; top:0; z-index:900;
@@ -88,7 +87,6 @@
     <button id="locateBtn">📍</button>
     <button id="refreshBtn">🔄</button>
     <button id="toggleBtn">📋</button>
-    <button id="nextBtn">➡️</button> <!-- nuevo -->
   </div>
 
   <div id="listPanel">
@@ -105,9 +103,8 @@
 
   const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
   const streetColors = {};
-  let currentData = [], markers = [], filteredStreet = null, userMarker = null, routeLine = null;
+  let currentData = [], markers = [], filteredStreet = null, userMarker = null;
   let currentSort = { column: null, asc: true };
-  let currentIndex = -1; // índice del marcador actual para el botón Next
 
   function ensureColor(street) {
     if (!streetColors[street]) {
@@ -150,7 +147,6 @@
     document.getElementById('legend').innerHTML = '';
     for (const k in streetColors) delete streetColors[k];
     markers.forEach(m => map.removeLayer(m)); markers = [];
-    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
     currentData = [];
 
     Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
@@ -173,22 +169,19 @@
     const tbody = document.getElementById('dataTableBody');
     tbody.innerHTML = '';
     markers.forEach(m => map.removeLayer(m)); markers = [];
-    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
 
     const list = currentData.filter(r => !filteredStreet || (r["calle"]||'Sin calle') === filteredStreet);
-    const routePoints = [];
 
     list.forEach((row, i) => {
       const street = row["calle"] || 'Sin calle';
       const color = ensureColor(street);
       const icon = createIcon(i+1, color);
       const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
-      const point = [lat, lng];
-      routePoints.push(point);
 
-      const marker = L.marker(point, { icon }).addTo(map);
+      const marker = L.marker([lat, lng], { icon }).addTo(map);
+
       const popupHtml = `
-        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25;">
+        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative;">
           <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
           <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
           <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
@@ -201,7 +194,13 @@
             <a href="https://waze.com/ul?ll=${lat},${lng}&navigate=yes" target="_blank"
                style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">🧭 Waze</a>
           </div>
+          <button class="popup-next-btn" style="
+            position:absolute; bottom:6px; right:6px; padding:4px 8px;
+            font-size:12px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+            Next
+          </button>
         </div>`;
+
       marker.bindPopup(popupHtml);
       markers.push(marker);
 
@@ -211,39 +210,10 @@
         <td>${escapeHtml(row["Póliza"]||'')}</td>
         <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
         <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-      tr.addEventListener('click', () => { marker.openPopup(); map.setView(point, 17); currentIndex = i; });
+      tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });
       tbody.appendChild(tr);
     });
-
-    if (routePoints.length > 1) {
-      routeLine = L.polyline(routePoints, {
-        color: filteredStreet ? ensureColor(filteredStreet) : '#000',
-        weight: 4,
-        opacity: 0.7
-      }).addTo(map);
-      map.fitBounds(routeLine.getBounds());
-    }
-
-    currentIndex = -1; // reinicia el índice cada vez que se renderiza
   }
-
-  // === NUEVO: Botón Next ===
-  document.getElementById('nextBtn').addEventListener('click', () => {
-    const visibles = markers.filter(m => map.hasLayer(m));
-    if (visibles.length === 0) return;
-    currentIndex = (currentIndex + 1) % visibles.length;
-    const marker = visibles[currentIndex];
-      try { marker.openPopup(); } catch(e){ /* noop */ }
-      map.setView(marker.getLatLng(), 17);
-      map.once('moveend', () => {
-    marker.openPopup();
-  });
-      clearTimeout(window.__nextPopupTimeout);
-  window.__nextPopupTimeout = setTimeout(() => {
-    marker.openPopup();
-  }, 600);
-});
-  });
 
   function toggleFilter(street, itemElement) {
     const items = document.querySelectorAll('.legend-item');
@@ -295,6 +265,7 @@
     });
   });
 
+  // Botones principales
   document.getElementById('locateBtn').addEventListener('click', () => {
     if (!navigator.geolocation) return alert('Geolocalización no soportada');
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -308,6 +279,26 @@
   document.getElementById('refreshBtn').addEventListener('click', loadData);
   document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
 
+  // Botón Next dentro del popup
+  map.on('popupopen', e => {
+    const popupEl = e.popup.getElement();
+    const nextBtn = popupEl.querySelector('.popup-next-btn');
+    if (!nextBtn) return;
+
+    nextBtn.onclick = () => {
+      const visibles = markers.filter(m => map.hasLayer(m));
+      if (visibles.length === 0) return;
+
+      let idx = visibles.findIndex(m => m === e.popup._source);
+      idx = (idx + 1) % visibles.length;
+      const nextMarker = visibles[idx];
+
+      map.setView(nextMarker.getLatLng(), 17);
+      nextMarker.openPopup();
+    };
+  });
+
+  // Inicio
   loadData();
 </script>
 </body>
