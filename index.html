@@ -3,13 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <title>Visitas Naturgy</title>
-  <!-- ... (tu código CSS y scripts iniciales sin cambios) ... -->
+
+  <!-- Comprobación de versión -->
+  <script>
+    function compareVersions(v1, v2) {
+      const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const diff = (a[i] || 0) - (b[i] || 0);
+        if (diff) return diff > 0 ? 1 : -1;
+      }
+      return 0;
+    }
+    const currentVersion = "2.0";
+    function checkUpdate() {
+      fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(data => {
+          if (!data || !data.version) return;
+          if (compareVersions(data.version, currentVersion) > 0) {
+            const overlay = document.createElement('div');
+            overlay.id = 'update-overlay';
+            overlay.style.cssText = `
+              position: fixed; top:0; left:0; width:100%; height:100%;
+              background: rgba(0,0,0,0.8); color:#fff; display:flex;
+              align-items:center; justify-content:center; flex-direction:column;
+              text-align:center; padding:20px; z-index:99999; font-family: Arial;
+            `;
+            overlay.innerHTML = `
+              <h2 style="margin-bottom:12px;">${data.message || 'Actualización disponible'}</h2>
+              <p style="margin-bottom:18px;">Versión actual: ${currentVersion} — Nueva: ${data.version}</p>
+              <a href="${data.url}" style="background:#28a745;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;">
+                Descargar actualización
+              </a>
+            `;
+            document.body.appendChild(overlay);
+          }
+        })
+        .catch(()=> console.warn('No se pudo verificar la versión'));
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkUpdate); else checkUpdate();
+  </script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { height: 100vh; transition: height 0.3s ease; position: relative; }
+    #listPanel {
+      height: 40vh; overflow-y: auto; border-top: 2px solid #ccc; background: #fff;
+      position: fixed; bottom: 0; width: 100%; transition: transform 0.3s ease; z-index: 900;
+    }
+    #listPanel.hidden { transform: translateY(100%); }
+    table { width:100%; border-collapse: collapse; font-size:14px; }
+    th, td { padding:6px; border:1px solid #ddd; text-align:left; }
+    th { background:#f4f4f4; position: sticky; top: 0; cursor: pointer; }
+    tr:hover { background:#f0f8ff; cursor:pointer; }
+
+    #locateBtn, #refreshBtn, #toggleBtn {
+      position: absolute; right: 10px; z-index: 1000;
+      border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; color:white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #locateBtn { top:10px; background:#007bff; }
+    #refreshBtn { top:60px; background:#17a2b8; }
+    #toggleBtn { top:110px; background:#6f42c1; }
+
+    #legend {
+      padding: 6px; font-size:13px; background:#fff; border-bottom:2px solid #ccc; position: sticky; top:0; z-index:900;
+      display:flex; flex-wrap:wrap; gap:6px;
+    }
+    .legend-item {
+      display:inline-flex; align-items:center; gap:6px; padding:4px 8px;
+      background:#f7f7f7; border:1px solid #ddd; border-radius:6px; cursor:pointer;
+    }
+    .legend-color { width:14px; height:14px; border:1px solid #333; border-radius:3px; }
+    .legend-item.active { outline:2px solid #007bff; }
+
+    /* Estilos del botón de voz (se usan inline también para facilidad dentro del popup) */
+    .voice-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px;
+      color:#fff;
+    }
+  </style>
 </head>
 <body>
   <div id="map">
-    <button id="locateBtn">📍</button>
-    <button id="refreshBtn">🔄</button>
-    <button id="toggleBtn">📋</button>
+    <button id="locateBtn" title="Ubicar">📍</button>
+    <button id="refreshBtn" title="Refrescar">🔄</button>
+    <button id="toggleBtn" title="Mostrar/ocultar lista">📋</button>
   </div>
 
   <div id="listPanel">
@@ -21,136 +105,21 @@
   </div>
 
 <script>
-  // --- Tu código original completo hasta renderAll() sin tocarlo ---
+  const map = L.map('map').setView([25.6866, -100.3161], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-  function renderAll() {
-    const tbody = document.getElementById('dataTableBody');
-    tbody.innerHTML = '';
-    markers.forEach(m => map.removeLayer(m)); markers = [];
+  const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
+  const streetColors = {};
+  let currentData = [], markers = [], filteredStreet = null, userMarker = null;
+  let currentSort = { column: null, asc: true };
 
-    const list = currentData.filter(r => !filteredStreet || (r["calle"]||'Sin calle') === filteredStreet);
-
-    list.forEach((row, i) => {
-      const street = row["calle"] || 'Sin calle';
-      const color = ensureColor(street);
-      const icon = createIcon(i+1, color);
-      const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
-
-      const marker = L.marker([lat, lng], { icon }).addTo(map);
-
-      // --- Popup con botón de voz ---
-      const popupHtml = `
-        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; font-size:15px;">
-          <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
-          <strong>Nombre:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
-          <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
-          <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
-          <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
-          <strong>Estatus:</strong> ${escapeHtml(row["Estatus"]||'')}<br/>
-          
-          <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-            <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank"
-               style="background:#007bff;color:#fff;padding:6px 10px;border-radius:8px;text-decoration:none;">🚗 Google</a>
-            <a href="https://waze.com/ul?ll=${lat},${lng}&navigate=yes" target="_blank"
-               style="background:#ff6600;color:#fff;padding:6px 10px;border-radius:8px;text-decoration:none;">🧭 Waze</a>
-            <button class="voice-btn" title="Reproducir voz"
-              style="background:#28a745;color:#fff;padding:6px 10px;border:none;border-radius:8px;font-size:18px;cursor:pointer;">
-              🔈
-            </button>
-          </div>
-
-          <button class="popup-next-btn" style="
-            position:absolute; bottom:6px; right:6px; padding:4px 8px;
-            font-size:12px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">
-            Next
-          </button>
-        </div>`;
-
-      marker.bindPopup(popupHtml);
-      markers.push(marker);
-
-      const tr = document.createElement('tr');
-      tr.style.background = color + '22';
-      tr.innerHTML = `
-        <td>${escapeHtml(row["Póliza"]||'')}</td>
-        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-      tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });
-      tbody.appendChild(tr);
-    });
+  function ensureColor(street) {
+    if (!streetColors[street]) {
+      streetColors[street] = vividColors[Object.keys(streetColors).length % vividColors.length];
+    }
+    return streetColors[street];
   }
 
-  // --- Control de voz ---
-  function speakTextSequentially(texts, btn) {
-    if (!window.speechSynthesis) return alert("Tu navegador no soporta síntesis de voz.");
-    window.speechSynthesis.cancel();
-
-    btn.textContent = "🔊";
-    btn.style.background = "#dc3545";
-
-    const speak = (txt, delay) => new Promise(res => {
-      const utter = new SpeechSynthesisUtterance(txt);
-      utter.lang = "es-ES";
-      utter.rate = 0.9;
-      utter.onend = () => setTimeout(res, delay);
-      speechSynthesis.speak(utter);
-    });
-
-    (async () => {
-      for (let t of texts) await speak(t, 2000); // 2 segundos de pausa
-      btn.textContent = "🔈";
-      btn.style.background = "#28a745";
-    })();
-  }
-
-  // --- Detectar botones dentro del popup ---
-  map.on('popupopen', e => {
-    const popupEl = e.popup.getElement();
-    const nextBtn = popupEl.querySelector('.popup-next-btn');
-    const voiceBtn = popupEl.querySelector('.voice-btn');
-
-    const markerData = currentData.find(r =>
-      r["lat"] == e.popup._source.getLatLng().lat &&
-      r["lng"] == e.popup._source.getLatLng().lng
-    );
-
-    // Next
-    if (nextBtn) {
-      nextBtn.onclick = () => {
-        const visibles = markers.filter(m => map.hasLayer(m));
-        if (visibles.length === 0) return;
-        let idx = visibles.findIndex(m => m === e.popup._source);
-        idx = (idx + 1) % visibles.length;
-        const nextMarker = visibles[idx];
-        map.setView(nextMarker.getLatLng(), 17);
-        nextMarker.openPopup();
-      };
-    }
-
-    // Voice
-    if (voiceBtn && markerData) {
-      voiceBtn.onclick = () => {
-        const poliza = markerData["Póliza"] ? `Póliza ${markerData["Póliza"]}` : "";
-        const nombre = markerData["Nombre Contratante"] ? `${markerData["Nombre Contratante"]}` : "";
-        speakTextSequentially([poliza, nombre], voiceBtn);
-      };
-    }
-  });
-
-  // --- Resto de tu código sin cambios ---
-  document.getElementById('refreshBtn').addEventListener('click', loadData);
-  document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
-  document.getElementById('locateBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) return alert('Geolocalización no soportada');
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      map.setView([lat,lng],15);
-      if (userMarker) map.removeLayer(userMarker);
-      userMarker = L.marker([lat,lng]).addTo(map).bindPopup('📍 Estás aquí').openPopup();
-    }, ()=>alert('No se pudo obtener la ubicación.'));
-  });
-
-  loadData();
-</script>
-</body>
-</html>
+  function buildLegend() {
+    const legend = document.getElementById('legend');
+    legend.inner
