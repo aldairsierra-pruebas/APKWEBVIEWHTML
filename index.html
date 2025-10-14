@@ -98,12 +98,13 @@
   </div>
 
 <script>
+  const apiKey = "TU_API_KEY_AQUI"; // 👈 reemplázala aquí
   const map = L.map('map').setView([25.6866, -100.3161], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
   const streetColors = {};
-  let currentData = [], markers = [], filteredStreet = null, userMarker = null;
+  let currentData = [], markers = [], filteredStreet = null, userMarker = null, routeLine = null;
   let currentSort = { column: null, asc: true };
 
   function ensureColor(street) {
@@ -143,18 +144,16 @@
   }
 
   function loadData() {
-    // No borrar el filtro actual para que el usuario no lo pierda al refrescar
     document.getElementById('dataTableBody').innerHTML = '';
-    // limpiar leyenda y colores para reconstruir ordenadamente
     document.getElementById('legend').innerHTML = '';
     for (const k in streetColors) delete streetColors[k];
     markers.forEach(m => map.removeLayer(m)); markers = [];
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
     currentData = [];
 
     Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vQVe0kdrmOnk1W4hL1NwKhC7-2TROeMi-VXaGUtSKlvBlsljjo1KvgfUcdZA8kvADuZBYWJbIsIaqq-/pub?gid=1312490361&single=true&output=csv", {
       download: true, header: true,
       complete: function(results) {
-        // filtrar filas vacías y convertir lat/lng
         results.data.forEach(r => {
           if (!r || (!r.lat && !r.lng)) return;
           const lat = parseFloat(r.lat), lng = parseFloat(r.lng);
@@ -162,28 +161,49 @@
           currentData.push(r);
         });
         buildLegend();
-        if (currentSort.column !== null) applySort(); // si ya había orden
+        if (currentSort.column !== null) applySort();
         renderAll();
       }
     });
   }
 
-  function renderAll() {
+  async function traceRouteByStreets(points, color) {
+    try {
+      const coords = points.map(p => [p[1], p[0]]); // lng, lat
+      const res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+        method: 'POST',
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ coordinates: coords })
+      });
+      const data = await res.json();
+      if (data.features && data.features.length) {
+        return L.geoJSON(data, { style: { color: color, weight: 5, opacity: 0.8 } });
+      }
+    } catch(e) { console.error(e); }
+    return null;
+  }
+
+  async function renderAll() {
     const tbody = document.getElementById('dataTableBody');
     tbody.innerHTML = '';
     markers.forEach(m => map.removeLayer(m)); markers = [];
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
 
-    // Crear la lista según filtro y orden actual
     const list = currentData.filter(r => !filteredStreet || (r["calle"]||'Sin calle') === filteredStreet);
+    const routePoints = [];
 
     list.forEach((row, i) => {
       const street = row["calle"] || 'Sin calle';
       const color = ensureColor(street);
       const icon = createIcon(i+1, color);
       const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
+      const point = [lat, lng];
+      routePoints.push(point);
 
-      const marker = L.marker([lat, lng], { icon }).addTo(map);
-
+      const marker = L.marker(point, { icon }).addTo(map);
       const popupHtml = `
         <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25;">
           <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
@@ -199,19 +219,27 @@
                style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">🧭 Waze</a>
           </div>
         </div>`;
-
       marker.bindPopup(popupHtml);
       markers.push(marker);
 
       const tr = document.createElement('tr');
-      tr.style.background = color + '22'; // ligera transparencia
+      tr.style.background = color + '22';
       tr.innerHTML = `
         <td>${escapeHtml(row["Póliza"]||'')}</td>
         <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
         <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-      tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });
+      tr.addEventListener('click', () => { marker.openPopup(); map.setView(point, 17); });
       tbody.appendChild(tr);
     });
+
+    if (routePoints.length > 1) {
+      const color = filteredStreet ? ensureColor(filteredStreet) : '#000';
+      const route = await traceRouteByStreets(routePoints, color);
+      if (route) {
+        routeLine = route.addTo(map);
+        map.fitBounds(route.getBounds());
+      }
+    }
   }
 
   function toggleFilter(street, itemElement) {
@@ -264,7 +292,6 @@
     });
   });
 
-  // botones
   document.getElementById('locateBtn').addEventListener('click', () => {
     if (!navigator.geolocation) return alert('Geolocalización no soportada');
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -278,83 +305,11 @@
   document.getElementById('refreshBtn').addEventListener('click', loadData);
   document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
 
-  // inicio
-  // Librerías para rutas (debes agregarlas ANTES de usar L.Routing)
-const script1 = document.createElement('script');
-script1.src = "https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js";
-document.head.appendChild(script1);
-const style1 = document.createElement('link');
-style1.rel = "stylesheet";
-style1.href = "https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css";
-document.head.appendChild(style1);
+  loadData();
+</script>
+</body>
+</html>
 
-// Variable global para la ruta
-let routingControl = null;
-
-// Botón extra para la ruta
-const routeBtn = document.createElement('button');
-routeBtn.id = 'routeBtn';
-routeBtn.textContent = '🗺️';
-routeBtn.style.position = 'absolute';
-routeBtn.style.right = '10px';
-routeBtn.style.top = '160px';
-routeBtn.style.zIndex = '1000';
-routeBtn.style.border = 'none';
-routeBtn.style.borderRadius = '50%';
-routeBtn.style.width = '40px';
-routeBtn.style.height = '40px';
-routeBtn.style.fontSize = '18px';
-routeBtn.style.cursor = 'pointer';
-routeBtn.style.color = 'white';
-routeBtn.style.background = '#28a745';
-routeBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-document.getElementById('map').appendChild(routeBtn);
-
-// Función para trazar ruta óptima
-routeBtn.addEventListener('click', async () => {
-  if (routingControl) {
-    map.removeControl(routingControl);
-    routingControl = null;
-    routeBtn.style.background = '#28a745';
-    return;
-  }
-
-  const visibleMarkers = markers.filter(m => map.hasLayer(m));
-  if (visibleMarkers.length < 2) {
-    alert('Se necesitan al menos dos marcadores visibles para trazar una ruta.');
-    return;
-  }
-
-  routeBtn.style.background = '#ffc107';
-
-  // Extraer coordenadas [lng, lat]
-  const coords = visibleMarkers.map(m => [m.getLatLng().lng, m.getLatLng().lat]);
-
-  // API de OpenRouteService (puedes conseguir tu propia API key gratis)
-  const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU3NzdkNWYyYmFlZDQ3MjQ4YzgyOWFmM2MwOTBjMDUxIiwiaCI6Im11cm11cjY0In0="; // demo pública limitada
-  const body = { coordinates: coords, format: "geojson" };
-
-  try {
-    const res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-      method: 'POST',
-      headers: {
-        'Authorization': apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!res.ok) throw new Error('Error al calcular la ruta');
-    const data = await res.json();
-    const routeCoords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-
-    routingControl = L.Routing.control({
-      waypoints: visibleMarkers.map(m => m.getLatLng()),
-      fitSelectedRoutes: true,
-      addWaypoints: false,
-      draggableWaypoints: false,
-      showAlternatives: false,
-      createMarker: () => null
     }).addTo(map);
 
     // Línea visual
