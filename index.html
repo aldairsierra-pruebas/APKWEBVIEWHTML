@@ -61,7 +61,7 @@
     th { background:#f4f4f4; position: sticky; top: 0; cursor: pointer; }
     tr:hover { background:#f0f8ff; cursor:pointer; }
 
-    #locateBtn, #refreshBtn, #toggleBtn {
+    #locateBtn, #refreshBtn, #toggleBtn, #nextBtn {
       position: absolute; right: 10px; z-index: 1000;
       border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; color:white;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
@@ -69,6 +69,7 @@
     #locateBtn { top:10px; background:#007bff; }
     #refreshBtn { top:60px; background:#17a2b8; }
     #toggleBtn { top:110px; background:#6f42c1; }
+    #nextBtn { top:160px; background:#28a745; } /* nuevo botón verde */
 
     #legend {
       padding: 6px; font-size:13px; background:#fff; border-bottom:2px solid #ccc; position: sticky; top:0; z-index:900;
@@ -87,6 +88,7 @@
     <button id="locateBtn">📍</button>
     <button id="refreshBtn">🔄</button>
     <button id="toggleBtn">📋</button>
+    <button id="nextBtn">➡️</button> <!-- nuevo -->
   </div>
 
   <div id="listPanel">
@@ -98,7 +100,6 @@
   </div>
 
 <script>
-  const apiKey = "TU_API_KEY_AQUI"; // 👈 reemplázala aquí
   const map = L.map('map').setView([25.6866, -100.3161], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
@@ -106,6 +107,7 @@
   const streetColors = {};
   let currentData = [], markers = [], filteredStreet = null, userMarker = null, routeLine = null;
   let currentSort = { column: null, asc: true };
+  let currentIndex = -1; // índice del marcador actual para el botón Next
 
   function ensureColor(street) {
     if (!streetColors[street]) {
@@ -167,26 +169,7 @@
     });
   }
 
-  async function traceRouteByStreets(points, color) {
-    try {
-      const coords = points.map(p => [p[1], p[0]]); // lng, lat
-      const res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-        method: 'POST',
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ coordinates: coords })
-      });
-      const data = await res.json();
-      if (data.features && data.features.length) {
-        return L.geoJSON(data, { style: { color: color, weight: 5, opacity: 0.8 } });
-      }
-    } catch(e) { console.error(e); }
-    return null;
-  }
-
-  async function renderAll() {
+  function renderAll() {
     const tbody = document.getElementById('dataTableBody');
     tbody.innerHTML = '';
     markers.forEach(m => map.removeLayer(m)); markers = [];
@@ -228,19 +211,31 @@
         <td>${escapeHtml(row["Póliza"]||'')}</td>
         <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
         <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
-      tr.addEventListener('click', () => { marker.openPopup(); map.setView(point, 17); });
+      tr.addEventListener('click', () => { marker.openPopup(); map.setView(point, 17); currentIndex = i; });
       tbody.appendChild(tr);
     });
 
     if (routePoints.length > 1) {
-      const color = filteredStreet ? ensureColor(filteredStreet) : '#000';
-      const route = await traceRouteByStreets(routePoints, color);
-      if (route) {
-        routeLine = route.addTo(map);
-        map.fitBounds(route.getBounds());
-      }
+      routeLine = L.polyline(routePoints, {
+        color: filteredStreet ? ensureColor(filteredStreet) : '#000',
+        weight: 4,
+        opacity: 0.7
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds());
     }
+
+    currentIndex = -1; // reinicia el índice cada vez que se renderiza
   }
+
+  // === NUEVO: Botón Next ===
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    const visibles = markers.filter(m => map.hasLayer(m));
+    if (visibles.length === 0) return;
+    currentIndex = (currentIndex + 1) % visibles.length;
+    const marker = visibles[currentIndex];
+    marker.openPopup();
+    map.setView(marker.getLatLng(), 17);
+  });
 
   function toggleFilter(street, itemElement) {
     const items = document.querySelectorAll('.legend-item');
@@ -306,28 +301,6 @@
   document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
 
   loadData();
-</script>
-</body>
-</html>
-
-    }).addTo(map);
-
-    // Línea visual
-    const polyline = L.polyline(routeCoords, { color: 'blue', weight: 5 }).addTo(map);
-    routingControl._routeLine = polyline;
-    map.fitBounds(polyline.getBounds());
-    routeBtn.style.background = '#007bff';
-
-  } catch (err) {
-    console.error(err);
-    alert('No se pudo calcular la ruta. Intenta de nuevo.');
-    routeBtn.style.background = '#28a745';
-  }
-});
-
-// inicio
-loadData();
-
 </script>
 </body>
 </html>
