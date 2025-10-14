@@ -219,4 +219,214 @@
       markers.push(marker);  
 
       const tr = document.createElement('tr');  
-      tr.style.background = color + '22';
+      tr.style.background = color + '22';  
+      tr.innerHTML = `  
+        <td>${escapeHtml(row["Póliza"]||'')}</td>  
+        <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>  
+        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;  
+      tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });  
+      tbody.appendChild(tr);  
+    });  
+  }  
+
+  function toggleFilter(street, itemElement) {  
+    const items = document.querySelectorAll('.legend-item');  
+    if (filteredStreet === street) {  
+      filteredStreet = null;  
+      items.forEach(it => it.classList.remove('active'));  
+    } else {  
+      filteredStreet = street;  
+      items.forEach(it => it.classList.toggle('active', it === itemElement));  
+    }  
+    renderAll();  
+  }  
+
+  function applySort() {  
+    const col = currentSort.column;  
+    const asc = currentSort.asc;  
+    if (col === 0) {  
+      currentData.sort((a,b) => {  
+        const na = parseFloat((a['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;  
+        const nb = parseFloat((b['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;  
+        return asc ? na - nb : nb - na;  
+      });  
+    } else if (col === 1) {  
+      currentData.sort((a,b) => {  
+        const sa = (a['Nombre Contratante']||'').toLowerCase();  
+        const sb = (b['Nombre Contratante']||'').toLowerCase();  
+        return asc ? sa.localeCompare(sb,'es') : sb.localeCompare(sa,'es');  
+      });  
+    } else if (col === 2) {  
+      currentData.sort((a,b) => {  
+        const ca = (a['calle']||'').toLowerCase();  
+        const cb = (b['calle']||'').toLowerCase();  
+        if (ca !== cb) return asc ? ca.localeCompare(cb,'es') : cb.localeCompare(ca,'es');  
+        const na = parseInt(a['Número finca']||'') || 0;  
+        const nb = parseInt(b['Número finca']||'') || 0;  
+        return asc ? na - nb : nb - na;  
+      });  
+    }  
+  }  
+
+  document.querySelectorAll('th').forEach((th, idx) => {  
+    th.addEventListener('click', () => {  
+      currentSort.asc = (currentSort.column === idx) ? !currentSort.asc : true;  
+      currentSort.column = idx;  
+      applySort();  
+      document.querySelectorAll('th').forEach(h => h.textContent = h.textContent.replace(/[▲▼]/g,''));  
+      th.textContent += currentSort.asc ? ' ▲' : ' ▼';  
+      renderAll();  
+    });  
+  });  
+
+  // Botones principales  
+  document.getElementById('locateBtn').addEventListener('click', () => {  
+    if (!navigator.geolocation) return alert('Geolocalización no soportada');  
+    navigator.geolocation.getCurrentPosition(pos=>{  
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;  
+      map.setView([lat,lng],15);  
+      if (userMarker) map.removeLayer(userMarker);  
+      userMarker = L.marker([lat,lng]).addTo(map).bindPopup('📍 Estás aquí').openPopup();  
+    }, ()=>alert('No se pudo obtener la ubicación.'));  
+  });  
+
+  document.getElementById('refreshBtn').addEventListener('click', loadData);  
+  document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));  
+
+  // -- Funciones de voz añadidas (no tocan el resto de la lógica) --
+  let voiceCanceled = false;
+
+  function stopSpeech() {
+    voiceCanceled = true;
+    try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+  }
+
+  function restoreAllVoiceButtons() {
+    const btns = document.querySelectorAll('.voice-btn');
+    btns.forEach(b => {
+      b.textContent = '🔈';
+      b.style.background = '#28a745';
+    });
+  }
+
+  function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+  async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
+    if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
+
+    // toggle: si ya está hablando -> cancelar
+    if (speechSynthesis.speaking || speechSynthesis.pending) {
+      stopSpeech();
+      restoreAllVoiceButtons();
+      return;
+    }
+
+    // preparar
+    voiceCanceled = false;
+    btn.textContent = '🔊';
+    btn.style.background = '#dc3545';
+
+    // POLIZA: leer dígito por dígito con 1s entre dígitos
+    const poliza = (polizaRaw||'').toString().trim();
+    // extraer solo dígitos; si no hay dígitos, leer el texto completo como fallback (caracter a caracter)
+    let digits = poliza.replace(/\D/g,'').split('');
+    if (digits.length === 0 && poliza.length > 0) digits = poliza.split('');
+
+    for (let d of digits) {
+      if (voiceCanceled) break;
+      const utter = new SpeechSynthesisUtterance(d.toString());
+      utter.lang = 'es-MX';
+      utter.rate = 0.95;
+      const p = new Promise(resolve => { utter.onend = resolve; utter.onerror = resolve; });
+      speechSynthesis.speak(utter);
+      await p;
+      // pausa 1 segundo entre dígitos
+      // Si fue cancelado durante la reproducción, speechSynthesis.speaking will be false but voiceCanceled is set by stopSpeech
+      if (voiceCanceled) break;
+      await delay(1000);
+    }
+
+    if (!voiceCanceled && nombreRaw && nombreRaw.toString().trim().length > 0) {
+      // pequeña separación antes del nombre
+      await delay(400);
+
+      // NOMBRE: palabra por palabra con 3s entre palabras
+      const words = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
+      for (let w of words) {
+        if (voiceCanceled) break;
+        const utter = new SpeechSynthesisUtterance(w);
+        utter.lang = 'es-MX';
+        utter.rate = 0.95;
+        const p = new Promise(resolve => { utter.onend = resolve; utter.onerror = resolve; });
+        speechSynthesis.speak(utter);
+        await p;
+        if (voiceCanceled) break;
+        await delay(3000); // 3 segundos entre palabras
+      }
+    }
+
+    // terminar: restaurar botón si no fue cancelado por otro medio
+    stopSpeech(); // ensure speech canceled/no pending state
+    restoreAllVoiceButtons();
+  }
+
+  // Botón Next dentro del popup + SETUP del botón de voz
+  map.on('popupopen', e => {
+    const popupEl = e.popup.getElement();
+    const nextBtn = popupEl.querySelector('.popup-next-btn');
+    const voiceBtn = popupEl.querySelector('.voice-btn');
+
+    // --- Next (tu código original) ---
+    if (nextBtn) {
+      nextBtn.onclick = () => {
+        const visibles = markers.filter(m => map.hasLayer(m));
+        if (visibles.length === 0) return;
+
+        let idx = visibles.findIndex(m => m === e.popup._source);
+        idx = (idx + 1) % visibles.length;
+        const nextMarker = visibles[idx];
+
+        map.setView(nextMarker.getLatLng(), 17);
+        nextMarker.openPopup();
+      };
+    }
+
+    // --- Voice: enlazamos con el mismo registro según lat/lng ---
+    if (voiceBtn) {
+      // limpiamos handlers anteriores
+      voiceBtn.onclick = null;
+
+      // Encontrar el registro actual según lat/lng del marker origen del popup
+      const markerLat = e.popup._source.getLatLng().lat;
+      const markerLng = e.popup._source.getLatLng().lng;
+      const markerData = currentData.find(r =>
+        parseFloat(r.lat) === markerLat && parseFloat(r.lng) === markerLng
+      );
+
+      if (markerData) {
+        voiceBtn.onclick = () => {
+          const pol = markerData["Póliza"] || '';
+          const nombre = markerData["Nombre Contratante"] || '';
+          speakPolizaAndNombre(pol, nombre, voiceBtn);
+        };
+      }
+    }
+  });
+
+  // Si cierran popup o cambian de pestaña, detenemos la voz
+  map.on('popupclose', () => {
+    stopSpeech();
+    restoreAllVoiceButtons();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopSpeech();
+      restoreAllVoiceButtons();
+    }
+  });
+
+  // Inicio  
+  loadData();  
+  </script>  
+</body>  
+</html>
