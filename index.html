@@ -343,7 +343,7 @@
       // pausa 1 segundo entre dígitos
       // Si fue cancelado durante la reproducción, speechSynthesis.speaking will be false but voiceCanceled is set by stopSpeech
       if (voiceCanceled) break;
-      await delay(500);
+      await delay(1000);
     }
 
     if (!voiceCanceled && nombreRaw && nombreRaw.toString().trim().length > 0) {
@@ -361,7 +361,7 @@
         speechSynthesis.speak(utter);
         await p;
         if (voiceCanceled) break;
-        await delay(2000); // 3 segundos entre palabras
+        await delay(3000); // 3 segundos entre palabras
       }
     }
 
