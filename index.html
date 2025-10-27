@@ -336,7 +336,7 @@
       if (voiceCanceled) break;
       const utter = new SpeechSynthesisUtterance(d.toString());
       utter.lang = 'es-MX';
-      utter.rate = 0.95;
+      utter.rate = 1.10;
       const p = new Promise(resolve => { utter.onend = resolve; utter.onerror = resolve; });
       speechSynthesis.speak(utter);
       await p;
@@ -356,12 +356,12 @@
         if (voiceCanceled) break;
         const utter = new SpeechSynthesisUtterance(w);
         utter.lang = 'es-MX';
-        utter.rate = 0.95;
+        utter.rate = 1.10;
         const p = new Promise(resolve => { utter.onend = resolve; utter.onerror = resolve; });
         speechSynthesis.speak(utter);
         await p;
         if (voiceCanceled) break;
-        await delay(2000); // 3 segundos entre palabras
+        await delay(1500); // 1.5 segundos entre palabras
       }
     }
 
