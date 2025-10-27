@@ -343,12 +343,12 @@
       // pausa 1 segundo entre dígitos
       // Si fue cancelado durante la reproducción, speechSynthesis.speaking will be false but voiceCanceled is set by stopSpeech
       if (voiceCanceled) break;
-      await delay(1000);
+      await delay(750);
     }
 
     if (!voiceCanceled && nombreRaw && nombreRaw.toString().trim().length > 0) {
       // pequeña separación antes del nombre
-      await delay(400);
+      await delay(200);
 
       // NOMBRE: palabra por palabra con 3s entre palabras
       const words = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
@@ -361,7 +361,7 @@
         speechSynthesis.speak(utter);
         await p;
         if (voiceCanceled) break;
-        await delay(3000); // 3 segundos entre palabras
+        await delay(2000); // 3 segundos entre palabras
       }
     }
 
