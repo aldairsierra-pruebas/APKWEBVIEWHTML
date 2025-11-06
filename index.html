@@ -94,6 +94,22 @@
     <button id="locateBtn">📍</button>  
     <button id="refreshBtn">🔄</button>  
     <button id="toggleBtn">📋</button>  
+    <button id="autoNarrarBtn" style="
+      position:absolute;
+      right:10px;
+      top:160px;
+      z-index:1000;
+      background:#198754;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">▶️</button>
+
   </div>    
 
   <div id="listPanel">  
@@ -368,6 +384,50 @@
     // terminar: restaurar botón si no fue cancelado por otro medio
     stopSpeech(); // ensure speech canceled/no pending state
     restoreAllVoiceButtons();
+    // --- MODO AUTOMÁTICO DE NARRACIÓN ---
+
+let autoModeActive = false;
+
+async function narrarAutomaticamente() {
+  if (!('speechSynthesis' in window)) {
+    alert('Tu navegador no soporta síntesis de voz.');
+    return;
+  }
+
+  if (autoModeActive) {
+    autoModeActive = false;
+    stopSpeech();
+    restoreAllVoiceButtons();
+    document.getElementById('autoNarrarBtn').textContent = '▶️ Auto Narrar';
+    return;
+  }
+
+  autoModeActive = true;
+  document.getElementById('autoNarrarBtn').textContent = '⏹ Detener';
+
+  for (let i = 0; i < markers.length && autoModeActive; i++) {
+    const row = currentData[i];
+    const marker = markers[i];
+    if (!row || !marker) continue;
+
+    // Centrar mapa y abrir popup
+    map.setView(marker.getLatLng(), 17);
+    marker.openPopup();
+
+    // Narrar datos
+    await speakPolizaAndNombre(row["Póliza"], row["Nombre Contratante"], document.createElement('button'));
+
+    // Esperar antes de pasar al siguiente (ajusta el tiempo según lo largo del nombre)
+    const texto = (row["Nombre Contratante"] || '').length;
+    const pausa = Math.min(6000, 2000 + texto * 100); // 2 a 6 segundos
+    await delay(pausa);
+  }
+
+  autoModeActive = false;
+  restoreAllVoiceButtons();
+  document.getElementById('autoNarrarBtn').textContent = '▶️ Auto Narrar';
+}
+
   }
 
   // Botón Next dentro del popup + SETUP del botón de voz
@@ -424,6 +484,7 @@
       restoreAllVoiceButtons();
     }
   });
+document.getElementById('autoNarrarBtn').addEventListener('click', narrarAutomaticamente);
 
   // Inicio  
   loadData();  
