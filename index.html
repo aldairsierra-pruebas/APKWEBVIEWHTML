@@ -196,12 +196,19 @@
           <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
           <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
           <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
-          <strong>Estatus:</strong> ${escapeHtml(row["Estatus"]||'')}<br/>
-          <div style="margin-top:8px; display:flex; gap:6px;">
-            <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank"
-               style="background:#007bff;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">🚗 Google</a>
-<a href="intent://?${lat},${lng}&navigate=yes Intent;scheme=waze;package=com.waze;end;"a>
-               style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">🧭 Waze</a>
+          <strong>Estatus:</strong> ${escapeHtml(row["Estatus"]||'')}<br/><div style="margin-top:8px; display:flex; gap:6px;">
+
+  <a href="intent://maps.google.com/maps?daddr=${lat},${lng}#Intent;scheme=geo;package=com.google.android.apps.maps;end;"
+     style="background:#007bff;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
+     🚗 Google
+  </a>
+
+  <a href="intent://?ll=${lat},${lng}&navigate=yes#Intent;scheme=waze;package=com.waze;end;"
+     style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
+     🧭 Waze
+  </a>
+
+</div>
 
             <!-- BOTÓN DE VOZ: mismo botón será toggle (reproducir / detener) -->
             <button class="voice-btn" title="Reproducir/Pausar voz" style="background:#28a745;">
