@@ -41,11 +41,9 @@
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkUpdate); else checkUpdate();
   </script>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
-
   <style>
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 100vh; transition: height 0.3s ease; }
@@ -85,26 +83,23 @@
     }
   </style>
 </head>
-
 <body>
   <div id="map">
-    <button id="locateBtn">📍</button>
-    <button id="refreshBtn">🔄</button>
-    <button id="toggleBtn">📋</button>
-    <button id="autoNarrarBtn"
-      style="position:absolute; right:10px; top:160px; z-index:1000; background:#198754; color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">
-      ▶️
-    </button>
+    <button id="locateBtn">📍</button> <button id="refreshBtn">🔄</button> <button id="toggleBtn">📋</button> <button id="autoNarrarBtn" style="position:absolute; right:10px; top:160px; z-index:1000; background:#198754; color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
   </div>
-
   <div id="listPanel">
     <div id="legend"></div>
     <table>
-      <thead><tr><th>Póliza</th><th>Nombre</th><th>Dirección</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Póliza</th>
+          <th>Nombre</th>
+          <th>Dirección</th>
+        </tr>
+      </thead>
       <tbody id="dataTableBody"></tbody>
     </table>
   </div>
-
   <script>
   const map = L.map('map').setView([25.6866, -100.3161], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -208,7 +203,7 @@
      🧭 Waze
   </a>
 
-</div>
+  </div>
 
             <!-- BOTÓN DE VOZ: mismo botón será toggle (reproducir / detener) -->
             <button class="voice-btn" title="Reproducir/Pausar voz" style="background:#28a745;">
@@ -339,20 +334,20 @@
     if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
 
     // Normalizar póliza: obtener sólo dígitos
-let pol = (polizaRaw || '').toString().replace(/\D/g, '');
-const grupos = [];
+  let pol = (polizaRaw || '').toString().replace(/\D/g, '');
+  const grupos = [];
 
-// Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
-for (let i = 0; i < pol.length; i += 2) {
+  // Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
+  for (let i = 0; i < pol.length; i += 2) {
   if (i + 2 <= pol.length) {
     grupos.push(pol.substring(i, i + 2));   // grupo de 2
   } else {
     grupos.push(pol.substring(i));          // grupo final de 1
   }
-}
+  }
 
-// Reproducir grupos
-for (let g of grupos) {
+  // Reproducir grupos
+  for (let g of grupos) {
   if (voiceCanceled) break;
 
   if (/^\d+$/.test(g)) {
@@ -406,7 +401,7 @@ for (let g of grupos) {
 
   // Pausa 500 ms entre grupos
   if (!voiceCanceled) await delay(500);
-}
+  }
       if (voiceCanceled) break;
       // pausa 500 ms entre grupos
       await delay(500);
@@ -443,7 +438,7 @@ for (let g of grupos) {
     const pausa = letras * 200; // 200 ms por letra
     await delay(pausa);
   }
-}
+  }
 
 
     stopSpeech();
@@ -539,5 +534,8 @@ for (let g of grupos) {
   // Inicio
   loadData();
   </script>
+  <div state="voice" class="placeholder-icon" id="tts-placeholder-icon" title="Haga clic para mostrar el botón TTS" style="background-image: url(&quot;moz-extension://eb9243f3-1ee4-4026-ba28-209c2baea838/data/content_script/icons/voice.png&quot;);">
+    <canvas width="36" height="36" class="loading-circle" id="text-to-speech-loader" style="display: none;"></canvas>
+  </div>
 </body>
 </html>
