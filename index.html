@@ -365,22 +365,7 @@
           u.onerror = res; 
         });
 
-        speechSynthesis.speak(u);
-        await p;
-      }
-
-    } else {
-      // Grupo final de 1 dígito
-      const u = new SpeechSynthesisUtterance(g);
-      u.lang = 'es-MX';
-      u.rate = 1.25;
-
-      const p = new Promise(res => {
-        u.onend = res;
-        u.onerror = res;
-      });
-
-      speechSynthesis.speak(u);
+              speechSynthesis.speak(u);
       await p;
     }
 
@@ -401,11 +386,13 @@
 
   // Pausa 500 ms entre grupos
   if (!voiceCanceled) await delay(500);
-  }
-      if (voiceCanceled) break;
-      // pausa 500 ms entre grupos
-      await delay(500);
-    }
+
+  if (voiceCanceled) break;
+
+  // Pausa 500 ms entre grupos
+  await delay(500);
+}
+
 
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
 
