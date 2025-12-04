@@ -339,52 +339,74 @@
     if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
 
     // Normalizar póliza: obtener sólo dígitos
-    let pol = (polizaRaw||'').toString().replace(/\D/g,'');
-    const grupos = [];
+let pol = (polizaRaw || '').toString().replace(/\D/g, '');
+const grupos = [];
 
-    // Si la longitud es impar, hacemos que el ÚLTIMO dígito sea de 1 cifra (según tu pedido).
-    // Interpretación: si impar -> primer grupo será 2... Wait: user asked "en casos de numeros impares que el ultimo digito sea el que diga de 1 cifra".
-    // Implementación: formamos grupos de 2 desde el inicio; si sobra 1 dígito al final, ese último grupo será de 1.
+// Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
+for (let i = 0; i < pol.length; i += 2) {
+  if (i + 2 <= pol.length) {
+    grupos.push(pol.substring(i, i + 2));   // grupo de 2
+  } else {
+    grupos.push(pol.substring(i));          // grupo final de 1
+  }
+}
 
-    for (let i = 0; i < pol.length; i += 2) {
-      if (i + 2 <= pol.length) grupos.push(pol.substring(i, i+2));
-      else grupos.push(pol.substring(i, pol.length));
-    }
+// Reproducir grupos
+for (let g of grupos) {
+  if (voiceCanceled) break;
 
-    // Reproducir grupos con pausa de 500 ms
-    for (let g of grupos) {
-      if (voiceCanceled) break;
-      // leer el grupo como número para que la voz diga las cifras como 'doce' o 'uno, dos'?
-      // Para asegurar que se pronuncien cifra por cifra (p.ej. 'uno dos' en lugar de 'doce'), preferimos pronunciar carácter por carácter cuando el grupo tiene 2 dígitos.
+  if (/^\d+$/.test(g)) {
 
-      if (/^\d+$/.test(g)) {
-        if (g.length === 2) {
-          // pronunciar dígito a dígito (ej: '1 2') para evitar que diga 'doce'
-          for (let ch of g.split('')) {
-            if (voiceCanceled) break;
-            const u = new SpeechSynthesisUtterance(ch);
-            u.lang = 'es-MX'; u.rate = 1.05;
-            const p = new Promise(res => { u.onend = res; u.onerror = res; });
-            speechSynthesis.speak(u);
-            await p;
-          }
-        } else {
-          // grupo de 1 dígito
-          const u = new SpeechSynthesisUtterance(g);
-          u.lang = 'es-MX'; u.rate = 1.05;
-          const p = new Promise(res => { u.onend = res; u.onerror = res; });
-          speechSynthesis.speak(u);
-          await p;
-        }
-      } else {
-        // fallback: leer el texto del grupo
-        const u = new SpeechSynthesisUtterance(g);
-        u.lang = 'es-MX'; u.rate = 1.05;
-        const p = new Promise(res => { u.onend = res; u.onerror = res; });
+    if (g.length === 2) {
+      // Grupo de 2 dígitos → leer dígito a dígito
+      for (let ch of g) {
+        if (voiceCanceled) break;
+        const u = new SpeechSynthesisUtterance(ch);
+        u.lang = 'es-MX';
+        u.rate = 1.25;
+
+        const p = new Promise(res => { 
+          u.onend = res; 
+          u.onerror = res; 
+        });
+
         speechSynthesis.speak(u);
         await p;
       }
 
+    } else {
+      // Grupo final de 1 dígito
+      const u = new SpeechSynthesisUtterance(g);
+      u.lang = 'es-MX';
+      u.rate = 1.25;
+
+      const p = new Promise(res => {
+        u.onend = res;
+        u.onerror = res;
+      });
+
+      speechSynthesis.speak(u);
+      await p;
+    }
+
+  } else {
+    // fallback
+    const u = new SpeechSynthesisUtterance(g);
+    u.lang = 'es-MX';
+    u.rate = 1.25;
+
+    const p = new Promise(res => { 
+      u.onend = res; 
+      u.onerror = res; 
+    });
+
+    speechSynthesis.speak(u);
+    await p;
+  }
+
+  // Pausa 500 ms entre grupos
+  if (!voiceCanceled) await delay(500);
+}
       if (voiceCanceled) break;
       // pausa 500 ms entre grupos
       await delay(500);
@@ -397,20 +419,32 @@
 
     // Nombre: palabra por palabra con pausa de 2 segundos entre palabras
     if (nombreRaw && nombreRaw.toString().trim().length > 0) {
-      const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
-      for (let i = 0; i < palabras.length; i++) {
-        if (voiceCanceled) break;
-        const w = palabras[i];
-        const u = new SpeechSynthesisUtterance(w);
-        u.lang = 'es-MX'; u.rate = 1.0;
-        const p = new Promise(res => { u.onend = res; u.onerror = res; });
-        speechSynthesis.speak(u);
-        await p;
-        if (voiceCanceled) break;
-        // pausa 2 segundos entre nombres
-        await delay(2000);
-      }
-    }
+  const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
+  for (let i = 0; i < palabras.length; i++) {
+    if (voiceCanceled) break;
+
+    const w = palabras[i];
+    const u = new SpeechSynthesisUtterance(w);
+    u.lang = 'es-MX';
+    u.rate = 1.0;
+
+    const p = new Promise(res => { 
+      u.onend = res; 
+      u.onerror = res; 
+    });
+
+    speechSynthesis.speak(u);
+    await p;
+
+    if (voiceCanceled) break;
+
+    // ---- Pausa proporcional al número de letras ----
+    const letras = w.length;
+    const pausa = letras * 200; // 200 ms por letra
+    await delay(pausa);
+  }
+}
+
 
     stopSpeech();
     restoreAllVoiceButtons();
@@ -444,7 +478,7 @@
       await speakPolizaAndNombre(row['Póliza']||'', row['Nombre Contratante']||'', null);
 
       // pequeña pausa entre registros
-      await delay(800);
+      await delay(2000);
     }
 
     autoModeActive = false;
