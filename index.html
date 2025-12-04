@@ -407,7 +407,7 @@ for (let g of grupos) {
 
   // --- Pausa entre grupos ---
   if (voiceCanceled) break;
-  await delay(500);
+  await delay(800);
 
 } // <-- cierre correcto del for(g)
 
@@ -441,7 +441,7 @@ for (let g of grupos) {
 
     // ---- Pausa proporcional al número de letras ----
     const letras = w.length;
-    const pausa = letras * 200; // 200 ms por letra
+    const pausa = letras * 300; // 200 ms por letra
     await delay(pausa);
   }
   }
