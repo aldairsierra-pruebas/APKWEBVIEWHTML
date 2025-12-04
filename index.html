@@ -347,51 +347,70 @@
   }
 
   // Reproducir grupos
-  for (let g of grupos) {
+// Reproducir grupos
+for (let g of grupos) {
+
   if (voiceCanceled) break;
 
+  // Solo dígitos
   if (/^\d+$/.test(g)) {
 
     if (g.length === 2) {
+
       // Grupo de 2 dígitos → leer dígito a dígito
       for (let ch of g) {
         if (voiceCanceled) break;
+
         const u = new SpeechSynthesisUtterance(ch);
         u.lang = 'es-MX';
         u.rate = 1.25;
 
-        const p = new Promise(res => { 
-          u.onend = res; 
-          u.onerror = res; 
+        const p = new Promise(res => {
+          u.onend = res;
+          u.onerror = res;
         });
 
-              speechSynthesis.speak(u);
+        speechSynthesis.speak(u);
+        await p;
+      }
+
+    } else {
+      // Grupo final de 1 dígito
+      const u = new SpeechSynthesisUtterance(g);
+      u.lang = 'es-MX';
+      u.rate = 1.25;
+
+      const p = new Promise(res => {
+        u.onend = res;
+        u.onerror = res;
+      });
+
+      speechSynthesis.speak(u);
       await p;
     }
 
   } else {
-    // fallback
+
+    // fallback (no numérico)
     const u = new SpeechSynthesisUtterance(g);
     u.lang = 'es-MX';
     u.rate = 1.25;
 
-    const p = new Promise(res => { 
-      u.onend = res; 
-      u.onerror = res; 
+    const p = new Promise(res => {
+      u.onend = res;
+      u.onerror = res;
     });
 
     speechSynthesis.speak(u);
     await p;
   }
 
-  // Pausa 500 ms entre grupos
-  if (!voiceCanceled) await delay(500);
-
+  // --- Pausa entre grupos ---
   if (voiceCanceled) break;
-
-  // Pausa 500 ms entre grupos
   await delay(500);
-}
+
+} // <-- cierre correcto del for(g)
+
 
 
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
