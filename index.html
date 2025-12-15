@@ -378,7 +378,7 @@ for (let g of grupos) {
       // Grupo final de 1 dígito
       const u = new SpeechSynthesisUtterance(g);
       u.lang = 'es-MX';
-      u.rate = 1.25;
+      u.rate = 1.0;
 
       const p = new Promise(res => {
         u.onend = res;
@@ -394,7 +394,7 @@ for (let g of grupos) {
     // fallback (no numérico)
     const u = new SpeechSynthesisUtterance(g);
     u.lang = 'es-MX';
-    u.rate = 1.25;
+    u.rate = 1.0;
 
     const p = new Promise(res => {
       u.onend = res;
@@ -407,7 +407,7 @@ for (let g of grupos) {
 
   // --- Pausa entre grupos ---
   if (voiceCanceled) break;
-  await delay(800);
+  await delay(1500);
 
 } // <-- cierre correcto del for(g)
 
@@ -416,7 +416,7 @@ for (let g of grupos) {
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
 
     // Pausa corta antes del nombre
-    await delay(200);
+    await delay(500);
 
     // Nombre: palabra por palabra con pausa de 2 segundos entre palabras
     if (nombreRaw && nombreRaw.toString().trim().length > 0) {
@@ -441,7 +441,7 @@ for (let g of grupos) {
 
     // ---- Pausa proporcional al número de letras ----
     const letras = w.length;
-    const pausa = letras * 300; // 200 ms por letra
+    const pausa = letras * 500; // 200 ms por letra
     await delay(pausa);
   }
   }
