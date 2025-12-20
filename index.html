@@ -53,7 +53,7 @@
     }
     #listPanel.hidden { transform: translateY(100%); }
     table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { padding:6px; border:1px solid #ddd; text-align:left; }
+    th, td { padding:6px; border:1px solid #ddd; text-align:left; vertical-align:top; }
     th { background:#f4f4f4; position: sticky; top: 0; cursor: pointer; }
     tr:hover { background:#f0f8ff; cursor:pointer; }
 
@@ -81,6 +81,7 @@
       border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px;
       color:#fff;
     }
+    small.distance { display:block; margin-top:6px; color:#333; opacity:0.85; font-size:12px; }
   </style>
 </head>
 <body>
@@ -92,9 +93,9 @@
     <table>
       <thead>
         <tr>
-          <th>Póliza</th>
-          <th>Nombre</th>
-          <th>Dirección</th>
+          <th data-label="Póliza">Póliza</th>
+          <th data-label="Nombre">Nombre</th>
+          <th data-label="Dirección">Dirección</th>
         </tr>
       </thead>
       <tbody id="dataTableBody"></tbody>
@@ -124,7 +125,7 @@
       const color = ensureColor(s);
       const item = document.createElement('div');
       item.className = 'legend-item';
-      item.innerHTML = `<span class="legend-color" style="background:${color}"></span>${s}`;
+      item.innerHTML = `<span class="legend-color" style="background:${color}; width:12px; height:12px; display:inline-block; border-radius:2px;"></span> ${escapeHtml(s)}`;
       item.addEventListener('click', () => toggleFilter(s, item));
       if (filteredStreet === s) item.classList.add('active');
       legend.appendChild(item);
@@ -143,6 +144,51 @@
 
   function escapeHtml(text) {
     return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
+  }
+
+  // --------------------------
+  // NUEVO: Haversine - distancia en metros
+  // --------------------------
+  function distanceMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // metros
+    const toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // --------------------------
+  // NUEVO: ordenar por distancia desde usuario
+  // --------------------------
+  function clearHeaderSortMarks() {
+    document.querySelectorAll('th').forEach(h => {
+      const label = h.getAttribute('data-label');
+      if (label) h.textContent = label;
+      else h.textContent = h.textContent.replace(/[▲▼]/g,'');
+    });
+  }
+
+  function sortByDistance(userLat, userLng) {
+    currentData.forEach(r => {
+      const lat = parseFloat(r.lat);
+      const lng = parseFloat(r.lng);
+      if (isNaN(lat) || isNaN(lng)) {
+        r._distance = Infinity;
+      } else {
+        r._distance = distanceMeters(userLat, userLng, lat, lng);
+      }
+    });
+
+    currentData.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
+
+    // reset any visual sort marks
+    currentSort.column = null;
+    currentSort.asc = true;
+    clearHeaderSortMarks();
   }
 
   function loadData() {
@@ -221,12 +267,19 @@
       marker.bindPopup(popupHtml);
       markers.push(marker);
 
+      const distanciaText = (row._distance && isFinite(row._distance))
+        ? (row._distance >= 1000 ? ( (row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
+        : '';
+
       const tr = document.createElement('tr');
       tr.style.background = color + '22';
       tr.innerHTML = `
         <td>${escapeHtml(row["Póliza"]||'')}</td>
         <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
-        <td>${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}</td>`;
+        <td>
+          ${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}
+          ${distanciaText ? `<small class="distance">${escapeHtml(distanciaText)}</small>` : ''}
+        </td>`;
       tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });
       tbody.appendChild(tr);
     });
@@ -269,6 +322,8 @@
         return asc ? na - nb : nb - na;
       });
     }
+    // clear distance marks if any - but keep existing _distance values
+    clearHeaderSortMarks();
   }
 
   document.querySelectorAll('th').forEach((th, idx) => {
@@ -276,7 +331,7 @@
       currentSort.asc = (currentSort.column === idx) ? !currentSort.asc : true;
       currentSort.column = idx;
       applySort();
-      document.querySelectorAll('th').forEach(h => h.textContent = h.textContent.replace(/[▲▼]/g,''));
+      document.querySelectorAll('th').forEach(h => h.textContent = h.getAttribute('data-label') || h.textContent.replace(/[▲▼]/g,''));
       th.textContent += currentSort.asc ? ' ▲' : ' ▼';
       renderAll();
     });
@@ -284,13 +339,31 @@
 
   // Botones principales
   document.getElementById('locateBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) return alert('Geolocalización no soportada');
+    if (!navigator.geolocation) {
+      alert('Geolocalización no soportada');
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(pos=>{
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
+
+      // Centrar mapa
       map.setView([lat,lng],15);
+
+      // Marcador de usuario
       if (userMarker) map.removeLayer(userMarker);
       userMarker = L.marker([lat,lng]).addTo(map).bindPopup('📍 Estás aquí').openPopup();
-    }, ()=>alert('No se pudo obtener la ubicación.'));
+
+      // ORDENAR POR CERCANÍA
+      sortByDistance(lat, lng);
+
+      // Re-render completa (tabla y marcadores)
+      renderAll();
+
+    }, ()=>alert('No se pudo obtener la ubicación.'), {
+      enableHighAccuracy: true,
+      timeout: 10000
+    });
   });
 
   document.getElementById('refreshBtn').addEventListener('click', loadData);
@@ -316,9 +389,6 @@
 
   // ----------------------------------
   // speakPolizaAndNombre: implementación exacta solicitada
-  // - Póliza: grupos de 2 dígitos (si impar, último dígito queda solo)
-  // - Pausa entre grupos: 500 ms
-  // - Nombre: palabra por palabra con pausa de 2 s entre palabras
   // ----------------------------------
   async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
     if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
@@ -334,36 +404,66 @@
     if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
 
     // Normalizar póliza: obtener sólo dígitos
-  let pol = (polizaRaw || '').toString().replace(/\D/g, '');
-  const grupos = [];
+    let pol = (polizaRaw || '').toString().replace(/\D/g, '');
+    const grupos = [];
 
-  // Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
-  for (let i = 0; i < pol.length; i += 2) {
-  if (i + 2 <= pol.length) {
-    grupos.push(pol.substring(i, i + 2));   // grupo de 2
-  } else {
-    grupos.push(pol.substring(i));          // grupo final de 1
-  }
-  }
+    // Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
+    for (let i = 0; i < pol.length; i += 2) {
+      if (i + 2 <= pol.length) {
+        grupos.push(pol.substring(i, i + 2));   // grupo de 2
+      } else {
+        grupos.push(pol.substring(i));          // grupo final de 1
+      }
+    }
 
-  // Reproducir grupos
-// Reproducir grupos
-for (let g of grupos) {
+    // Reproducir grupos
+    for (let g of grupos) {
 
-  if (voiceCanceled) break;
+      if (voiceCanceled) break;
 
-  // Solo dígitos
-  if (/^\d+$/.test(g)) {
+      // Solo dígitos
+      if (/^\d+$/.test(g)) {
 
-    if (g.length === 2) {
+        if (g.length === 2) {
 
-      // Grupo de 2 dígitos → leer dígito a dígito
-      for (let ch of g) {
-        if (voiceCanceled) break;
+          // Grupo de 2 dígitos → leer dígito a dígito
+          for (let ch of g) {
+            if (voiceCanceled) break;
 
-        const u = new SpeechSynthesisUtterance(ch);
+            const u = new SpeechSynthesisUtterance(ch);
+            u.lang = 'es-MX';
+            u.rate = 1.25;
+
+            const p = new Promise(res => {
+              u.onend = res;
+              u.onerror = res;
+            });
+
+            speechSynthesis.speak(u);
+            await p;
+          }
+
+        } else {
+          // Grupo final de 1 dígito
+          const u = new SpeechSynthesisUtterance(g);
+          u.lang = 'es-MX';
+          u.rate = 1.0;
+
+          const p = new Promise(res => {
+            u.onend = res;
+            u.onerror = res;
+          });
+
+          speechSynthesis.speak(u);
+          await p;
+        }
+
+      } else {
+
+        // fallback (no numérico)
+        const u = new SpeechSynthesisUtterance(g);
         u.lang = 'es-MX';
-        u.rate = 1.25;
+        u.rate = 1.0;
 
         const p = new Promise(res => {
           u.onend = res;
@@ -374,44 +474,11 @@ for (let g of grupos) {
         await p;
       }
 
-    } else {
-      // Grupo final de 1 dígito
-      const u = new SpeechSynthesisUtterance(g);
-      u.lang = 'es-MX';
-      u.rate = 1.0;
+      // --- Pausa entre grupos ---
+      if (voiceCanceled) break;
+      await delay(1500);
 
-      const p = new Promise(res => {
-        u.onend = res;
-        u.onerror = res;
-      });
-
-      speechSynthesis.speak(u);
-      await p;
-    }
-
-  } else {
-
-    // fallback (no numérico)
-    const u = new SpeechSynthesisUtterance(g);
-    u.lang = 'es-MX';
-    u.rate = 1.0;
-
-    const p = new Promise(res => {
-      u.onend = res;
-      u.onerror = res;
-    });
-
-    speechSynthesis.speak(u);
-    await p;
-  }
-
-  // --- Pausa entre grupos ---
-  if (voiceCanceled) break;
-  await delay(1500);
-
-} // <-- cierre correcto del for(g)
-
-
+    } // fin grupos
 
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
 
@@ -420,32 +487,31 @@ for (let g of grupos) {
 
     // Nombre: palabra por palabra con pausa de 2 segundos entre palabras
     if (nombreRaw && nombreRaw.toString().trim().length > 0) {
-  const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
-  for (let i = 0; i < palabras.length; i++) {
-    if (voiceCanceled) break;
+      const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
+      for (let i = 0; i < palabras.length; i++) {
+        if (voiceCanceled) break;
 
-    const w = palabras[i];
-    const u = new SpeechSynthesisUtterance(w);
-    u.lang = 'es-MX';
-    u.rate = 1.0;
+        const w = palabras[i];
+        const u = new SpeechSynthesisUtterance(w);
+        u.lang = 'es-MX';
+        u.rate = 1.0;
 
-    const p = new Promise(res => { 
-      u.onend = res; 
-      u.onerror = res; 
-    });
+        const p = new Promise(res => { 
+          u.onend = res; 
+          u.onerror = res; 
+        });
 
-    speechSynthesis.speak(u);
-    await p;
+        speechSynthesis.speak(u);
+        await p;
 
-    if (voiceCanceled) break;
+        if (voiceCanceled) break;
 
-    // ---- Pausa proporcional al número de letras ----
-    const letras = w.length;
-    const pausa = letras * 500; // 200 ms por letra
-    await delay(pausa);
-  }
-  }
-
+        // ---- Pausa proporcional al número de letras ----
+        const letras = w.length;
+        const pausa = letras * 500; // 500 ms por letra (según implementación solicitada)
+        await delay(pausa);
+      }
+    }
 
     stopSpeech();
     restoreAllVoiceButtons();
