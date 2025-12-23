@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Visitas Naturgy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script>
     function compareVersions(v1, v2) {
       const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
@@ -41,34 +42,66 @@
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkUpdate); else checkUpdate();
   </script>
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+
   <style>
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 100vh; transition: height 0.3s ease; }
-    #listPanel {
-      height: 40vh; overflow-y: auto; border-top: 2px solid #ccc; background: #fff;
-      position: fixed; bottom: 0; width: 100%; transition: transform 0.3s ease; z-index: 900;
-    }
-    #listPanel.hidden { transform: translateY(100%); }
-    table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { padding:6px; border:1px solid #ddd; text-align:left; vertical-align:top; }
-    th { background:#f4f4f4; position: sticky; top: 0; cursor: pointer; }
-    tr:hover { background:#f0f8ff; cursor:pointer; }
 
-    #locateBtn, #refreshBtn, #toggleBtn {
-      position: absolute; right: 10px; z-index: 1000;
-      border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; color:white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    /* LIST PANEL (pantalla completa, deslizable) */
+    #listPanel {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      z-index: 900;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
     }
-    #locateBtn { top:10px; background:#007bff; }
-    #refreshBtn { top:60px; background:#17a2b8; }
-    #toggleBtn { top:110px; background:#6f42c1; }
+    #listPanel.active {
+      transform: translateY(0);
+    }
+
+    /* handle para deslizar */
+    #panelHandle {
+      height: 26px;
+      background: #f1f1f1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-bottom: 1px solid #e6e6e6;
+    }
+    #panelHandle div {
+      width: 42px;
+      height: 5px;
+      background: #999;
+      border-radius: 3px;
+    }
+
+    /* controles (botón filtro + leyenda) */
+    #controls {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      flex-wrap:wrap;
+    }
+    #controls button {
+      padding:6px 10px;
+      border-radius:6px;
+      border:1px solid #ddd;
+      background:#fff;
+      cursor:pointer;
+    }
 
     #legend {
-      padding: 6px; font-size:13px; background:#fff; border-bottom:2px solid #ccc; position: sticky; top:0; z-index:900;
-      display:flex; flex-wrap:wrap; gap:6px;
+      padding: 6px; font-size:13px; background:#fff; display:flex; flex-wrap:wrap; gap:6px;
     }
     .legend-item {
       display:inline-flex; align-items:center; gap:6px; padding:4px 8px;
@@ -76,40 +109,96 @@
     }
     .legend-item.active { outline:2px solid #007bff; }
 
+    /* tabla */
+    #tableWrapper {
+      flex: 1;
+      overflow-y: auto;
+    }
+    table { width:100%; border-collapse: collapse; font-size:14px; }
+    th, td { padding:8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+    th { background:#fafafa; position: sticky; top: 0; z-index: 10; }
+    tr:hover { background:#f7fbff; cursor:pointer; }
+
     .voice-btn {
       display:inline-flex; align-items:center; justify-content:center;
       border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px;
       color:#fff;
     }
     small.distance { display:block; margin-top:6px; color:#333; opacity:0.85; font-size:12px; }
+
+    /* modal de calles */
+    #streetModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      z-index: 2000;
+    }
+    #streetModal .modal {
+      background: #fff;
+      margin: 10% auto;
+      width: 92%;
+      max-height: 70%;
+      overflow-y: auto;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    #streetModal ul { list-style: none; padding: 0; margin: 0; }
+    #streetModal li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="map">
-    <button id="locateBtn">📍</button> <button id="refreshBtn">🔄</button> <button id="toggleBtn">📋</button> <button id="autoNarrarBtn" style="position:absolute; right:10px; top:160px; z-index:1000; background:#198754; color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
+    <button id="locateBtn">📍</button>
+    <button id="refreshBtn">🔄</button>
+    <button id="toggleBtn">📋</button>
+    <button id="autoNarrarBtn" style="position:absolute; right:10px; top:160px; z-index:1000; background:#198754; color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
   </div>
-  <div id="listPanel">
-    <div id="legend"></div>
-    <table>
-      <thead>
-        <tr>
-          <th data-label="Póliza">Póliza</th>
-          <th data-label="Nombre">Nombre</th>
-          <th data-label="Dirección">Dirección</th>
-        </tr>
-      </thead>
-      <tbody id="dataTableBody"></tbody>
-    </table>
+
+  <!-- PANEL LISTA (pantalla completa, deslizable) -->
+  <div id="listPanel" aria-hidden="true">
+    <div id="panelHandle"><div></div></div>
+
+    <div id="controls">
+      <button id="filterBtn">📍 Filtrar calle</button>
+      <button id="hideBtn">⬇️ Ocultar</button>
+      <div id="legend" style="flex:1;"></div>
+    </div>
+
+    <div id="tableWrapper">
+      <table>
+        <thead>
+          <tr>
+            <th data-label="Póliza">Póliza</th>
+            <th data-label="Nombre">Nombre</th>
+            <th data-label="Dirección">Dirección</th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody"></tbody>
+      </table>
+    </div>
   </div>
+
+  <!-- Modal calles -->
+  <div id="streetModal" aria-hidden="true">
+    <div class="modal">
+      <h3 style="margin-top:0">Selecciona calle</h3>
+      <ul id="streetList"></ul>
+    </div>
+  </div>
+
   <script>
+  // ---------- MAPA ----------
   const map = L.map('map').setView([25.6866, -100.3161], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+  // ---------- ESTADO ----------
   const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
   const streetColors = {};
   let currentData = [], markers = [], filteredStreet = null, userMarker = null;
   let currentSort = { column: null, asc: true };
 
+  // ---------- UTIL ----------
   function ensureColor(street) {
     if (!streetColors[street]) {
       streetColors[street] = vividColors[Object.keys(streetColors).length % vividColors.length];
@@ -117,19 +206,8 @@
     return streetColors[street];
   }
 
-  function buildLegend() {
-    const legend = document.getElementById('legend');
-    legend.innerHTML = '';
-    const streets = Array.from(new Set(currentData.map(r => (r["calle"]||'Sin calle')))).sort();
-    streets.forEach(s => {
-      const color = ensureColor(s);
-      const item = document.createElement('div');
-      item.className = 'legend-item';
-      item.innerHTML = `<span class="legend-color" style="background:${color}; width:12px; height:12px; display:inline-block; border-radius:2px;"></span> ${escapeHtml(s)}`;
-      item.addEventListener('click', () => toggleFilter(s, item));
-      if (filteredStreet === s) item.classList.add('active');
-      legend.appendChild(item);
-    });
+  function escapeHtml(text) {
+    return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
   }
 
   function createIcon(number, color) {
@@ -142,12 +220,8 @@
     return L.icon({ iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg), iconSize: [38, 56], iconAnchor: [19, 56], popupAnchor: [0, -48] });
   }
 
-  function escapeHtml(text) {
-    return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
-  }
-
   // --------------------------
-  // NUEVO: Haversine - distancia en metros
+  // Haversine - distancia en metros
   // --------------------------
   function distanceMeters(lat1, lng1, lat2, lng2) {
     const R = 6371000; // metros
@@ -161,9 +235,6 @@
     return R * c;
   }
 
-  // --------------------------
-  // NUEVO: ordenar por distancia desde usuario
-  // --------------------------
   function clearHeaderSortMarks() {
     document.querySelectorAll('th').forEach(h => {
       const label = h.getAttribute('data-label');
@@ -191,6 +262,7 @@
     clearHeaderSortMarks();
   }
 
+  // ---------- CARGAR DATOS ----------
   function loadData() {
     document.getElementById('dataTableBody').innerHTML = '';
     document.getElementById('legend').innerHTML = '';
@@ -210,7 +282,25 @@
         buildLegend();
         if (currentSort.column !== null) applySort();
         renderAll();
+        // mostrar panel por defecto (si quieres ocultarlo, comenta esta línea)
+        showTable();
       }
+    });
+  }
+
+  // ---------- RENDER LISTA / MARCADORES ----------
+  function buildLegend() {
+    const legend = document.getElementById('legend');
+    legend.innerHTML = '';
+    const streets = Array.from(new Set(currentData.map(r => (r["calle"]||'Sin calle')))).sort();
+    streets.forEach(s => {
+      const color = ensureColor(s);
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `<span class="legend-color" style="background:${color}; width:12px; height:12px; display:inline-block; border-radius:2px;"></span> ${escapeHtml(s)}`;
+      item.addEventListener('click', () => toggleFilter(s, item));
+      if (filteredStreet === s) item.classList.add('active');
+      legend.appendChild(item);
     });
   }
 
@@ -229,7 +319,7 @@
 
       const marker = L.marker([lat, lng], { icon }).addTo(map);
 
-      // popup: agregamos botón de voz (sin modificar lo demás)
+      // popup
       const popupHtml = `
         <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative;">
           <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
@@ -280,11 +370,19 @@
           ${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}
           ${distanciaText ? `<small class="distance">${escapeHtml(distanciaText)}</small>` : ''}
         </td>`;
-      tr.addEventListener('click', () => { marker.openPopup(); map.setView([lat, lng], 17); });
+
+      // Al hacer click en la fila: abrir popup, centrar y ocultar panel
+      tr.addEventListener('click', () => {
+        marker.openPopup();
+        map.setView([lat, lng], 17);
+        hideTable();
+      });
+
       tbody.appendChild(tr);
     });
   }
 
+  // Filtrado por calle (legend deja de ser único filtro; ahora modal)
   function toggleFilter(street, itemElement) {
     const items = document.querySelectorAll('.legend-item');
     if (filteredStreet === street) {
@@ -297,6 +395,7 @@
     renderAll();
   }
 
+  // Ordenamientos de columnas
   function applySort() {
     const col = currentSort.column;
     const asc = currentSort.asc;
@@ -322,7 +421,6 @@
         return asc ? na - nb : nb - na;
       });
     }
-    // clear distance marks if any - but keep existing _distance values
     clearHeaderSortMarks();
   }
 
@@ -337,7 +435,8 @@
     });
   });
 
-  // Botones principales
+  // ---------- BOTONES PRINCIPALES ----------
+  // localizar y ordenar por distancia
   document.getElementById('locateBtn').addEventListener('click', () => {
     if (!navigator.geolocation) {
       alert('Geolocalización no soportada');
@@ -367,16 +466,20 @@
   });
 
   document.getElementById('refreshBtn').addEventListener('click', loadData);
-  document.getElementById('toggleBtn').addEventListener('click', ()=>document.getElementById('listPanel').classList.toggle('hidden'));
 
-  // -- Funciones de voz añadidas (no tocan el resto de la lógica) --
+  // toggle panel con botón
+  const listPanel = document.getElementById('listPanel');
+  document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
+
+  // botón ocultar del panel
+  document.getElementById('hideBtn').addEventListener('click', hideTable);
+
+  // ---------- VOZ (sin cambios lógicos) ----------
   let voiceCanceled = false;
-
   function stopSpeech() {
     voiceCanceled = true;
     try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
   }
-
   function restoreAllVoiceButtons() {
     const btns = document.querySelectorAll('.voice-btn');
     btns.forEach(b => {
@@ -384,16 +487,11 @@
       b.style.background = '#28a745';
     });
   }
-
   function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 
-  // ----------------------------------
-  // speakPolizaAndNombre: implementación exacta solicitada
-  // ----------------------------------
   async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
     if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
 
-    // Toggle: si ya está hablando -> cancelar
     if (speechSynthesis.speaking || speechSynthesis.pending) {
       stopSpeech();
       restoreAllVoiceButtons();
@@ -403,112 +501,64 @@
     voiceCanceled = false;
     if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
 
-    // Normalizar póliza: obtener sólo dígitos
     let pol = (polizaRaw || '').toString().replace(/\D/g, '');
     const grupos = [];
-
-    // Formar grupos de 2. Si la longitud es impar, último grupo será de 1 dígito.
     for (let i = 0; i < pol.length; i += 2) {
-      if (i + 2 <= pol.length) {
-        grupos.push(pol.substring(i, i + 2));   // grupo de 2
-      } else {
-        grupos.push(pol.substring(i));          // grupo final de 1
-      }
+      if (i + 2 <= pol.length) grupos.push(pol.substring(i, i + 2));
+      else grupos.push(pol.substring(i));
     }
 
-    // Reproducir grupos
     for (let g of grupos) {
-
       if (voiceCanceled) break;
-
-      // Solo dígitos
       if (/^\d+$/.test(g)) {
-
         if (g.length === 2) {
-
-          // Grupo de 2 dígitos → leer dígito a dígito
           for (let ch of g) {
             if (voiceCanceled) break;
-
             const u = new SpeechSynthesisUtterance(ch);
             u.lang = 'es-MX';
             u.rate = 1.25;
-
-            const p = new Promise(res => {
-              u.onend = res;
-              u.onerror = res;
-            });
-
+            const p = new Promise(res => { u.onend = res; u.onerror = res; });
             speechSynthesis.speak(u);
             await p;
           }
-
         } else {
-          // Grupo final de 1 dígito
           const u = new SpeechSynthesisUtterance(g);
           u.lang = 'es-MX';
           u.rate = 1.0;
-
-          const p = new Promise(res => {
-            u.onend = res;
-            u.onerror = res;
-          });
-
+          const p = new Promise(res => { u.onend = res; u.onerror = res; });
           speechSynthesis.speak(u);
           await p;
         }
-
       } else {
-
-        // fallback (no numérico)
         const u = new SpeechSynthesisUtterance(g);
         u.lang = 'es-MX';
         u.rate = 1.0;
-
-        const p = new Promise(res => {
-          u.onend = res;
-          u.onerror = res;
-        });
-
+        const p = new Promise(res => { u.onend = res; u.onerror = res; });
         speechSynthesis.speak(u);
         await p;
       }
-
-      // --- Pausa entre grupos ---
       if (voiceCanceled) break;
       await delay(1500);
-
-    } // fin grupos
+    }
 
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
 
-    // Pausa corta antes del nombre
     await delay(500);
 
-    // Nombre: palabra por palabra con pausa de 2 segundos entre palabras
     if (nombreRaw && nombreRaw.toString().trim().length > 0) {
       const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
       for (let i = 0; i < palabras.length; i++) {
         if (voiceCanceled) break;
-
         const w = palabras[i];
         const u = new SpeechSynthesisUtterance(w);
         u.lang = 'es-MX';
         u.rate = 1.0;
-
-        const p = new Promise(res => { 
-          u.onend = res; 
-          u.onerror = res; 
-        });
-
+        const p = new Promise(res => { u.onend = res; u.onerror = res; });
         speechSynthesis.speak(u);
         await p;
-
         if (voiceCanceled) break;
-
-        // ---- Pausa proporcional al número de letras ----
         const letras = w.length;
-        const pausa = letras * 500; // 500 ms por letra (según implementación solicitada)
+        const pausa = letras * 500;
         await delay(pausa);
       }
     }
@@ -517,9 +567,8 @@
     restoreAllVoiceButtons();
   }
 
-  // === MODO AUTOMÁTICO DE NARRACIÓN ===
+  // Modo automático narrador
   let autoModeActive = false;
-
   async function narrarAutomaticamente() {
     if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
 
@@ -537,23 +586,18 @@
       const row = currentData[i];
       const marker = markers[i];
       if (!row || !marker) continue;
-
       map.setView(marker.getLatLng(), 17);
       marker.openPopup();
-
-      // Usamos la misma función que el botón de voz para mantener consistencia
       await speakPolizaAndNombre(row['Póliza']||'', row['Nombre Contratante']||'', null);
-
-      // pequeña pausa entre registros
       await delay(2000);
     }
 
     autoModeActive = false;
     document.getElementById('autoNarrarBtn').textContent = '▶️';
   }
-
   document.getElementById('autoNarrarBtn').addEventListener('click', narrarAutomaticamente);
 
+  // popup open handlers (botón voz / next)
   map.on('popupopen', e => {
     const popupEl = e.popup.getElement();
     const nextBtn = popupEl.querySelector('.popup-next-btn');
@@ -563,11 +607,9 @@
       nextBtn.onclick = () => {
         const visibles = markers.filter(m => map.hasLayer(m));
         if (visibles.length === 0) return;
-
         let idx = visibles.findIndex(m => m === e.popup._source);
         idx = (idx + 1) % visibles.length;
         const nextMarker = visibles[idx];
-
         map.setView(nextMarker.getLatLng(), 17);
         nextMarker.openPopup();
       };
@@ -575,16 +617,13 @@
 
     if (voiceBtn) {
       voiceBtn.onclick = null;
-
       const markerLat = e.popup._source.getLatLng().lat;
       const markerLng = e.popup._source.getLatLng().lng;
       const markerData = currentData.find(r =>
         parseFloat(r.lat) === markerLat && parseFloat(r.lng) === markerLng
       );
-
       if (markerData) {
         voiceBtn.onclick = () => {
-          // toggle: si ya se está narrando, stop
           if (speechSynthesis.speaking || speechSynthesis.pending) { stopSpeech(); restoreAllVoiceButtons(); return; }
           speakPolizaAndNombre(markerData['Póliza']||'', markerData['Nombre Contratante']||'', voiceBtn);
         };
@@ -596,6 +635,7 @@
     stopSpeech();
     restoreAllVoiceButtons();
   });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopSpeech();
@@ -603,9 +643,84 @@
     }
   });
 
-  // Inicio
+  // ---------- PANEL SHOW/HIDE y GESTOS ----------
+  function showTable() {
+    listPanel.classList.add('active');
+    listPanel.setAttribute('aria-hidden','false');
+  }
+  function hideTable() {
+    listPanel.classList.remove('active');
+    listPanel.setAttribute('aria-hidden','true');
+  }
+
+  // swipe down to hide
+  let startY = 0;
+  listPanel.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+  }, { passive:true });
+
+  listPanel.addEventListener('touchend', e => {
+    const endY = e.changedTouches[0].clientY;
+    if (endY - startY > 80) hideTable();
+  }, { passive:true });
+
+  // allow dragging handle (tap on handle toggles)
+  const handle = document.getElementById('panelHandle');
+  handle.addEventListener('click', () => {
+    if (listPanel.classList.contains('active')) hideTable(); else showTable();
+  });
+
+  // ---------- MODAL CALLES ----------
+  function openStreetModal() {
+    renderStreetModal();
+    document.getElementById('streetModal').style.display = 'block';
+    document.getElementById('streetModal').setAttribute('aria-hidden','false');
+  }
+  function closeStreetModal() {
+    document.getElementById('streetModal').style.display = 'none';
+    document.getElementById('streetModal').setAttribute('aria-hidden','true');
+  }
+
+  function renderStreetModal() {
+    const ul = document.getElementById('streetList');
+    ul.innerHTML = '';
+
+    const streets = Array.from(
+      new Set(currentData.map(r => (r["calle"]||'Sin calle')))
+    ).sort((a,b) => a.localeCompare(b,'es'));
+
+    const liAll = document.createElement('li');
+    liAll.textContent = 'Todas';
+    liAll.style.fontWeight = '700';
+    liAll.onclick = () => {
+      filteredStreet = null;
+      renderAll();
+      closeStreetModal();
+    };
+    ul.appendChild(liAll);
+
+    streets.forEach(calle => {
+      const li = document.createElement('li');
+      li.textContent = calle;
+      li.onclick = () => {
+        filteredStreet = calle;
+        renderAll();
+        closeStreetModal();
+      };
+      ul.appendChild(li);
+    });
+  }
+
+  document.getElementById('streetModal').onclick = e => {
+    if (e.target.id === 'streetModal') closeStreetModal();
+  };
+  document.getElementById('filterBtn').addEventListener('click', openStreetModal);
+
+  // ---------- INICIO ----------
   loadData();
   </script>
+
+  <!-- placeholder (no tocar) -->
   <div state="voice" class="placeholder-icon" id="tts-placeholder-icon" title="Haga clic para mostrar el botón TTS" style="background-image: url(&quot;moz-extension://eb9243f3-1ee4-4026-ba28-209c2baea838/data/content_script/icons/voice.png&quot;);">
     <canvas width="36" height="36" class="loading-circle" id="text-to-speech-loader" style="display: none;"></canvas>
   </div>
