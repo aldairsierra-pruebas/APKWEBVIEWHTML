@@ -157,16 +157,70 @@
 </head>
 <body>
   <div id="map">
-<button id="locateBtn">📍</button>
-<button id="refreshBtn">🔄</button>
-<button id="toggleBtn">📋</button>
-<button id="autoNarrarBtn"
-  style="position:absolute; right:10px; top:160px; z-index:1000;
-  background:#198754; color:white; border:none; border-radius:50%;
-  width:40px; height:40px; font-size:18px; cursor:pointer;
-  box-shadow:0 2px 6px rgba(0,0,0,0.3);">
-  ▶️
-</button>
+<!-- Contenedor superior derecho -->
+<div style="
+  position:absolute;
+  top:10px;
+  right:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  z-index:1000;
+">
+
+  <button id="locateBtn"
+    style="
+      background:#0d6efd;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">📍</button>
+
+  <button id="refreshBtn"
+    style="
+      background:#6c757d;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">🔄</button>
+
+  <button id="toggleBtn"
+    style="
+      background:#343a40;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">📋</button>
+
+  <button id="autoNarrarBtn"
+    style="
+      background:#198754;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">▶️</button>
+
+</div>
 
   <!-- PANEL LISTA (pantalla completa, deslizable) -->
   <div id="listPanel" aria-hidden="true">
@@ -342,12 +396,14 @@
           <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
           <strong>Estatus:</strong> ${escapeHtml(row["Estatus"]||'')}<br/><div style="margin-top:8px; display:flex; gap:6px;">
 
-  <a href="intent://maps.google.com/maps?daddr=${lat},${lng}#Intent;scheme=geo;package=com.google.android.apps.maps;end;"
+  <!-- Google Maps iOS -->
+  <a href="comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving"
      style="background:#007bff;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
      🚗 Google
   </a>
 
-  <a href="intent://?ll=${lat},${lng}&navigate=yes#Intent;scheme=waze;package=com.waze;end;"
+  <!-- Waze iOS -->
+  <a href="waze://?ll=${lat},${lng}&navigate=yes"
      style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
      🧭 Waze
   </a>
