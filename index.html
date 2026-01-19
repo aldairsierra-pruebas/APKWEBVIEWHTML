@@ -374,8 +374,10 @@
   function renderAll() {
     const tbody = document.getElementById('dataTableBody');
     tbody.innerHTML = '';
+    // limpiar marcadores previos
     markers.forEach(m => map.removeLayer(m)); markers = [];
 
+    // LISTA RESPETANDO FILTRO
     const list = currentData.filter(r => !filteredStreet || (r["calle"]||'Sin calle') === filteredStreet);
 
     list.forEach((row, i) => {
@@ -384,7 +386,10 @@
       const icon = createIcon(i+1, color);
       const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
 
+      // crear marcador y asociar ROW directamente al marker
       const marker = L.marker([lat, lng], { icon }).addTo(map);
+      marker._rowData = row; // <-- ASIGNACIÓN CRUCIAL para que la narración y botones vocales usen la fila correcta
+      markers.push(marker);
 
       // popup
       const popupHtml = `
@@ -424,7 +429,6 @@
         </div>`;
 
       marker.bindPopup(popupHtml);
-      markers.push(marker);
 
       const distanciaText = (row._distance && isFinite(row._distance))
         ? (row._distance >= 1000 ? ( (row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
@@ -619,7 +623,7 @@
     restoreAllVoiceButtons();
   }
 
-  // Modo automático narrador
+  // Modo automático narrador (VERSIÓN CORREGIDA: recorre marcadores visibles y usa marker._rowData)
   let autoModeActive = false;
   async function narrarAutomaticamente() {
     if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
@@ -634,13 +638,31 @@
     autoModeActive = true;
     document.getElementById('autoNarrarBtn').textContent = '⏹';
 
-    for (let i = 0; i < currentData.length && autoModeActive; i++) {
-      const row = currentData[i];
-      const marker = markers[i];
-      if (!row || !marker) continue;
+    // Tomar SOLO los marcadores actuales (ya renderizados) y visibles en el mapa.
+    // Esto respeta filtros y el orden en que fueron renderizados (misma secuencia de la tabla).
+    const visibles = markers.filter(m => map.hasLayer(m));
+
+    for (let i = 0; i < visibles.length && autoModeActive; i++) {
+      const marker = visibles[i];
+
+      // Priorizar la fila directamente asociada al marker (evita inconsistencias por índices)
+      let row = marker._rowData;
+      if (!row) {
+        // fallback por lat/lng si por algún motivo no existe _rowData
+        const lat = marker.getLatLng().lat;
+        const lng = marker.getLatLng().lng;
+        row = currentData.find(r => parseFloat(r.lat) === lat && parseFloat(r.lng) === lng);
+      }
+      if (!row) continue;
+
+      // Centrar y abrir popup
       map.setView(marker.getLatLng(), 17);
       marker.openPopup();
+
+      // Narrar póliza + nombre
       await speakPolizaAndNombre(row['Póliza']||'', row['Nombre Contratante']||'', null);
+
+      // Pausa entre ítems (ajustable)
       await delay(2000);
     }
 
@@ -669,11 +691,19 @@
 
     if (voiceBtn) {
       voiceBtn.onclick = null;
-      const markerLat = e.popup._source.getLatLng().lat;
-      const markerLng = e.popup._source.getLatLng().lng;
-      const markerData = currentData.find(r =>
-        parseFloat(r.lat) === markerLat && parseFloat(r.lng) === markerLng
-      );
+
+      // Preferimos usar la fila asociada al marker (_rowData) — esto evita leer la "fila original" fuera de orden.
+      const sourceMarker = e.popup._source;
+      let markerData = sourceMarker && sourceMarker._rowData;
+
+      if (!markerData) {
+        const markerLat = e.popup._source.getLatLng().lat;
+        const markerLng = e.popup._source.getLatLng().lng;
+        markerData = currentData.find(r =>
+          parseFloat(r.lat) === markerLat && parseFloat(r.lng) === markerLng
+        );
+      }
+
       if (markerData) {
         voiceBtn.onclick = () => {
           if (speechSynthesis.speaking || speechSynthesis.pending) { stopSpeech(); restoreAllVoiceButtons(); return; }
