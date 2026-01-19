@@ -145,14 +145,16 @@
     }
     #streetModal ul { list-style: none; padding: 0; margin: 0; }
     #streetModal li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
-#locateBtn,
-#refreshBtn,
-#toggleBtn,
-#autoNarrarBtn {
-  position: absolute;
-  right: 10px;
-  z-index: 2000;
-}
+
+    /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
+    #locateBtn,
+    #refreshBtn,
+    #toggleBtn,
+    #autoNarrarBtn {
+      position: static;
+      right: auto;
+      z-index: auto;
+    }
   </style>
 </head>
 <body>
@@ -541,7 +543,7 @@
   // botón ocultar del panel
   document.getElementById('hideBtn').addEventListener('click', hideTable);
 
-  // ---------- VOZ (sin cambios lógicos) ----------
+  // ---------- VOZ (MODIFICADA: separación 1 dígito sin pausas) ----------
   let voiceCanceled = false;
   function stopSpeech() {
     voiceCanceled = true;
@@ -568,44 +570,27 @@
     voiceCanceled = false;
     if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
 
+    // --- Cambio: separar la póliza en UN dígito por vez y sin pausas adicionales ---
     let pol = (polizaRaw || '').toString().replace(/\D/g, '');
-    const grupos = [];
-    for (let i = 0; i < pol.length; i += 2) {
-      if (i + 2 <= pol.length) grupos.push(pol.substring(i, i + 2));
-      else grupos.push(pol.substring(i));
-    }
-
-    for (let g of grupos) {
-      if (voiceCanceled) break;
-      if (/^\d+$/.test(g)) {
-        if (g.length === 2) {
-          for (let ch of g) {
-            if (voiceCanceled) break;
-            const u = new SpeechSynthesisUtterance(ch);
-            u.lang = 'es-MX';
-            u.rate = 1.25;
-            const p = new Promise(res => { u.onend = res; u.onerror = res; });
-            speechSynthesis.speak(u);
-            await p;
-          }
+    if (pol && pol.length > 0) {
+      for (let ch of pol) {
+        if (voiceCanceled) break;
+        if (/^\d$/.test(ch)) {
+          const u = new SpeechSynthesisUtterance(ch);
+          u.lang = 'es-MX';
+          u.rate = 1.25;
+          const p = new Promise(res => { u.onend = res; u.onerror = res; });
+          speechSynthesis.speak(u);
+          await p; // esperamos a que termine cada dígito, sin pausas extra
         } else {
-          const u = new SpeechSynthesisUtterance(g);
+          const u = new SpeechSynthesisUtterance(ch);
           u.lang = 'es-MX';
           u.rate = 1.0;
           const p = new Promise(res => { u.onend = res; u.onerror = res; });
           speechSynthesis.speak(u);
           await p;
         }
-      } else {
-        const u = new SpeechSynthesisUtterance(g);
-        u.lang = 'es-MX';
-        u.rate = 1.0;
-        const p = new Promise(res => { u.onend = res; u.onerror = res; });
-        speechSynthesis.speak(u);
-        await p;
       }
-      if (voiceCanceled) break;
-      await delay(1500);
     }
 
     if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
