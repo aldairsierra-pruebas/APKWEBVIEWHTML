@@ -682,8 +682,8 @@
         const visibles = markers.filter(m => map.hasLayer(m));
         if (visibles.length === 0) return;
         let idx = visibles.findIndex(m => m === e.popup._source);
-        idx = (idx + 1) % visibles.length;
-        const nextMarker = visibles[idx];
+        idx = (idx) % visibles.length;
+        const nextMarker = visibles[idx + 1];
         map.setView(nextMarker.getLatLng(), 17);
         nextMarker.openPopup();
       };
