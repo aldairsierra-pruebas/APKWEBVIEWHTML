@@ -563,66 +563,96 @@
   function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 
   async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
-    if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
-
-    if (speechSynthesis.speaking || speechSynthesis.pending) {
-      stopSpeech();
-      restoreAllVoiceButtons();
-      return;
-    }
-
-    voiceCanceled = false;
-    if (btn) { btn.textContent = '🔊'; btn.style.background = '#dc3545'; }
-
-    // --- Cambio: separar la póliza en UN dígito por vez y sin pausas adicionales ---
-    let pol = (polizaRaw || '').toString().replace(/\D/g, '');
-    if (pol && pol.length > 0) {
-      for (let ch of pol) {
-        if (voiceCanceled) break;
-        if (/^\d$/.test(ch)) {
-          const u = new SpeechSynthesisUtterance(ch);
-          u.lang = 'es-MX';
-          u.rate = 1.25;
-          const p = new Promise(res => { u.onend = res; u.onerror = res; });
-          speechSynthesis.speak(u);
-          await p; // esperamos a que termine cada dígito, sin pausas extra
-        } else {
-          const u = new SpeechSynthesisUtterance(ch);
-          u.lang = 'es-MX';
-          u.rate = 1.0;
-          const p = new Promise(res => { u.onend = res; u.onerror = res; });
-          speechSynthesis.speak(u);
-          await p;
-        }
-      }
-    }
-
-    if (voiceCanceled) { stopSpeech(); if (btn) { restoreAllVoiceButtons(); } return; }
-
-    await delay(500);
-
-    if (nombreRaw && nombreRaw.toString().trim().length > 0) {
-      const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
-      for (let i = 0; i < palabras.length; i++) {
-        if (voiceCanceled) break;
-        const w = palabras[i];
-        const u = new SpeechSynthesisUtterance(w);
-        u.lang = 'es-MX';
-        u.rate = 1.0;
-        const p = new Promise(res => { u.onend = res; u.onerror = res; });
-        speechSynthesis.speak(u);
-        await p;
-        if (voiceCanceled) break;
-        const letras = w.length;
-        const pausa = letras * 500;
-        await delay(pausa);
-      }
-    }
-
-    stopSpeech();
-    restoreAllVoiceButtons();
+  if (!('speechSynthesis' in window)) {
+    alert('Tu navegador no soporta síntesis de voz.');
+    return;
   }
 
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    stopSpeech();
+    restoreAllVoiceButtons();
+    return;
+  }
+
+  voiceCanceled = false;
+  if (btn) {
+    btn.textContent = '🔊';
+    btn.style.background = '#dc3545';
+  }
+
+  /* ==============================
+     PÓLIZA: dígito por dígito
+     + pausa fija de 300 ms
+     ============================== */
+  const pol = (polizaRaw || '').toString().trim();
+
+  if (pol.length > 0) {
+    for (const ch of pol) {
+      if (voiceCanceled) break;
+
+      const u = new SpeechSynthesisUtterance(ch);
+      u.lang = 'es-MX';
+
+      // Ajuste fino: números más rápidos, letras más lentas
+      u.rate = /^\d$/.test(ch) ? 1.25 : 0.9;
+
+      const p = new Promise(res => {
+        u.onend = res;
+        u.onerror = res;
+      });
+
+      speechSynthesis.speak(u);
+      await p;
+
+      // ⏸️ pausa REAL entre cada dígito / carácter
+      await delay(300);
+    }
+  }
+
+  if (voiceCanceled) {
+    stopSpeech();
+    restoreAllVoiceButtons();
+    return;
+  }
+
+  /* ==============================
+     NOMBRE: palabra por palabra
+     (lógica original conservada)
+     ============================== */
+  await delay(500);
+
+  if (nombreRaw && nombreRaw.toString().trim().length > 0) {
+    const palabras = nombreRaw
+      .toString()
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    for (const w of palabras) {
+      if (voiceCanceled) break;
+
+      const u = new SpeechSynthesisUtterance(w);
+      u.lang = 'es-MX';
+      u.rate = 1.0;
+
+      const p = new Promise(res => {
+        u.onend = res;
+        u.onerror = res;
+      });
+
+      speechSynthesis.speak(u);
+      await p;
+
+      if (voiceCanceled) break;
+
+      // Pausa proporcional al tamaño de la palabra
+      await delay(w.length * 500);
+    }
+  }
+
+  stopSpeech();
+  restoreAllVoiceButtons();
+}
   // Modo automático narrador (VERSIÓN CORREGIDA: recorre marcadores visibles y usa marker._rowData)
   let autoModeActive = false;
   async function narrarAutomaticamente() {
