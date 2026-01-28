@@ -239,7 +239,7 @@
             <th data-label="Póliza">Póliza</th>
             <th data-label="Nombre">Nombre</th>
             <th data-label="Dirección">Dirección</th>
-            <th data-label="Empresa">Comentarios</th>
+            <th data-label="Empresa">Empresa</th>
           </tr>
         </thead>
         <tbody id="dataTableBody"></tbody>
@@ -595,7 +595,7 @@
       u.lang = 'es-MX';
 
       // Ajuste fino: números más rápidos, letras más lentas
-      u.rate = /^\d$/.test(ch) ? 1.25 : 0.9;
+      u.rate = /^\d$/.test(ch) ? 1.00 : 0.9;
 
       const p = new Promise(res => {
         u.onend = res;
@@ -606,7 +606,7 @@
       await p;
 
       // ⏸️ pausa REAL entre cada dígito / carácter
-      await delay(300);
+      await delay(500);
     }
   }
 
