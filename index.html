@@ -239,6 +239,7 @@
             <th data-label="Póliza">Póliza</th>
             <th data-label="Nombre">Nombre</th>
             <th data-label="Dirección">Dirección</th>
+            <th data-label="Comentarios">Empresa</th>
           </tr>
         </thead>
         <tbody id="dataTableBody"></tbody>
@@ -399,7 +400,7 @@
           <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
           <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
           <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
-          <strong>Estatus:</strong> ${escapeHtml(row["Estatus"]||'')}<br/><div style="margin-top:8px; display:flex; gap:6px;">
+          <strong>Comentarios:</strong> ${escapeHtml(row["Empresa"]||'')}<br/><div style="margin-top:8px; display:flex; gap:6px;">
 
   <!-- Google Maps iOS -->
   <a href="comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving"
