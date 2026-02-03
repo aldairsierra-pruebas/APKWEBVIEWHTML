@@ -358,19 +358,10 @@
 
   // ---------- RENDER LISTA / MARCADORES ----------
   function buildLegend() {
-    const legend = document.getElementById('legend');
-    legend.innerHTML = '';
-    const streets = Array.from(new Set(currentData.map(r => (r["calle"]||'Sin calle')))).sort();
-    streets.forEach(s => {
-      const color = ensureColor(s);
-      const item = document.createElement('div');
-      item.className = 'legend-item';
-      item.innerHTML = `<span class="legend-color" style="background:${color}; width:12px; height:12px; display:inline-block; border-radius:2px;"></span> ${escapeHtml(s)}`;
-      item.addEventListener('click', () => toggleFilter(s, item));
-      if (filteredStreet === s) item.classList.add('active');
-      legend.appendChild(item);
-    });
-  }
+  // Leyenda de calles deshabilitada intencionalmente
+  // Se mantiene únicamente el botón "Filtrar calle"
+  return;
+}
 
   function renderAll() {
     const tbody = document.getElementById('dataTableBody');
