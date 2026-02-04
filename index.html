@@ -503,78 +503,78 @@
     });
   });
 
-  // ---------- BOTONES PRINCIPALES ----------
-document.getElementById('locateBtn').onclick = () => {
-  navigator.geolocation.getCurrentPosition(pos => {
-
-    let originLat = pos.coords.latitude;
-    let originLng = pos.coords.longitude;
-
-    if (userMarker) map.removeLayer(userMarker);
-    userMarker = L.marker([originLat, originLng])
-      .addTo(map)
-      .bindPopup('📍 Inicio de ruta')
-      .openPopup();
-
-    map.setView([originLat, originLng], 16);
-
-    let pendientes = [...currentData];
-    let rutaOrdenada = [];
-
-    while (pendientes.length > 0) {
-
-      // calcular distancia desde el ORIGEN ACTUAL
-      pendientes.forEach(r => {
-        r._distance = distanceMeters(
-          originLat, originLng,
-          parseFloat(r.lat),
-          parseFloat(r.lng)
+    // ---------- BOTONES PRINCIPALES ----------
+  document.getElementById('locateBtn').onclick = () => {
+    navigator.geolocation.getCurrentPosition(pos => {
+  
+      let originLat = pos.coords.latitude;
+      let originLng = pos.coords.longitude;
+  
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.marker([originLat, originLng])
+        .addTo(map)
+        .bindPopup('📍 Inicio de ruta')
+        .openPopup();
+  
+      map.setView([originLat, originLng], 16);
+  
+      let pendientes = [...currentData];
+      let rutaOrdenada = [];
+  
+      while (pendientes.length > 0) {
+  
+        // calcular distancia desde el ORIGEN ACTUAL
+        pendientes.forEach(r => {
+          r._distance = distanceMeters(
+            originLat, originLng,
+            parseFloat(r.lat),
+            parseFloat(r.lng)
+          );
+        });
+  
+        // el más cercano por radio (referencia)
+        pendientes.sort((a, b) => a._distance - b._distance);
+        const referencia = pendientes[0];
+  
+        const calleRef = (referencia.calle || '').toLowerCase().trim();
+  
+        // buscar misma calle <= 100 m
+        const mismaCalle = pendientes.filter(r =>
+          (r.calle || '').toLowerCase().trim() === calleRef &&
+          r._distance <= 100
         );
-      });
-
-      // el más cercano por radio (referencia)
-      pendientes.sort((a, b) => a._distance - b._distance);
-      const referencia = pendientes[0];
-
-      const calleRef = (referencia.calle || '').toLowerCase().trim();
-
-      // buscar misma calle <= 100 m
-      const mismaCalle = pendientes.filter(r =>
-        (r.calle || '').toLowerCase().trim() === calleRef &&
-        r._distance <= 100
-      );
-
-      let siguiente;
-
-      if (mismaCalle.length > 0) {
-        mismaCalle.sort((a, b) => a._distance - b._distance);
-        siguiente = mismaCalle[0];
-      } else {
-        siguiente = referencia;
+  
+        let siguiente;
+  
+        if (mismaCalle.length > 0) {
+          mismaCalle.sort((a, b) => a._distance - b._distance);
+          siguiente = mismaCalle[0];
+        } else {
+          siguiente = referencia;
+        }
+  
+        // agregar a ruta final
+        rutaOrdenada.push(siguiente);
+  
+        // mover ORIGEN al punto elegido
+        originLat = parseFloat(siguiente.lat);
+        originLng = parseFloat(siguiente.lng);
+  
+        // quitar de pendientes
+        pendientes = pendientes.filter(r => r !== siguiente);
       }
-
-      // agregar a ruta final
-      rutaOrdenada.push(siguiente);
-
-      // mover ORIGEN al punto elegido
-      originLat = parseFloat(siguiente.lat);
-      originLng = parseFloat(siguiente.lng);
-
-      // quitar de pendientes
-      pendientes = pendientes.filter(r => r !== siguiente);
-    }
-
-    // reemplazar dataset por la ruta óptima
-    currentData = rutaOrdenada;
-
-    renderAll();
-    showTable();
-
-  }, () => alert('No se pudo obtener ubicación'), {
-    enableHighAccuracy: true,
-    timeout: 10000
-  });
-};
+  
+      // reemplazar dataset por la ruta óptima
+      currentData = rutaOrdenada;
+  
+      renderAll();
+      showTable();
+  
+    }, () => alert('No se pudo obtener ubicación'), {
+      enableHighAccuracy: true,
+      timeout: 10000
+    });
+  };
   //  BOTÓN 📍 ORDEN POR RUTA LÓGICA (NO POR RADIO) ----------
     //Final de boton ruta
   document.getElementById('refreshBtn').addEventListener('click', loadData);
