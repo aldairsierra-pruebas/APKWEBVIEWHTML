@@ -504,55 +504,68 @@
   });
 
   // ---------- BOTONES PRINCIPALES ----------
-  //  BOTÓN 📍 ORDEN POR RUTA LÓGICA (NO POR RADIO) ----------
-  document.getElementById('locateBtn').onclick = () => {
+document.getElementById('locateBtn').onclick = () => {
   navigator.geolocation.getCurrentPosition(pos => {
 
-    const uLat = pos.coords.latitude;
-    const uLng = pos.coords.longitude;
+    let originLat = pos.coords.latitude;
+    let originLng = pos.coords.longitude;
 
     if (userMarker) map.removeLayer(userMarker);
-    userMarker = L.marker([uLat, uLng])
+    userMarker = L.marker([originLat, originLng])
       .addTo(map)
-      .bindPopup('📍 Estás aquí')
+      .bindPopup('📍 Inicio de ruta')
       .openPopup();
 
-    map.setView([uLat, uLng], 16);
+    map.setView([originLat, originLng], 16);
 
-    // calcular distancias
-    currentData.forEach(r => {
-      r._distance = distanceMeters(
-        uLat, uLng,
-        parseFloat(r.lat),
-        parseFloat(r.lng)
+    let pendientes = [...currentData];
+    let rutaOrdenada = [];
+
+    while (pendientes.length > 0) {
+
+      // calcular distancia desde el ORIGEN ACTUAL
+      pendientes.forEach(r => {
+        r._distance = distanceMeters(
+          originLat, originLng,
+          parseFloat(r.lat),
+          parseFloat(r.lng)
+        );
+      });
+
+      // el más cercano por radio (referencia)
+      pendientes.sort((a, b) => a._distance - b._distance);
+      const referencia = pendientes[0];
+
+      const calleRef = (referencia.calle || '').toLowerCase().trim();
+
+      // buscar misma calle <= 100 m
+      const mismaCalle = pendientes.filter(r =>
+        (r.calle || '').toLowerCase().trim() === calleRef &&
+        r._distance <= 100
       );
-    });
 
-    // referencia = el más cercano
-    const referencia = [...currentData]
-      .sort((a, b) => a._distance - b._distance)[0];
+      let siguiente;
 
-    const calleRef = (referencia?.calle || '').toLowerCase().trim();
+      if (mismaCalle.length > 0) {
+        mismaCalle.sort((a, b) => a._distance - b._distance);
+        siguiente = mismaCalle[0];
+      } else {
+        siguiente = referencia;
+      }
 
-    // candidatos misma calle ≤ 100 m
-    const mismaCalleCercanos = currentData.filter(r =>
-      (r.calle || '').toLowerCase().trim() === calleRef &&
-      r._distance <= 100
-    );
+      // agregar a ruta final
+      rutaOrdenada.push(siguiente);
 
-    if (mismaCalleCercanos.length > 1) {
-      // hay más de uno en la misma calle → priorizar esos
-      mismaCalleCercanos.sort((a, b) => a._distance - b._distance);
+      // mover ORIGEN al punto elegido
+      originLat = parseFloat(siguiente.lat);
+      originLng = parseFloat(siguiente.lng);
 
-      const resto = currentData.filter(r => !mismaCalleCercanos.includes(r))
-        .sort((a, b) => a._distance - b._distance);
-
-      currentData = [...mismaCalleCercanos, ...resto];
-
-    } else {
-      // no hay más en esa calle dentro de 100 m → ordenar normal
-      currentData.sort((a, b) => a._distance - b._distance);
+      // quitar de pendientes
+      pendientes = pendientes.filter(r => r !== siguiente);
     }
+
+    // reemplazar dataset por la ruta óptima
+    currentData = rutaOrdenada;
 
     renderAll();
     showTable();
@@ -562,6 +575,8 @@
     timeout: 10000
   });
 };
+  //  BOTÓN 📍 ORDEN POR RUTA LÓGICA (NO POR RADIO) ----------
+    //Final de boton ruta
   document.getElementById('refreshBtn').addEventListener('click', loadData);
 
   // toggle panel con botón
