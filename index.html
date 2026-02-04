@@ -504,87 +504,64 @@
   });
 
   // ---------- BOTONES PRINCIPALES ----------
-  // ---------- BOTÓN 📍 ORDEN POR RUTA LÓGICA (NO POR RADIO) ----------
-  document.getElementById('locateBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) {
-      alert('Geolocalización no soportada');
-      return;
+  //  BOTÓN 📍 ORDEN POR RUTA LÓGICA (NO POR RADIO) ----------
+  document.getElementById('locateBtn').onclick = () => {
+  navigator.geolocation.getCurrentPosition(pos => {
+
+    const uLat = pos.coords.latitude;
+    const uLng = pos.coords.longitude;
+
+    if (userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([uLat, uLng])
+      .addTo(map)
+      .bindPopup('📍 Estás aquí')
+      .openPopup();
+
+    map.setView([uLat, uLng], 16);
+
+    // calcular distancias
+    currentData.forEach(r => {
+      r._distance = distanceMeters(
+        uLat, uLng,
+        parseFloat(r.lat),
+        parseFloat(r.lng)
+      );
+    });
+
+    // referencia = el más cercano
+    const referencia = [...currentData]
+      .sort((a, b) => a._distance - b._distance)[0];
+
+    const calleRef = (referencia?.calle || '').toLowerCase().trim();
+
+    // candidatos misma calle ≤ 100 m
+    const mismaCalleCercanos = currentData.filter(r =>
+      (r.calle || '').toLowerCase().trim() === calleRef &&
+      r._distance <= 100
+    );
+
+    if (mismaCalleCercanos.length > 1) {
+      // hay más de uno en la misma calle → priorizar esos
+      mismaCalleCercanos.sort((a, b) => a._distance - b._distance);
+
+      const resto = currentData.filter(r => !mismaCalleCercanos.includes(r))
+        .sort((a, b) => a._distance - b._distance);
+
+      currentData = [...mismaCalleCercanos, ...resto];
+
+    } else {
+      // no hay más en esa calle dentro de 100 m → ordenar normal
+      currentData.sort((a, b) => a._distance - b._distance);
     }
 
-    navigator.geolocation.getCurrentPosition(pos => {
-      const userLat = pos.coords.latitude;
-      const userLng = pos.coords.longitude;
+    renderAll();
+    showTable();
 
-      // Centrar mapa
-      map.setView([userLat, userLng], 16);
-
-      // Marcador de usuario
-      if (userMarker) map.removeLayer(userMarker);
-      userMarker = L.marker([userLat, userLng]).addTo(map).bindPopup('📍 Estás aquí').openPopup();
-
-      // ---------- REFERENCIA LÓGICA ----------
-      // Tomamos el punto más cercano como "calle/colonia actual"
-      let referencia = null;
-      let minDist = Infinity;
-
-      currentData.forEach(r => {
-        const lat = parseFloat(r.lat);
-        const lng = parseFloat(r.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
-        const d = distanceMeters(userLat, userLng, lat, lng);
-        if (d < minDist) {
-          minDist = d;
-          referencia = r;
-        }
-      });
-
-      const refCalle = (referencia && referencia['calle'] || '').toLowerCase().trim();
-      const refColonia = (referencia && referencia['Colonia'] || '').toLowerCase().trim();
-
-      // ---------- SCORE DE RUTA ----------
-      currentData.forEach(r => {
-        const lat = parseFloat(r.lat);
-        const lng = parseFloat(r.lng);
-
-        let score = 0;
-
-        if (!isNaN(lat) && !isNaN(lng)) {
-          const dist = distanceMeters(userLat, userLng, lat, lng);
-          r._distance = dist;
-          score += dist;
-        } else {
-          r._distance = Infinity;
-          score += 99999999;
-        }
-
-        const calle = (r['calle'] || '').toLowerCase().trim();
-        const colonia = (r['Colonia'] || '').toLowerCase().trim();
-
-        // PRIORIDADES LÓGICAS
-        if (calle && calle === refCalle) score -= 1000000;
-        if (colonia && colonia === refColonia) score -= 100000;
-
-        r._routeScore = score;
-      });
-
-      // ---------- ORDEN FINAL ----------
-      currentData.sort((a, b) => (a._routeScore || 0) - (b._routeScore || 0));
-
-      // Reset visual de headers
-      currentSort.column = null;
-      currentSort.asc = true;
-      clearHeaderSortMarks();
-
-      // Re-render
-      renderAll();
-      showTable();
-
-    }, () => alert('No se pudo obtener la ubicación'), {
-      enableHighAccuracy: true,
-      timeout: 10000
-    });
+  }, () => alert('No se pudo obtener ubicación'), {
+    enableHighAccuracy: true,
+    timeout: 10000
   });
-
+};
   document.getElementById('refreshBtn').addEventListener('click', loadData);
 
   // toggle panel con botón
