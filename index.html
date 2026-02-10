@@ -411,34 +411,75 @@
 
       // popup (incluye Adicional)
       const popupHtml = `
-        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative;">
+        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:240px; padding-top:34px;">
+      
+          <!-- BOTONES SUPERIORES -->
+          <div style="
+            position:absolute;
+            top:4px;
+            left:6px;
+            right:6px;
+            display:flex;
+            justify-content:space-between;
+            gap:6px;
+          ">
+      
+            <a href="#" class="gmaps-btn"
+               style="flex:1;text-align:center;background:#007bff;color:#fff;padding:5px 6px;border-radius:6px;text-decoration:none;font-size:12px;">
+               🚗 Google
+            </a>
+      
+            <a href="waze://?ll=${lat},${lng}&navigate=yes"
+               style="flex:1;text-align:center;background:#ff6600;color:#fff;padding:5px 6px;border-radius:6px;text-decoration:none;font-size:12px;">
+               🧭 Waze
+            </a>
+      
+            <button class="voice-btn" title="Reproducir/Pausar voz"
+              style="flex:1;background:#28a745;color:#fff;border:none;border-radius:6px;padding:5px 6px;font-size:12px;cursor:pointer;">
+              🔈
+            </button>
+      
+          </div>
+      
           <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
           <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
           <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
           <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
           <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
           <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
-          <div style="margin-top:8px; display:flex; gap:6px;">
-            <a href="comgooglemaps://?q=${lat},${lng}&directionsmode=driving"
-               style="background:#007bff;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
-               🚗 Google
-            </a>
-            <a href="waze://?ll=${lat},${lng}&navigate=yes"
-               style="background:#ff6600;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;font-size:13px;">
-               🧭 Waze
-            </a>
-          </div>
-
-          <button class="voice-btn" title="Reproducir/Pausar voz" style="background:#28a745; margin-top:8px;">
-            🔈
+      
+          <!-- BOTONES INFERIORES -->
+          <button class="acta-btn" style="
+            position:absolute;
+            bottom:6px;
+            left:6px;
+            padding:4px 8px;
+            font-size:12px;
+            background:#0d6efd;
+            color:#fff;
+            border:none;
+            border-radius:4px;
+            cursor:pointer;">
+            ActaInspeccion
           </button>
-
+      
           <button class="popup-next-btn" style="
-            position:absolute; bottom:6px; right:6px; padding:4px 8px;
-            font-size:12px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+            position:absolute;
+            bottom:6px;
+            right:6px;
+            padding:4px 8px;
+            font-size:12px;
+            background:#28a745;
+            color:#fff;
+            border:none;
+            border-radius:4px;
+            cursor:pointer;">
             Next
           </button>
+      
         </div>`;
+
+
 
       marker.bindPopup(popupHtml);
 
@@ -788,6 +829,25 @@
 
   // popup open handlers (botón voz / next) + marcar visitado al abrir
   map.on('popupopen', e => {
+
+    const gmapsBtn = popupEl.querySelector('.gmaps-btn');
+      if (gmapsBtn) {
+        gmapsBtn.onclick = () => {
+          const link = getMapsLink(
+            e.popup._source.getLatLng().lat,
+            e.popup._source.getLatLng().lng
+          );
+          window.location.href = link;
+        };
+      }
+      
+      const actaBtn = popupEl.querySelector('.acta-btn');
+      if (actaBtn) {
+        actaBtn.onclick = () => {
+          alert('Insertar código de Acta de Inspección');
+        };
+      }
+
     // MARCAR visitado automáticamente y sincronizar UI
     try {
       const marker = e.popup._source;
