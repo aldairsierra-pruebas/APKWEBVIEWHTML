@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acta de Inspección CCRAP</title>
+
+<style>
+body{font-family:Arial,sans-serif;margin:12px;background:#f5f7fa}
+.card{background:#fff;padding:14px;margin-bottom:14px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+h2,h3{margin-top:0}
+input,textarea,select,button{padding:8px;border-radius:6px;border:1px solid #ccc;width:100%}
+button{background:#0b5ed7;color:#fff;border:none;font-weight:600}
+.small{font-size:12px;color:#555}
+</style>
+</head>
+
+<body>
+
+<h2>Acta de Inspección</h2>
+
+<!-- ================= DATOS GENERALES ================= -->
+<div class="card">
+<h3>Datos generales</h3>
+<div class="row">
+<input id="poliza" placeholder="Póliza">
+<input id="nombre" placeholder="Nombre del cliente">
+<input id="direccion" placeholder="Dirección">
+<input type="datetime-local" id="fecha">
+</div>
+</div>
+
+<!-- ================= UBICACIÓN ================= -->
+<div class="card">
+<h3>Ubicación</h3>
+<div class="row">
+<input id="lat" placeholder="Latitud">
+<input id="lng" placeholder="Longitud">
+<button type="button" id="btnGeo">📍 Obtener ubicación</button>
+</div>
+</div>
+
+<!-- ================= APARATOS ================= -->
+<div class="card">
+<h3>Aparatos</h3>
+<div class="small">Selecciona para agregar</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+<button onclick="abrirAparato('ES')">ES – Estufa</button>
+<button onclick="abrirAparato('CA')">CA – Calentador Acum.</button>
+<button onclick="abrirAparato('CP')">CP – Calentador Paso</button>
+<button onclick="abrirAparato('SE')">SE – Secadora</button>
+<button onclick="abrirAparato('VS')">VS – Válvula</button>
+</div>
+
+<div id="resumenAparatos" class="small" style="margin-top:8px"></div>
+</div>
+
+<!-- ================= ACTA JSON ================= -->
+<div class="card">
+<h3>Acta (estructura)</h3>
+<pre id="jsonPreview" style="white-space:pre-wrap;font-size:12px;background:#111;color:#0f0;padding:10px;border-radius:8px"></pre>
+</div>
+
+<script>
+/* ===================== ESTRUCTURA BASE ===================== */
+const actaDraft = {
+  poliza: '',
+  cliente: '',
+  direccion: '',
+  fecha: '',
+  ubicacion: { lat:null, lng:null },
+  aparatos: []
+};
+
+/* ===================== AUTOLLENADO POR URL ===================== */
+const params = new URLSearchParams(window.location.search);
+
+function setVal(id, key){
+  const v = params.get(key);
+  if(v) document.getElementById(id).value = v;
+}
+
+setVal('poliza','poliza');
+setVal('nombre','nombre');
+setVal('direccion','direccion');
+setVal('lat','lat');
+setVal('lng','lng');
+
+/* fecha/hora actual */
+document.getElementById('fecha').value =
+  new Date().toISOString().slice(0,16);
+
+/* ===================== GEOLOCALIZACIÓN ===================== */
+document.getElementById('btnGeo').onclick = () => {
+  if(!navigator.geolocation) return alert('GPS no soportado');
+  navigator.geolocation.getCurrentPosition(p=>{
+    document.getElementById('lat').value = p.coords.latitude.toFixed(6);
+    document.getElementById('lng').value = p.coords.longitude.toFixed(6);
+    sync();
+  });
+};
+
+/* ===================== APARATOS ===================== */
+function abrirAparato(tipo){
+  const cant = prompt(`Cantidad de ${tipo}:`, '1');
+  if(!cant) return;
+
+  const co = prompt(`CO (ppm) para ${tipo}:`, '');
+  const defectos = prompt(`Defectos (${tipo}) separados por coma:`, '');
+
+  actaDraft.aparatos.push({
+    tipo,
+    cantidad: parseInt(cant),
+    co,
+    defectos: defectos ? defectos.split(',').map(d=>d.trim()) : []
+  });
+
+  renderAparatos();
+}
+
+/* ===================== RENDER ===================== */
+function sync(){
+  actaDraft.poliza = document.getElementById('poliza').value;
+  actaDraft.cliente = document.getElementById('nombre').value;
+  actaDraft.direccion = document.getElementById('direccion').value;
+  actaDraft.fecha = document.getElementById('fecha').value;
+  actaDraft.ubicacion.lat = document.getElementById('lat').value;
+  actaDraft.ubicacion.lng = document.getElementById('lng').value;
+
+  document.getElementById('jsonPreview').textContent =
+    JSON.stringify(actaDraft,null,2);
+}
+
+function renderAparatos(){
+  document.getElementById('resumenAparatos').innerText =
+    actaDraft.aparatos.map(a=>`${a.tipo} x${a.cantidad} CO:${a.co}`).join(' | ');
+  sync();
+}
+
+document.addEventListener('input', sync);
+sync();
+</script>
+
+</body>
+</html>
