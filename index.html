@@ -351,7 +351,8 @@
               </label>
             </div>
 
-            <button class="-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
+            <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion
+</button>
 
             <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
           </div>`;
@@ -649,26 +650,36 @@
 
       // Acta button
       // Acta button
-      const actaBtn = popupEl.querySelector('.acta-btn');
-      if (actaBtn) {
-        actaBtn.onclick = () => {
-      
-          const url = new URL(
-            "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html"
-          );
-      
-          url.searchParams.set("poliza", row["Póliza"] || "");
-          url.searchParams.set("nombre", row["Nombre Contratante"] || "");
-          url.searchParams.set(
-            "direccion",
-            `${row["calle"] || ""} ${row["Número finca"] || ""}`
-          );
-          url.searchParams.set("lat", row.lat || "");
-          url.searchParams.set("lng", row.lng || "");
-      
-          window.open(url.toString(), "_blank");
-        };
+      // Acta button
+const actaBtn = popupEl.querySelector('.acta-btn');
+  if (actaBtn) {
+    actaBtn.onclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+  
+      const row = marker._rowData;
+      if (!row) {
+        alert("No se encontraron datos de la póliza");
+        return;
       }
+  
+      const url = new URL(
+        "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html"
+      );
+  
+      url.searchParams.set("poliza", row["Póliza"] || "");
+      url.searchParams.set("nombre", row["Nombre Contratante"] || "");
+      url.searchParams.set(
+        "direccion",
+        `${row["calle"] || ""} ${row["Número finca"] || ""}`
+      );
+      url.searchParams.set("lat", row.lat || "");
+      url.searchParams.set("lng", row.lng || "");
+  
+      window.open(url.toString(), "_blank");
+    };
+  }
+
 
 
       // Next button (NO marca automáticamente)
