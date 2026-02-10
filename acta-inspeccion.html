@@ -3,143 +3,240 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Acta de Inspección CCRAP</title>
-
+<title>ODIS Incidencias - Formulario Completo (P2 Visible)</title>
 <style>
-body{font-family:Arial,sans-serif;margin:12px;background:#f5f7fa}
-.card{background:#fff;padding:14px;margin-bottom:14px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
-h2,h3{margin-top:0}
-input,textarea,select,button{padding:8px;border-radius:6px;border:1px solid #ccc;width:100%}
-button{background:#0b5ed7;color:#fff;border:none;font-weight:600}
-.small{font-size:12px;color:#555}
+*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{margin:0;background:#f2f4f7;padding:16px}
+h2,h3{margin:12px 0;color:#0b3356}
+label{font-size:14px;margin-top:8px;display:block}
+input,select,textarea{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px}
+textarea{resize:vertical}
+.section{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.hidden{display:none}
+.btn{padding:10px 16px;border:none;border-radius:6px;cursor:pointer}
+.primary{background:#0b3356;color:#fff}
+.secondary{background:#ddd}
+.actions{display:flex;justify-content:flex-end;gap:10px}
+.defecto{border:1px dashed #ccc;padding:8px;border-radius:6px;margin-top:6px}
+.muted{color:#777;font-size:13px}
+.equipo{border:1px solid #e6eef5;padding:10px;border-radius:8px;margin-bottom:8px}
+.equipo-header{display:flex;align-items:center;gap:10px}
+.group-title{font-weight:700;margin-top:8px}
+.small{font-size:13px;color:#555}
+@media(max-width:700px){body{padding:8px}}
 </style>
 </head>
-
 <body>
 
-<h2>Acta de Inspección</h2>
+<form id="formODIS">
 
-<!-- ================= DATOS GENERALES ================= -->
-<div class="card">
-<h3>Datos generales</h3>
-<div class="row">
-<input id="poliza" placeholder="Póliza">
-<input id="nombre" placeholder="Nombre del cliente">
-<input id="direccion" placeholder="Dirección">
-<input type="datetime-local" id="fecha">
-</div>
+<div class="section">
+  <h2>Acta / Revisión Anual Preventiva</h2>
 </div>
 
-<!-- ================= UBICACIÓN ================= -->
-<div class="card">
-<h3>Ubicación</h3>
-<div class="row">
-<input id="lat" placeholder="Latitud">
-<input id="lng" placeholder="Longitud">
-<button type="button" id="btnGeo">📍 Obtener ubicación</button>
-</div>
-</div>
-
-<!-- ================= APARATOS ================= -->
-<div class="card">
-<h3>Aparatos</h3>
-<div class="small">Selecciona para agregar</div>
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-<button onclick="abrirAparato('ES')">ES – Estufa</button>
-<button onclick="abrirAparato('CA')">CA – Calentador Acum.</button>
-<button onclick="abrirAparato('CP')">CP – Calentador Paso</button>
-<button onclick="abrirAparato('SE')">SE – Secadora</button>
-<button onclick="abrirAparato('VS')">VS – Válvula</button>
+<div class="section">
+  <h2>Datos del Cliente</h2>
+  <label>Póliza</label><input type="number" name="poliza">
+  <label>Nombre</label><input type="text" name="nombre">
+  <label>Teléfono</label><input type="tel" name="telefono">
+  <label>Celular</label><input type="tel" name="celular">
+  <label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento">
+  <label>Correo electrónico</label><input type="email" name="email">
 </div>
 
-<div id="resumenAparatos" class="small" style="margin-top:8px"></div>
+<div class="section">
+  <h2>Datos del Medidor</h2>
+  <label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion">
+  <label>Latitud / Longitud</label><input type="text" name="latlng">
 </div>
 
-<!-- ================= ACTA JSON ================= -->
-<div class="card">
-<h3>Acta (estructura)</h3>
-<pre id="jsonPreview" style="white-space:pre-wrap;font-size:12px;background:#111;color:#0f0;padding:10px;border-radius:8px"></pre>
+<div class="section">
+  <h2>P1. Prueba de litraje inicial</h2>
+  <label>Lectura inicial</label><input type="number" id="p1Ini">
+  <label>Lectura final</label><input type="number" id="p1Fin">
+  <label>Diferencia</label><input type="number" id="p1Diff" readonly>
 </div>
+
+<!-- P2 Mejorado - defectos siempre visibles (P2.1) -->
+<div class="section">
+  <h2>P2. Seguimiento de la IDA (Instalación de Aprovechamiento)</h2>
+  <p class="small">P2.1 Detección de Defectos en IDA</p>
+  <p class="small">P2.1 Detección de Defectos en IDA. Seleccione directamente los defectos aplicables, separados en Defectos Críticos / Precintado Total y Defectos Secundarios / Áreas de mejora.</p>
+
+  <div id="p21Defectos">
+  <div class="group-title">Defectos Críticos / Precintado Total</div>
+  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label>
+  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label>
+  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label>
+  <label><input type="checkbox" class="p21-def" data-cat="crit" value="63 Fuga en válvula"> (63) Fuga en válvula</label>
+  <label><input type="checkbox" class="p21-def" data-cat="crit" value="83 IDA fuera de norma"> (83) IDA fuera de norma</label>
+
+  <div class="group-title" style="margin-top:10px">Defectos Secundarios / Áreas de mejora</div>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
+  <label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
+</div>
+
+  <div id="p2Aparatos" style="margin-top:12px">
+    <h3>P2.2 Detección de defectos en aparatos conectados</h3>
+    <label>Cantidad de aparatos con defecto (0-9)</label>
+    <input type="number" id="p22Cantidad" min="0" max="9" value="0">
+    <div id="p22Defectos" class="hidden" style="margin-top:8px">
+      <p class="small">Seleccione los defectos aplicables a los aparatos</p>
+      <label><input type="checkbox" class="p22-def" value="fuga_aparato"> Fuga en aparato</label>
+      <label><input type="checkbox" class="p22-def" value="comb_incompleta"> Combustión incompleta</label>
+      <label><input type="checkbox" class="p22-def" value="ventilacion"> Falta de ventilación</label>
+      <label><input type="checkbox" class="p22-def" value="conexion"> Conexión defectuosa</label>
+      <label><input type="checkbox" class="p22-def" value="inst_fuera_norma"> Instalación fuera de norma</label>
+    </div>
+  </div>
+
+</div>
+
+<div class="section">
+  <h2>P4. Descripción de verificación</h2>
+  <div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
+</div>
+
+<div class="section actions">
+  <button type="button" class="btn secondary" id="btnCancel">Cancelar</button>
+  <button type="submit" class="btn primary">Guardar</button>
+</div>
+
+</form>
 
 <script>
-/* ===================== ESTRUCTURA BASE ===================== */
-const actaDraft = {
-  poliza: '',
-  cliente: '',
-  direccion: '',
-  fecha: '',
-  ubicacion: { lat:null, lng:null },
-  aparatos: []
-};
+/* P1 diferencia */
+const ini = document.getElementById('p1Ini');
+const fin = document.getElementById('p1Fin');
+const diff = document.getElementById('p1Diff');
+function calc(){ diff.value = (Number(fin.value||0) - Number(ini.value||0)); }
+ini.addEventListener('input', calc);
+fin.addEventListener('input', calc);
 
-/* ===================== AUTOLLENADO POR URL ===================== */
-const params = new URLSearchParams(window.location.search);
+/* Equipo y defectos (lista exacta) */
+const P2_CRITICOS = [
+  {code:'60B_ext', label:'(60B) Exterior'},
+  {code:'60B_oculta', label:'(60B) Fuga oculta'},
+  {code:'60B_int', label:'(60B) Interior'},
+  {code:'63_valvula', label:'(63) Fuga en válvula'},
+  {code:'83_fuera_norma', label:'(83) IDA fuera de norma'}
+];
+const P2_SECUNDARIOS = [
+  {code:'1_material', label:'(1) Material fuera de norma'},
+  {code:'16_sin_tapon', label:'(16) Salida sin tapón'},
+  {code:'3_cercano', label:'(3) IDA cercana a otros servicios'},
+  {code:'4_falta_sujecion', label:'(4) Falta de sujeción'},
+  {code:'5_conexion_danada', label:'(5) Conexión de IDA dañada'},
+  {code:'87_no_identificada', label:'(87) IDA no identificada'}
+];
 
-function setVal(id, key){
-  const v = params.get(key);
-  if(v) document.getElementById(id).value = v;
-}
+const EQUIPOS_ORDER = [
+  {id:'CA', name:'CA - Calentador de Acumulación'},
+  {id:'CP', name:'CP - Calentador de Paso'},
+  {id:'ES', name:'ES - Estufa'},
+  {id:'HO', name:'HO - Horno'},
+  {id:'SE', name:'SE - Secador'},
+  {id:'CL', name:'CL - Calentador'},
+  {id:'VS', name:'VS - Válvula Sin Aparato'}
+];
 
-setVal('poliza','poliza');
-setVal('nombre','nombre');
-setVal('direccion','direccion');
-setVal('lat','lat');
-setVal('lng','lng');
+const container = document.getElementById('p2EquiposContainer');
+const p4Cont = document.getElementById('p4Contenedor');
 
-/* fecha/hora actual */
-document.getElementById('fecha').value =
-  new Date().toISOString().slice(0,16);
+// Render equipos always visible in order
+// P2.1 defectos siempre visibles, sin cantidad
 
-/* ===================== GEOLOCALIZACIÓN ===================== */
-document.getElementById('btnGeo').onclick = () => {
-  if(!navigator.geolocation) return alert('GPS no soportado');
-  navigator.geolocation.getCurrentPosition(p=>{
-    document.getElementById('lat').value = p.coords.latitude.toFixed(6);
-    document.getElementById('lng').value = p.coords.longitude.toFixed(6);
-    sync();
+
+function setupEqListeners(){
+  document.querySelectorAll('.eq-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const eq = e.target.dataset.eq;
+      const area = document.getElementById('def_area_'+eq);
+      if(!e.target.checked){
+        // uncheck its defects but keep area visible
+        area.querySelectorAll('.def-checkbox').forEach(d=>d.checked=false);
+        syncP4();
+      }
+    });
   });
-};
+}
+setupEqListeners();
 
-/* ===================== APARATOS ===================== */
-function abrirAparato(tipo){
-  const cant = prompt(`Cantidad de ${tipo}:`, '1');
-  if(!cant) return;
+// P2.2 quantity handling
+const p22Cantidad = document.getElementById('p22Cantidad');
+p22Cantidad.addEventListener('input', ()=>{
+  const qty = Number(p22Cantidad.value||0);
+  const p22Def = document.getElementById('p22Defectos');
+  if(qty>0) p22Def.classList.remove('hidden'); else { p22Def.classList.add('hidden'); document.querySelectorAll('.p22-def').forEach(d=>d.checked=false); syncP4(); }
+});
 
-  const co = prompt(`CO (ppm) para ${tipo}:`, '');
-  const defectos = prompt(`Defectos (${tipo}) separados por coma:`, '');
+// Delegate change on defect checkboxes
+document.addEventListener('change', e=>{
+  if(e.target && e.target.classList && e.target.classList.contains('def-checkbox')){
+    syncP4();
+  }
+  if(e.target && e.target.classList && e.target.classList.contains('p22-def')){
+    syncP4();
+  }
+});
 
-  actaDraft.aparatos.push({
-    tipo,
-    cantidad: parseInt(cant),
-    co,
-    defectos: defectos ? defectos.split(',').map(d=>d.trim()) : []
+// Sync to P4 (pre-filled descriptions)
+function syncP4(){
+  p4Cont.innerHTML = '';
+  const p21Checked = Array.from(document.querySelectorAll('.p21-def')).filter(i=>i.checked);
+  const aparChecked = Array.from(document.querySelectorAll('.p22-def')).filter(i=>i.checked);
+  if(p21Checked.length===0 && aparChecked.length===0){ p4Cont.innerHTML = '<span class="muted">Sin defectos seleccionados.</span>'; return; }
+
+  if(p21Checked.length>0){
+    const box = document.createElement('div'); box.className='defecto';
+    let inner = `<strong>IDA</strong>`;
+    p21Checked.forEach(d=>{
+      inner += `<div style="margin-top:6px"><em>${d.parentNode.textContent.trim()}</em><textarea rows="2">Se detecta ${d.parentNode.textContent.trim().toLowerCase()}. Proceder según normativa.</textarea></div>`;
+    });
+    box.innerHTML = inner; p4Cont.appendChild(box);
+  }
+  // group by equipment
+  const byEq = {};
+  checked.forEach(chk=>{
+    const eq = chk.dataset.eq; const code = chk.dataset.code; const label = chk.parentNode.textContent.trim();
+    if(!byEq[eq]) byEq[eq]=[];
+    byEq[eq].push({code, label});
   });
-
-  renderAparatos();
+  Object.keys(byEq).forEach(eq => {
+    const eqName = (EQUIPOS_ORDER.find(x=>x.id===eq)||{}).name || eq;
+    const box = document.createElement('div'); box.className='defecto';
+    let inner = `<strong>${eqName}</strong>`;
+    byEq[eq].forEach(d=>{
+      inner += `<div style="margin-top:6px"><em>${d.label}</em><textarea rows="2">Se detecta ${d.label.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.</textarea></div>`;
+    });
+    box.innerHTML = inner; p4Cont.appendChild(box);
+  });
+  // Aparatos conectados section
+  if(aparChecked.length>0){
+    const box = document.createElement('div'); box.className='defecto';
+    let inner = `<strong>Aparatos conectados</strong>`;
+    aparChecked.forEach(a=>{ inner += `<div style="margin-top:6px"><em>${a.parentNode.textContent.trim()}</em><textarea rows="2">Se detecta ${a.parentNode.textContent.trim().toLowerCase()} en aparato conectado. Proceder según normativa.</textarea></div>`; });
+    box.innerHTML = inner; p4Cont.appendChild(box);
+  }
 }
 
-/* ===================== RENDER ===================== */
-function sync(){
-  actaDraft.poliza = document.getElementById('poliza').value;
-  actaDraft.cliente = document.getElementById('nombre').value;
-  actaDraft.direccion = document.getElementById('direccion').value;
-  actaDraft.fecha = document.getElementById('fecha').value;
-  actaDraft.ubicacion.lat = document.getElementById('lat').value;
-  actaDraft.ubicacion.lng = document.getElementById('lng').value;
+// Cancel
+document.getElementById('btnCancel').addEventListener('click', ()=>{ if(confirm('Limpiar formulario?')) location.reload(); });
 
-  document.getElementById('jsonPreview').textContent =
-    JSON.stringify(actaDraft,null,2);
-}
+// Form submit (demo)
+document.getElementById('formODIS').addEventListener('submit', e=>{
+  e.preventDefault();
+  const data = {};
+  new FormData(e.target).forEach((v,k)=>{ data[k]=v });
+  data.defectos = Array.from(document.querySelectorAll('.def-checkbox')).filter(c=>c.checked).map(c=>({eq:c.dataset.eq,code:c.dataset.code,label:c.parentNode.textContent.trim()}));
+  data.aparatos = Array.from(document.querySelectorAll('.p22-def')).filter(c=>c.checked).map(c=>c.parentNode.textContent.trim());
+  const w = window.open('','_blank'); w.document.body.style.fontFamily='monospace'; w.document.body.innerHTML = '<pre>'+JSON.stringify(data,null,2)+'</pre>';
+});
 
-function renderAparatos(){
-  document.getElementById('resumenAparatos').innerText =
-    actaDraft.aparatos.map(a=>`${a.tipo} x${a.cantidad} CO:${a.co}`).join(' | ');
-  sync();
-}
-
-document.addEventListener('input', sync);
-sync();
 </script>
 
 </body>
