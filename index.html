@@ -648,20 +648,28 @@
       }
 
       // Acta button
+      // Acta button
       const actaBtn = popupEl.querySelector('.acta-btn');
       if (actaBtn) {
-        actaBtn.onclick = {
-          const url = new URL("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html");
-          url.searchParams.set("poliza", row["Póliza"]);
-          url.searchParams.set("nombre", row["Nombre Contratante"]);
-          url.searchParams.set("direccion", `${row["calle"]} ${row["Número finca"]}`);
-          url.searchParams.set("lat", row.lat);
-          url.searchParams.set("lng", row.lng);
-          
+        actaBtn.onclick = () => {
+      
+          const url = new URL(
+            "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html"
+          );
+      
+          url.searchParams.set("poliza", row["Póliza"] || "");
+          url.searchParams.set("nombre", row["Nombre Contratante"] || "");
+          url.searchParams.set(
+            "direccion",
+            `${row["calle"] || ""} ${row["Número finca"] || ""}`
+          );
+          url.searchParams.set("lat", row.lat || "");
+          url.searchParams.set("lng", row.lng || "");
+      
           window.open(url.toString(), "_blank");
-
         };
       }
+
 
       // Next button (NO marca automáticamente)
       const nextBtn = popupEl.querySelector('.popup-next-btn');
