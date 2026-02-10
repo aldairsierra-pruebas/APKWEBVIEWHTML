@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Visitas Naturgy</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <script>
     function compareVersions(v1, v2) {
       const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
@@ -51,127 +52,1036 @@
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 100vh; transition: height 0.3s ease; }
 
-    #listPanel { position: fixed; inset: 0; background: #fff; z-index: 900; transform: translateY(100%); transition: transform 0.3s ease; display: flex; flex-direction: column; box-shadow: 0 -6px 20px rgba(0,0,0,0.12); }
-    #listPanel.active { transform: translateY(0); }
+    /* LIST PANEL (pantalla completa, deslizable) */
+    #listPanel {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      z-index: 900;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
+    }
+    #listPanel.active {
+      transform: translateY(0);
+    }
 
-    #panelHandle { height: 26px; background: #f1f1f1; display: flex; justify-content: center; align-items: center; border-bottom: 1px solid #e6e6e6; }
-    #panelHandle div { width: 42px; height: 5px; background: #999; border-radius: 3px; }
+    /* handle para deslizar */
+    #panelHandle {
+      height: 26px;
+      background: #f1f1f1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-bottom: 1px solid #e6e6e6;
+    }
+    #panelHandle div {
+      width: 42px;
+      height: 5px;
+      background: #999;
+      border-radius: 3px;
+    }
 
-    #controls { display:flex; gap:8px; align-items:center; padding: 8px; border-bottom: 1px solid #eee; flex-wrap:wrap; }
-    #controls button { padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+    /* controles (botón filtro + leyenda) */
+    #controls {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      flex-wrap:wrap;
+    }
+    #controls button {
+      padding:6px 10px;
+      border-radius:6px;
+      border:1px solid #ddd;
+      background:#fff;
+      cursor:pointer;
+    }
 
-    #legend { padding: 6px; font-size:13px; background:#fff; display:flex; flex-wrap:wrap; gap:6px; }
-    .legend-item { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f7f7f7; border:1px solid #ddd; border-radius:6px; cursor:pointer; }
+    #legend {
+      padding: 6px; font-size:13px; background:#fff; display:flex; flex-wrap:wrap; gap:6px;
+    }
+    .legend-item {
+      display:inline-flex; align-items:center; gap:6px; padding:4px 8px;
+      background:#f7f7f7; border:1px solid #ddd; border-radius:6px; cursor:pointer;
+    }
     .legend-item.active { outline:2px solid #007bff; }
 
-    #tableWrapper { flex: 1; overflow-y: auto; }
+    /* tabla */
+    #tableWrapper {
+      flex: 1;
+      overflow-y: auto;
+    }
     table { width:100%; border-collapse: collapse; font-size:14px; }
     th, td { padding:8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
     th { background:#fafafa; position: sticky; top: 0; z-index: 10; }
     tr:hover { background:#f7fbff; cursor:pointer; }
 
-    .voice-btn { display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px; color:#fff; }
+    .voice-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px;
+      color:#fff;
+    }
     small.distance { display:block; margin-top:6px; color:#333; opacity:0.85; font-size:12px; }
 
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 2000; }
-    .modal-backdrop .modal { background: #fff; margin: 10% auto; width: 92%; max-height: 70%; overflow-y: auto; border-radius: 10px; padding: 12px; }
+    /* modal de calles y adicional */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      z-index: 2000;
+    }
+    .modal-backdrop .modal {
+      background: #fff;
+      margin: 10% auto;
+      width: 92%;
+      max-height: 70%;
+      overflow-y: auto;
+      border-radius: 10px;
+      padding: 12px;
+    }
     .modal-backdrop ul { list-style: none; padding: 0; margin: 0; }
     .modal-backdrop li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
 
-    #locateBtn,#refreshBtn,#toggleBtn,#autoNarrarBtn { position: static; right: auto; z-index: auto; }
+    /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
+    #locateBtn,
+    #refreshBtn,
+    #toggleBtn,
+    #autoNarrarBtn {
+      position: static;
+      right: auto;
+      z-index: auto;
+    }
+
+    /* small responsive tweak for popup */
+    .leaflet-popup-content-wrapper { box-sizing: border-box; }
   </style>
 </head>
 <body>
+  <!-- #map solo para el mapa -->
+  <div id="map"></div>
 
-<div id="map"></div>
+  <!-- Contenedor superior derecho (fuera de #map) -->
+  <div style="
+    position:absolute;
+    top:10px;
+    right:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    z-index:9999; /* MÁS alto que el mapa */
+  ">
 
-<div style="position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:9999;">
-  <button id="locateBtn" style="background:#0d6efd;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</button>
-  <button id="refreshBtn" style="background:#6c757d;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔄</button>
-  <button id="toggleBtn" style="background:#343a40;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📋</button>
-  <button id="autoNarrarBtn" style="background:#198754;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
-</div>
+    <button id="locateBtn" style="
+      background:#0d6efd;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">📍</button>
 
-<div id="listPanel" aria-hidden="true">
-  <div id="panelHandle"><div></div></div>
-  <div id="controls">
-    <button id="filterBtn">📍 Filtrar calle</button>
-    <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
-    <button id="hideBtn">⬇️ Ocultar</button>
-    <div id="legend" style="flex:1;"></div>
+    <button id="refreshBtn" style="
+      background:#6c757d;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">🔄</button>
+
+    <button id="toggleBtn" style="
+      background:#343a40;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">📋</button>
+
+    <button id="autoNarrarBtn" style="
+      background:#198754;
+      color:white;
+      border:none;
+      border-radius:50%;
+      width:40px;
+      height:40px;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">▶️</button>
+
   </div>
-  <div id="tableWrapper">
-    <table>
-      <thead>
-        <tr>
-          <th data-label="✔">✔</th>
-          <th data-label="Póliza">Póliza</th>
-          <th data-label="Nombre">Nombre</th>
-          <th data-label="Dirección">Dirección</th>
-          <th data-label="Adicional">Adicional</th>
-        </tr>
-      </thead>
-      <tbody id="dataTableBody"></tbody>
-    </table>
+
+  <!-- PANEL LISTA (pantalla completa, deslizable) -->
+  <div id="listPanel" aria-hidden="true">
+    <div id="panelHandle"><div></div></div>
+
+    <div id="controls">
+      <button id="filterBtn">📍 Filtrar calle</button>
+      <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
+      <button id="hideBtn">⬇️ Ocultar</button>
+      <div id="legend" style="flex:1;"></div>
+    </div>
+
+    <div id="tableWrapper">
+      <table>
+        <thead>
+          <tr>
+            <th data-label="✔">✔</th>
+            <th data-label="Póliza">Póliza</th>
+            <th data-label="Nombre">Nombre</th>
+            <th data-label="Dirección">Dirección</th>
+            <th data-label="Adicional">Adicional</th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody"></tbody>
+      </table>
+    </div>
   </div>
-</div>
 
-<div id="streetModal" class="modal-backdrop" aria-hidden="true">
-  <div class="modal">
-    <h3 style="margin-top:0">Selecciona calle</h3>
-    <ul id="streetList"></ul>
+  <!-- Modal calles -->
+  <div id="streetModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <h3 style="margin-top:0">Selecciona calle</h3>
+      <ul id="streetList"></ul>
+    </div>
   </div>
-</div>
 
-<div id="adicionalModal" class="modal-backdrop" aria-hidden="true">
-  <div class="modal">
-    <h3 style="margin-top:0">Selecciona valor de Adicional</h3>
-    <ul id="adicionalList"></ul>
+  <!-- Modal adicional -->
+  <div id="adicionalModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <h3 style="margin-top:0">Selecciona valor de Adicional</h3>
+      <ul id="adicionalList"></ul>
+    </div>
   </div>
-</div>
 
-<script>
-const map = L.map('map').setView([25.6866, -100.3161], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  <script>
+    // ---------- MAPA ----------
+    const map = L.map('map').setView([25.6866, -100.3161], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-function getMapsLink(lat,lng){
-  const ua=navigator.userAgent||navigator.vendor||window.opera;
-  const isAndroid=/android/i.test(ua);
-  const isIOS=/iPad|iPhone|iPod/.test(ua)&&!window.MSStream;
-  const isMobile=isAndroid||isIOS;
-  if(!isMobile) return `https://www.google.com/maps?q=${lat},${lng}`;
-  if(isAndroid) return `google.navigation:q=${lat},${lng}&mode=d`;
-  if(isIOS) return `comgooglemaps://?q=${lat},${lng}&directionsmode=driving`;
-  return `https://www.google.com/maps?q=${lat},${lng}`;
-}
-function getWazeLink(lat,lng){
-  const ua=navigator.userAgent||navigator.vendor||window.opera;
-  const isMobile=/android|iPad|iPhone|iPod/i.test(ua);
-  return isMobile?`waze://?ll=${lat},${lng}&navigate=yes`:`https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-}
-</script>
+    // ---------- ESTADO ----------
+    const vividColors = ['#ff4d4d','#4d79ff','#33cc33','#ffcc00','#ff66cc','#33cccc','#9933ff','#ff9966'];
+    const streetColors = {};
+    let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, userMarker = null;
+    let currentSort = { column: null, asc: true };
 
-<script>
-/* --- TODO tu JS existente sin cambios funcionales, solo popup corregido --- */
-</script>
+    // ---------- VISITADOS (localStorage) ----------
+    const VISITED_KEY = 'visited_polizas_v1';
+    let visitedMap = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
 
-<script>
-/* SOLO parche del popup */
-map.on('popupopen', e => {
+    function isVisited(poliza) {
+      return !!visitedMap[poliza];
+    }
 
-  const popupEl = e.popup.getElement();
-  const marker = e.popup._source;
-  const lat = marker.getLatLng().lat;
-  const lng = marker.getLatLng().lng;
+    function setVisited(poliza, value) {
+      if (!poliza) return;
+      visitedMap[poliza] = value;
+      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+    }
 
-  const gmapsBtn = popupEl.querySelector('.gmaps-btn');
-  if (gmapsBtn) gmapsBtn.onclick = () => window.location.href = getMapsLink(lat,lng);
+    // ---------- UTIL ----------
+    function ensureColor(street) {
+      if (!streetColors[street]) {
+        streetColors[street] = vividColors[Object.keys(streetColors).length % vividColors.length];
+      }
+      return streetColors[street];
+    }
 
-  const wazeBtn = popupEl.querySelector('.waze-btn');
-  if (wazeBtn) wazeBtn.onclick = () => window.location.href = getWazeLink(lat,lng);
+    function escapeHtml(text) {
+      return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
+    }
 
-});
-</script>
+    function createIcon(number, color) {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="46" height="62" viewBox="0 0 46 62">
+          <path d="M23 62s-18-22-18-34A18 18 0 1 1 41 28c0 12-18 34-18 34z"
+            fill="${color}" stroke="#222" stroke-width="2"/>
+          <text x="23" y="30" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">${number}</text>
+        </svg>`;
+      return L.icon({ iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg), iconSize: [38, 56], iconAnchor: [19, 56], popupAnchor: [0, -48] });
+    }
+
+    // Haversine - distancia en metros
+    function distanceMeters(lat1, lng1, lat2, lng2) {
+      const R = 6371000; // metros
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function clearHeaderSortMarks() {
+      document.querySelectorAll('th').forEach(h => {
+        const label = h.getAttribute('data-label');
+        if (label) h.textContent = label;
+        else h.textContent = h.textContent.replace(/[▲▼]/g,'');
+      });
+    }
+
+    function sortByDistance(userLat, userLng) {
+      currentData.forEach(r => {
+        const lat = parseFloat(r.lat);
+        const lng = parseFloat(r.lng);
+        if (isNaN(lat) || isNaN(lng)) {
+          r._distance = Infinity;
+        } else {
+          r._distance = distanceMeters(userLat, userLng, lat, lng);
+        }
+      });
+
+      currentData.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
+
+      // reset any visual sort marks
+      currentSort.column = null;
+      currentSort.asc = true;
+      clearHeaderSortMarks();
+    }
+
+    // ---------- MAPS / WAZE LINK HELPERS ----------
+    function getMapsLink(lat, lng) {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isAndroid = /android/i.test(ua);
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const isMobile = isAndroid || isIOS;
+
+      if (!isMobile) return `https://www.google.com/maps?q=${lat},${lng}`;
+      if (isAndroid) return `google.navigation:q=${lat},${lng}&mode=d`;
+      if (isIOS) return `comgooglemaps://?q=${lat},${lng}&directionsmode=driving`;
+      return `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+
+    function getWazeLink(lat, lng) {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isMobile = /android|iPad|iPhone|iPod/i.test(ua);
+      const appScheme = `waze://?ll=${lat},${lng}&navigate=yes`;
+      const webFallback = `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+      return isMobile ? appScheme : webFallback;
+    }
+
+    // ---------- CARGAR DATOS ----------
+    function loadData() {
+      document.getElementById('dataTableBody').innerHTML = '';
+      document.getElementById('legend').innerHTML = '';
+      for (const k in streetColors) delete streetColors[k];
+      markers.forEach(m => map.removeLayer(m)); markers = [];
+      currentData = [];
+
+      Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNllSnU8y3ZHSS7QNCpSSxO50Yk_Ugnf7Cc88Q6XX2zn_6gAeTrkMBlX_SmeallPV6UgPEzt-aXvma/pub?gid=0&single=true&output=csv", {
+        download: true, header: true,
+        complete: function(results) {
+          results.data.forEach(r => {
+            if (!r || (!r.lat && !r.lng)) return;
+            const lat = parseFloat(r.lat), lng = parseFloat(r.lng);
+            if (isNaN(lat) || isNaN(lng)) return;
+            currentData.push(r);
+          });
+          // restaurar filtros
+          filteredStreet = null;
+          filteredAdicional = null;
+          if (currentSort.column !== null) applySort();
+          renderAll();
+          // mostrar panel por defecto
+          showTable();
+        }
+      });
+    }
+
+    // ---------- RENDER LISTA / MARCADORES ----------
+    function renderAll() {
+      const tbody = document.getElementById('dataTableBody');
+      tbody.innerHTML = '';
+      // limpiar marcadores previos
+      markers.forEach(m => map.removeLayer(m)); markers = [];
+
+      // LISTA RESPETANDO FILTRO de calle y adicional
+      const list = currentData.filter(r => {
+        if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
+        if (filteredAdicional && ( (r["Adicional"]||'').toString() !== filteredAdicional )) return false;
+        return true;
+      });
+
+      list.forEach((row, i) => {
+        const street = row["calle"] || 'Sin calle';
+        const color = ensureColor(street);
+        const icon = createIcon(i+1, color);
+        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
+
+        // crear marcador y asociar ROW directamente al marker
+        const marker = L.marker([lat, lng], { icon }).addTo(map);
+        marker._rowData = row;
+        marker._poliza = (row["Póliza"]||'').toString();
+        markers.push(marker);
+
+        // si ya visitado, atenuar marcador
+        if (isVisited(marker._poliza)) marker.setOpacity(0.4);
+
+        // popup (incluye Adicional) - BOTONES ARRIBA (button) para enganchar handlers facilmente
+        const popupHtml = `
+          <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
+
+            <!-- BOTONES SUPERIORES -->
+            <div style="
+              position:absolute;
+              top:6px;
+              left:8px;
+              right:8px;
+              display:flex;
+              gap:6px;
+            ">
+              <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">
+                🚗 Google
+              </button>
+
+              <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">
+                🧭 Waze
+              </button>
+
+              <button class="voice-btn" title="Reproducir/Pausar voz"
+                style="flex:1; background:#28a745; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">
+                🔈
+              </button>
+            </div>
+
+            <div style="padding:6px 8px;">
+              <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
+              <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
+              <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
+              <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
+              <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
+              <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
+            </div>
+
+            <!-- BOTONES INFERIORES -->
+            <button class="acta-btn" style="
+              position:absolute;
+              bottom:6px;
+              left:6px;
+              padding:6px 8px;
+              font-size:12px;
+              background:#0d6efd;
+              color:#fff;
+              border:none;
+              border-radius:6px;
+              cursor:pointer;">
+              ActaInspeccion
+            </button>
+
+            <button class="popup-next-btn" style="
+              position:absolute;
+              bottom:6px;
+              right:6px;
+              padding:6px 8px;
+              font-size:12px;
+              background:#28a745;
+              color:#fff;
+              border:none;
+              border-radius:6px;
+              cursor:pointer;">
+              Next
+            </button>
+
+          </div>`;
+
+        marker.bindPopup(popupHtml);
+
+        const distanciaText = (row._distance && isFinite(row._distance))
+          ? (row._distance >= 1000 ? ( (row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
+          : '';
+
+        // Crear fila con checkbox Visitado (columna 0)
+        const polizaVal = (row["Póliza"]||'').toString();
+        const visited = isVisited(polizaVal);
+
+        const tr = document.createElement('tr');
+        tr.style.background = color + '22';
+        if (visited) tr.style.opacity = '0.45';
+
+        tr.innerHTML = `
+          <td style="width:34px; text-align:center;">
+            <input type="checkbox" ${visited ? 'checked' : ''} aria-label="Visitado">
+          </td>
+          <td>${escapeHtml(polizaVal)}</td>
+          <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
+          <td>
+            ${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}
+            ${distanciaText ? `<small class="distance">${escapeHtml(distanciaText)}</small>` : ''}
+          </td>
+          <td>${escapeHtml(row["Adicional"]||'')}</td>`;
+
+        // Obtener referencia al checkbox y sincronizar con marcador
+        const checkbox = tr.querySelector('input[type="checkbox"]');
+
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation(); // evitar que abra popup por el clic en la fila
+          const checked = checkbox.checked;
+          setVisited(polizaVal, checked);
+          tr.style.opacity = checked ? '0.45' : '1';
+          if (checked) marker.setOpacity(0.4); else marker.setOpacity(1);
+        });
+
+        // Al hacer click en la fila: abrir popup, centrar y ocultar panel
+        tr.addEventListener('click', () => {
+          marker.openPopup();
+          map.setView([lat, lng], 17);
+          hideTable();
+
+          // marcar automáticamente como visitado al abrir popup
+          setVisited(polizaVal, true);
+          checkbox.checked = true;
+          tr.style.opacity = '0.45';
+          marker.setOpacity(0.4);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Filtrado por calle (modal)
+    function toggleFilter(street, itemElement) {
+      const items = document.querySelectorAll('.legend-item');
+      if (filteredStreet === street) {
+        filteredStreet = null;
+        items.forEach(it => it.classList.remove('active'));
+      } else {
+        filteredStreet = street;
+        items.forEach(it => it.classList.toggle('active', it === itemElement));
+      }
+      renderAll();
+    }
+
+    // Ordenamientos de columnas (ahora con Visitado + Adicional)
+    function applySort() {
+      const col = currentSort.column;
+      const asc = currentSort.asc;
+      // Map de columnas:
+      // 0 -> Visitado
+      // 1 -> Póliza (num)
+      // 2 -> Nombre
+      // 3 -> Dirección (calle + número)
+      // 4 -> Adicional (texto)
+      if (col === 0) {
+        currentData.sort((a,b) => {
+          const va = isVisited((a['Póliza']||'').toString()) ? 1 : 0;
+          const vb = isVisited((b['Póliza']||'').toString()) ? 1 : 0;
+          return asc ? (va - vb) : (vb - va);
+        });
+      } else if (col === 1) {
+        currentData.sort((a,b) => {
+          const na = parseFloat((a['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;
+          const nb = parseFloat((b['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;
+          return asc ? na - nb : nb - na;
+        });
+      } else if (col === 2) {
+        currentData.sort((a,b) => {
+          const sa = (a['Nombre Contratante']||'').toLowerCase();
+          const sb = (b['Nombre Contratante']||'').toLowerCase();
+          return asc ? sa.localeCompare(sb,'es') : sb.localeCompare(sa,'es');
+        });
+      } else if (col === 3) {
+        currentData.sort((a,b) => {
+          const ca = (a['calle']||'').toLowerCase();
+          const cb = (b['calle']||'').toLowerCase();
+          if (ca !== cb) return asc ? ca.localeCompare(cb,'es') : cb.localeCompare(ca,'es');
+          const na = parseInt(a['Número finca']||'') || 0;
+          const nb = parseInt(b['Número finca']||'') || 0;
+          return asc ? na - nb : nb - na;
+        });
+      } else if (col === 4) {
+        currentData.sort((a,b) => {
+          const aa = (a['Adicional']||'').toString().toLowerCase();
+          const bb = (b['Adicional']||'').toString().toLowerCase();
+          return asc ? aa.localeCompare(bb,'es') : bb.localeCompare(aa,'es');
+        });
+      }
+      clearHeaderSortMarks();
+    }
+
+    // Headers click: ordenar por columna (ahora 5 columnas)
+    document.querySelectorAll('th').forEach((th, idx) => {
+      th.addEventListener('click', () => {
+        currentSort.asc = (currentSort.column === idx) ? !currentSort.asc : true;
+        currentSort.column = idx;
+        applySort();
+        // Restaurar etiquetas y añadir flecha en el header activo
+        document.querySelectorAll('th').forEach(h => {
+          h.textContent = h.getAttribute('data-label') || h.textContent.replace(/[▲▼]/g,'');
+        });
+        th.textContent = (th.getAttribute('data-label') || th.textContent.replace(/[▲▼]/g,'')) + (currentSort.asc ? ' ▲' : ' ▼');
+        renderAll();
+      });
+    });
+
+    // ---------- BOTONES PRINCIPALES ----------
+    document.getElementById('locateBtn').onclick = () => {
+      if (!navigator.geolocation) { alert('Geolocalización no soportada'); return; }
+
+      navigator.geolocation.getCurrentPosition(pos => {
+        let originLat = pos.coords.latitude;
+        let originLng = pos.coords.longitude;
+
+        if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+        userMarker = L.marker([originLat, originLng])
+          .addTo(map)
+          .bindPopup('📍 Inicio de ruta')
+          .openPopup();
+
+        map.setView([originLat, originLng], 16);
+
+        // clonamos currentData (no mutar original si no quieres)
+        let pendientes = currentData.slice();
+        let rutaOrdenada = [];
+
+        while (pendientes.length > 0) {
+
+          // calcular distancia desde el ORIGEN ACTUAL
+          pendientes.forEach(r => {
+            const lat = parseFloat(r.lat);
+            const lng = parseFloat(r.lng);
+            r._distance = (isNaN(lat) || isNaN(lng)) ? Infinity : distanceMeters(originLat, originLng, lat, lng);
+          });
+
+          // el más cercano por radio (referencia)
+          pendientes.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
+          const referencia = pendientes[0];
+
+          const calleRef = (referencia.calle || '').toLowerCase().trim();
+
+          // buscar misma calle <= 100 m
+          const mismaCalle = pendientes.filter(r =>
+            (r.calle || '').toLowerCase().trim() === calleRef &&
+            (r._distance || Infinity) <= 100
+          );
+
+          let siguiente;
+
+          if (mismaCalle.length > 0) {
+            mismaCalle.sort((a, b) => a._distance - b._distance);
+            siguiente = mismaCalle[0];
+          } else {
+            siguiente = referencia;
+          }
+
+          // agregar a ruta final
+          rutaOrdenada.push(siguiente);
+
+          // mover ORIGEN al punto elegido
+          originLat = parseFloat(siguiente.lat);
+          originLng = parseFloat(siguiente.lng);
+
+          // quitar de pendientes (comparación por referencia)
+          pendientes = pendientes.filter(r => r !== siguiente);
+        }
+
+        // reemplazar dataset por la ruta óptima
+        currentData = rutaOrdenada;
+
+        renderAll();
+        showTable();
+
+      }, () => alert('No se pudo obtener ubicación'), {
+        enableHighAccuracy: true,
+        timeout: 10000
+      });
+    };
+
+    document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+    // toggle panel con botón
+    const listPanel = document.getElementById('listPanel');
+    document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
+
+    // botón ocultar del panel
+    document.getElementById('hideBtn').addEventListener('click', hideTable);
+
+    // ---------- VOZ ----------
+    let voiceCanceled = false;
+    function stopSpeech() {
+      voiceCanceled = true;
+      try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    }
+    function restoreAllVoiceButtons() {
+      const btns = document.querySelectorAll('.voice-btn');
+      btns.forEach(b => {
+        b.textContent = '🔈';
+        b.style.background = '#28a745';
+      });
+    }
+    function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+    async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
+      if (!('speechSynthesis' in window)) {
+        alert('Tu navegador no soporta síntesis de voz.');
+        return;
+      }
+
+      // Evitar usar pending por compatibilidad iOS; usar sólo speaking
+      if (speechSynthesis.speaking) {
+        stopSpeech();
+        restoreAllVoiceButtons();
+        return;
+      }
+
+      voiceCanceled = false;
+      if (btn) {
+        btn.textContent = '🔊';
+        btn.style.background = '#dc3545';
+      }
+
+      const pol = (polizaRaw || '').toString().trim();
+
+      if (pol.length > 0) {
+        for (const ch of pol) {
+          if (voiceCanceled) break;
+
+          const u = new SpeechSynthesisUtterance(ch);
+          u.lang = 'es-MX';
+          u.rate = /^\d$/.test(ch) ? 1.00 : 0.9;
+
+          const p = new Promise(res => {
+            u.onend = res;
+            u.onerror = res;
+          });
+
+          speechSynthesis.speak(u);
+          await p;
+
+          // pausa entre caracteres
+          await delay(500);
+        }
+      }
+
+      if (voiceCanceled) {
+        stopSpeech();
+        restoreAllVoiceButtons();
+        return;
+      }
+
+      await delay(500);
+
+      if (nombreRaw && nombreRaw.toString().trim().length > 0) {
+        const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
+
+        for (const w of palabras) {
+          if (voiceCanceled) break;
+
+          const u = new SpeechSynthesisUtterance(w);
+          u.lang = 'es-MX';
+          u.rate = 1.0;
+
+          const p = new Promise(res => {
+            u.onend = res;
+            u.onerror = res;
+          });
+
+          speechSynthesis.speak(u);
+          await p;
+
+          if (voiceCanceled) break;
+          await delay(w.length * 250);
+        }
+      }
+
+      stopSpeech();
+      restoreAllVoiceButtons();
+    }
+
+    // Modo automático narrador
+    let autoModeActive = false;
+    async function narrarAutomaticamente() {
+      if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
+
+      if (autoModeActive) {
+        autoModeActive = false;
+        if (speechSynthesis.speaking) speechSynthesis.cancel();
+        document.getElementById('autoNarrarBtn').textContent = '▶️';
+        return;
+      }
+
+      autoModeActive = true;
+      document.getElementById('autoNarrarBtn').textContent = '⏹';
+
+      // Tomar SOLO los marcadores actuales (ya renderizados) y visibles en el mapa.
+      const visibles = markers.filter(m => map.hasLayer(m));
+
+      for (let i = 0; i < visibles.length && autoModeActive; i++) {
+        const marker = visibles[i];
+
+        // Priorizar la fila directamente asociada al marker (evita inconsistencias por índices)
+        let row = marker._rowData;
+        if (!row) {
+          const lat = marker.getLatLng().lat;
+          const lng = marker.getLatLng().lng;
+          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-6 && Math.abs(parseFloat(r.lng) - lng) < 1e-6);
+        }
+        if (!row) continue;
+
+        map.setView(marker.getLatLng(), 17);
+        marker.openPopup();
+
+        await speakPolizaAndNombre(row['Póliza']||'', row['Nombre Contratante']||'', null);
+
+        await delay(2000);
+      }
+
+      autoModeActive = false;
+      document.getElementById('autoNarrarBtn').textContent = '▶️';
+    }
+    document.getElementById('autoNarrarBtn').addEventListener('click', narrarAutomaticamente);
+
+    // popup open handlers (botón voz / next / acta / maps) + marcar visitado al abrir
+    map.on('popupopen', e => {
+      const popupEl = e.popup.getElement(); // <-- asegurarse de obtener el elemento primero
+      const marker = e.popup._source;
+      const markerLat = marker.getLatLng().lat;
+      const markerLng = marker.getLatLng().lng;
+
+      // MARCAR visitado automáticamente y sincronizar UI
+      try {
+        const rowData = marker && marker._rowData;
+        const pol = rowData && (rowData['Póliza']||'').toString();
+        if (pol) {
+          setVisited(pol, true);
+          // actualizar checkbox/row si existe
+          const rows = document.querySelectorAll('#dataTableBody tr');
+          for (const r of rows) {
+            const cellPol = r.children[1] && r.children[1].textContent && r.children[1].textContent.trim();
+            if (cellPol === pol) {
+              const cb = r.querySelector('input[type="checkbox"]');
+              if (cb) cb.checked = true;
+              r.style.opacity = '0.45';
+              // atenuar marcador también (ya hecho por setVisited en renderAll cuando se vuelva a renderizar)
+              if (marker.setOpacity) marker.setOpacity(0.4);
+              break;
+            }
+          }
+        }
+      } catch (err) { /* safe ignore */ }
+
+      // Botones dentro del popup
+      const gmapsBtn = popupEl.querySelector('.gmaps-btn');
+      if (gmapsBtn) {
+        gmapsBtn.onclick = (ev) => {
+          ev.preventDefault();
+          const link = getMapsLink(markerLat, markerLng);
+          window.location.href = link;
+        };
+      }
+
+      const wazeBtn = popupEl.querySelector('.waze-btn');
+      if (wazeBtn) {
+        wazeBtn.onclick = (ev) => {
+          ev.preventDefault();
+          const link = getWazeLink(markerLat, markerLng);
+          window.location.href = link;
+        };
+      }
+
+      const actaBtn = popupEl.querySelector('.acta-btn');
+      if (actaBtn) {
+        actaBtn.onclick = (ev) => {
+          ev.preventDefault();
+          // aquí pones la lógica real (abrir form, enviar a sheet, generar PDF...)
+          alert('Insertar código de Acta de Inspección para póliza: ' + (marker._poliza || 'N/A'));
+        };
+      }
+
+      const nextBtn = popupEl.querySelector('.popup-next-btn');
+      const voiceBtn = popupEl.querySelector('.voice-btn');
+
+      if (nextBtn) {
+        nextBtn.onclick = (ev) => {
+          ev.preventDefault();
+          const visibles = markers.filter(m => map.hasLayer(m));
+          if (visibles.length === 0) return;
+          let idx = visibles.findIndex(m => m === marker);
+          if (idx < 0) return;
+          const nextMarker = visibles[(idx + 1) % visibles.length];
+
+          // marcar visitado el actual
+          if (marker._poliza) setVisited(marker._poliza, true);
+
+          map.setView(nextMarker.getLatLng(), 17);
+          nextMarker.openPopup();
+        };
+      }
+
+      if (voiceBtn) {
+        voiceBtn.onclick = null;
+        let markerData = marker && marker._rowData;
+
+        if (!markerData) {
+          markerData = currentData.find(r =>
+            Math.abs(parseFloat(r.lat) - markerLat) < 1e-6 &&
+            Math.abs(parseFloat(r.lng) - markerLng) < 1e-6
+          );
+        }
+
+        if (markerData) {
+          voiceBtn.onclick = (ev) => {
+            ev.preventDefault();
+            if (speechSynthesis.speaking) { stopSpeech(); restoreAllVoiceButtons(); return; }
+            speakPolizaAndNombre(markerData['Póliza']||'', markerData['Nombre Contratante']||'', voiceBtn);
+          };
+        }
+      }
+    });
+
+    map.on('popupclose', () => {
+      stopSpeech();
+      restoreAllVoiceButtons();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopSpeech();
+        restoreAllVoiceButtons();
+      }
+    });
+
+    // ---------- PANEL SHOW/HIDE y GESTOS ----------
+    function showTable() {
+      listPanel.classList.add('active');
+      listPanel.setAttribute('aria-hidden','false');
+    }
+    function hideTable() {
+      listPanel.classList.remove('active');
+      listPanel.setAttribute('aria-hidden','true');
+    }
+
+    // swipe down to hide
+    let startY = 0;
+    listPanel.addEventListener('touchstart', e => {
+      startY = e.touches[0].clientY;
+    }, { passive:true });
+
+    listPanel.addEventListener('touchend', e => {
+      const endY = e.changedTouches[0].clientY;
+      if (endY - startY > 80) hideTable();
+    }, { passive:true });
+
+    // allow dragging handle (tap on handle toggles)
+    const handle = document.getElementById('panelHandle');
+    handle.addEventListener('click', () => {
+      if (listPanel.classList.contains('active')) hideTable(); else showTable();
+    });
+
+    // ---------- MODAL CALLES ----------
+    function openStreetModal() {
+      renderStreetModal();
+      const m = document.getElementById('streetModal');
+      m.style.display = 'block';
+      m.setAttribute('aria-hidden','false');
+    }
+    function closeStreetModal() {
+      const m = document.getElementById('streetModal');
+      m.style.display = 'none';
+      m.setAttribute('aria-hidden','true');
+    }
+
+    function renderStreetModal() {
+      const ul = document.getElementById('streetList');
+      ul.innerHTML = '';
+
+      const streets = Array.from(
+        new Set(currentData.map(r => (r["calle"]||'Sin calle')))
+      ).sort((a,b) => a.localeCompare(b,'es'));
+
+      const liAll = document.createElement('li');
+      liAll.textContent = 'Todas';
+      liAll.style.fontWeight = '700';
+      liAll.onclick = () => {
+        filteredStreet = null;
+        renderAll();
+        closeStreetModal();
+      };
+      ul.appendChild(liAll);
+
+      streets.forEach(calle => {
+        const li = document.createElement('li');
+        li.textContent = calle;
+        li.onclick = () => {
+          filteredStreet = calle;
+          renderAll();
+          closeStreetModal();
+        };
+        ul.appendChild(li);
+      });
+    }
+
+    document.getElementById('streetModal').onclick = e => {
+      if (e.target.id === 'streetModal') closeStreetModal();
+    };
+    document.getElementById('filterBtn').addEventListener('click', openStreetModal);
+
+    // ---------- MODAL ADICIONAL ----------
+    function openAdicionalModal() {
+      renderAdicionalModal();
+      const m = document.getElementById('adicionalModal');
+      m.style.display = 'block';
+      m.setAttribute('aria-hidden','false');
+    }
+    function closeAdicionalModal() {
+      const m = document.getElementById('adicionalModal');
+      m.style.display = 'none';
+      m.setAttribute('aria-hidden','true');
+    }
+
+    function renderAdicionalModal() {
+      const ul = document.getElementById('adicionalList');
+      ul.innerHTML = '';
+
+      const adicionales = Array.from(new Set(currentData.map(r => (r["Adicional"]||'').toString()))).sort((a,b) => a.localeCompare(b,'es'));
+
+      const liAll = document.createElement('li');
+      liAll.textContent = 'Todos';
+      liAll.style.fontWeight = '700';
+      liAll.onclick = () => {
+        filteredAdicional = null;
+        renderAll();
+        closeAdicionalModal();
+      };
+      ul.appendChild(liAll);
+
+      adicionales.forEach(val => {
+        const display = val || '(vacío)';
+        const li = document.createElement('li');
+        li.textContent = display;
+        li.onclick = () => {
+          filteredAdicional = val;
+          renderAll();
+          closeAdicionalModal();
+        };
+        ul.appendChild(li);
+      });
+    }
+
+    document.getElementById('adicionalModal').onclick = e => {
+      if (e.target.id === 'adicionalModal') closeAdicionalModal();
+    };
+    document.getElementById('filterAdicionalBtn').addEventListener('click', openAdicionalModal);
+
+    // ---------- INICIO ----------
+    loadData();
+  </script>
 
 </body>
 </html>
