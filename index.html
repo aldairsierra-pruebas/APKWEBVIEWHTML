@@ -220,7 +220,12 @@
             fill="${color}" stroke="#222" stroke-width="2"/>
           <text x="23" y="30" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">${number}</text>
         </svg>`;
-      return L.icon({ iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg), iconSize: [38, 56], iconAnchor: [19, 56], popupAnchor: [0, -48] });
+      return L.icon({
+        iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg),
+        iconSize: [24, 36],
+        iconAnchor: [12, 36],
+        popupAnchor: [0, -30]
+      });
     }
 
     // Haversine - distancia en metros
