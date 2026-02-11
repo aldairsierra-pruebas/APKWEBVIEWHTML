@@ -227,14 +227,70 @@ function syncP4(){
 // Cancel
 document.getElementById('btnCancel').addEventListener('click', ()=>{ if(confirm('Limpiar formulario?')) location.reload(); });
 
-// Form submit (demo)
-document.getElementById('formODIS').addEventListener('submit', e=>{
+//INICIO fIREBASE
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  doc, 
+  setDoc 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+  authDomain: "asl-apk.firebaseapp.com",
+  projectId: "asl-apk",
+  storageBucket: "asl-apk.firebasestorage.app",
+  messagingSenderId: "803053462437",
+  appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+
+// ===============================
+// GUARDAR FORMULARIO EN FIREBASE
+// ===============================
+
+document.getElementById('formODIS').addEventListener('submit', async (e)=>{
   e.preventDefault();
+
+  const form = new FormData(e.target);
   const data = {};
-  new FormData(e.target).forEach((v,k)=>{ data[k]=v });
-  data.defectos = Array.from(document.querySelectorAll('.def-checkbox')).filter(c=>c.checked).map(c=>({eq:c.dataset.eq,code:c.dataset.code,label:c.parentNode.textContent.trim()}));
-  data.aparatos = Array.from(document.querySelectorAll('.p22-def')).filter(c=>c.checked).map(c=>c.parentNode.textContent.trim());
-  const w = window.open('','_blank'); w.document.body.style.fontFamily='monospace'; w.document.body.innerHTML = '<pre>'+JSON.stringify(data,null,2)+'</pre>';
+  form.forEach((v,k)=> data[k] = v);
+
+  // Agregar defectos P2
+  data.p21 = Array.from(document.querySelectorAll('.p21-def'))
+    .filter(c=>c.checked)
+    .map(c=>c.value);
+
+  data.p22 = Array.from(document.querySelectorAll('.p22-def'))
+    .filter(c=>c.checked)
+    .map(c=>c.value);
+
+  data.fecha_guardado = new Date();
+
+  try {
+
+    // 1️⃣ Guardar historial completo
+    const nuevaRef = await addDoc(collection(db, "db"), data);
+
+    // 2️⃣ Guardar como actual visible
+    await setDoc(doc(db, "actual", "activa"), {
+      ...data,
+      ref_id: nuevaRef.id
+    });
+
+    alert("Inspección guardada correctamente");
+
+  } catch(error){
+    alert("Error al guardar: " + error.message);
+  }
+
 });
 
 </script>
