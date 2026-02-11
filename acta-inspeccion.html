@@ -229,15 +229,8 @@ document.getElementById('btnCancel').addEventListener('click', ()=>{ if(confirm(
 </script>
 //INICIO fIREBASE
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  doc, 
-  setDoc 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -251,48 +244,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-
-// ===============================
-// GUARDAR FORMULARIO EN FIREBASE
-// ===============================
-
-document.getElementById('formODIS').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-
-  const form = new FormData(e.target);
-  const data = {};
-  form.forEach((v,k)=> data[k] = v);
-
-  // Agregar defectos P2
-  data.p21 = Array.from(document.querySelectorAll('.p21-def'))
-    .filter(c=>c.checked)
-    .map(c=>c.value);
-
-  data.p22 = Array.from(document.querySelectorAll('.p22-def'))
-    .filter(c=>c.checked)
-    .map(c=>c.value);
-
-  data.fecha_guardado = new Date();
-
-  try {
-
-    // 1️⃣ Guardar historial completo
-    const nuevaRef = await addDoc(collection(db, "db"), data);
-
-    // 2️⃣ Guardar como actual visible
-    await setDoc(doc(db, "actual", "activa"), {
-      ...data,
-      ref_id: nuevaRef.id
-    });
-
-    alert("Inspección guardada correctamente");
-
-  } catch(error){
-    alert("Error al guardar: " + error.message);
-  }
-
+const ref = await addDoc(collection(db, "db"), {
+  prueba_directa: "SI FUNCIONA",
+  fecha: new Date()
 });
 
+console.log("ID creado:", ref.id);
+alert("Intento realizado");
 </script>
 
 </body>
