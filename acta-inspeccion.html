@@ -125,6 +125,40 @@ textarea{resize:vertical}
   </div>
 </div>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } 
+  from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+    authDomain: "asl-apk.firebaseapp.com",
+    projectId: "asl-apk",
+    storageBucket: "asl-apk.firebasestorage.app",
+    messagingSenderId: "803053462437",
+    appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  console.log("🔥 Firebase conectado 🔥");
+
+  // 🔥 PRUEBA DIRECTA
+  try {
+    const ref = await addDoc(collection(db, "db"), {
+      prueba: "conexion directa",
+      fecha: new Date()
+    });
+
+    console.log("Documento creado con ID:", ref.id);
+  } catch (error) {
+    console.error("Error al escribir:", error);
+  }
+
+</script>
+
+
 <script>
 /* P1 diferencia */
 const ini = document.getElementById('p1Ini');
@@ -294,30 +328,5 @@ renderEquipos();
 // Cancel
 document.getElementById('btnCancel').addEventListener('click', ()=>{ if(confirm('Limpiar formulario?')) location.reload(); });
 </script>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
-  authDomain: "asl-apk.firebaseapp.com",
-  projectId: "asl-apk",
-  storageBucket: "asl-apk.firebasestorage.app",
-  messagingSenderId: "803053462437",
-  appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-const ref = await addDoc(collection(db, "db"), {
-  prueba_directa: "SI FUNCIONA",
-  fecha: new Date()
-});
-
-console.log("ID creado:", ref.id);
-alert("Intento realizado");
-</script>
-
 </body>
 </html>
