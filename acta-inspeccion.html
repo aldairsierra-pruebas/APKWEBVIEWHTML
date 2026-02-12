@@ -1,3 +1,4 @@
+f
 <!DOCTYPE html>
 <html lang="es">
 
@@ -270,6 +271,25 @@
             width: 14px;
             height: 14px;
         }
+
+        .p4-row {
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            gap: 8px;
+            align-items: start;
+            margin-top: 6px;
+        }
+
+        .p4-row textarea {
+            width: 100%;
+        }
+
+        .precinto-input {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 12px;
+        }
     </style>
 
 </head>
@@ -364,25 +384,22 @@
             <label id="precintoLabel" class="hidden">Precinto (solo si hay crítico)</label>
             <input type="text" id="precinto" name="precinto" maxlength="50" class="hidden">
         </div>
-
-        <!-- C. CCAU -->
-        <div class="section">
+        <div>
             <label>¿Cliente realiza aviso al CCAU?</label>
             <select id="clienteAvisoCcau" name="clienteAvisoCcau">
+                <label><input type="checkbox" name="ClienteAvisoCcau" value="si">Si</label>
+                <label><input type="checkbox" name="ClienteAvisoCcau" value="no">No</label>
                 <option value="si">SI</option>
-            </select>
+                <option value="no">No</option>
 
-            <label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label>
-            <input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars">
-        </div>
+                <label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label>
+                <input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars">
 
-        <!-- D. Tipo de revisión -->
-        <div class="section">
-            <h3>Tipo de revisión</h3>
-            <label><input type="checkbox" name="tipoRevision" value="Asistencia Gas"> Asistencia Gas</label>
-            <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</label>
-            <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
-            <label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
+                <h3>Tipo de revisión</h3>
+                <label><input type="checkbox" name="tipoRevision" value="Asistencia Gas"> Asistencia Gas</label>
+                <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</label>
+                <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
+                <label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
         </div>
 
         <!-- E. Datos técnico fijos -->
@@ -646,40 +663,98 @@
         });
 
         // Sync to P4 (pre-filled descriptions)
+        function esDefectoCriticoAparato(texto) {
+            const criticos = ['(61)', '(62)', '(63)', '(67)', '(80)'];
+            return criticos.some(c => texto.includes(c));
+        }
+
         function syncP4() {
             p4Cont.innerHTML = '';
-            const p21Checked = Array.from(document.querySelectorAll('.p21-def')).filter(i => i.checked);
-            const equiposConDefectos = Object.entries(defectosPorEquipo).filter(([, defects]) => defects.length > 0);
+
+            const p21Checked = Array.from(document.querySelectorAll('.p21-def'))
+                .filter(i => i.checked);
+
+            const equiposConDefectos = Object.entries(defectosPorEquipo)
+                .filter(([, defects]) => defects.length > 0);
+
             if (p21Checked.length === 0 && equiposConDefectos.length === 0) {
                 p4Cont.innerHTML = '<span class="muted">Sin defectos seleccionados.</span>';
                 return;
             }
 
+            /* ================= IDA ================= */
             if (p21Checked.length > 0) {
                 const box = document.createElement('div');
                 box.className = 'defecto';
-                let inner = `<strong>IDA</strong>`;
-                p21Checked.forEach(d => {
-                    inner += `<div style="margin-top:6px"><em>${d.parentNode.textContent.trim()}</em><textarea rows="2">Se detecta ${d.parentNode.textContent.trim().toLowerCase()}. Proceder según normativa.</textarea></div>`;
-                });
-                box.innerHTML = inner;
+                box.innerHTML = `<strong>IDA</strong>`;
                 p4Cont.appendChild(box);
+
+                p21Checked.forEach(d => {
+                    const esCritico = d.dataset.cat === 'crit';
+                    const row = document.createElement('div');
+                    row.className = 'p4-row';
+
+                    const descripcion = `
+        <div>
+          <em>${d.parentNode.textContent.trim()}</em>
+          <textarea rows="2">
+Se detecta ${d.parentNode.textContent.trim().toLowerCase()}. Proceder según normativa.
+          </textarea>
+        </div>
+      `;
+
+                    const precinto = esCritico ?
+                        `<input type="text" class="precinto-input" placeholder="Precinto">` :
+                        `<div></div>`;
+
+                    row.innerHTML = descripcion + precinto;
+                    box.appendChild(row);
+                });
             }
+
+            /* ================= APARATOS ================= */
             equiposConDefectos.forEach(([eq, defects]) => {
+
                 const eqName = (EQUIPOS_ORDER.find(x => x.id === eq) || {}).name || eq;
+
                 const box = document.createElement('div');
                 box.className = 'defecto';
-                let inner = `<strong>${eqName}</strong>`;
-                defects.forEach(defecto => {
-                    inner += `<div style="margin-top:6px"><em>${defecto}</em><textarea rows="2">Se detecta ${defecto.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.</textarea></div>`;
-                });
-                box.innerHTML = inner;
+                box.innerHTML = `<strong>${eqName}</strong>`;
                 p4Cont.appendChild(box);
+
+                defects.forEach(defecto => {
+
+                    const esCritico = esDefectoCriticoAparato(defecto);
+
+                    const row = document.createElement('div');
+                    row.className = 'p4-row';
+
+                    const descripcion = `
+        <div>
+          <em>${defecto}</em>
+          <textarea rows="2">
+Se detecta ${defecto.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.
+          </textarea>
+        </div>
+      `;
+
+                    const precinto = esCritico ?
+                        `<input type="text" class="precinto-input" placeholder="Precinto">` :
+                        `<div></div>`;
+
+                    row.innerHTML = descripcion + precinto;
+                    box.appendChild(row);
+                });
             });
         }
 
+
         renderEquipos();
 
+        // 👇 AQUI
+        document.querySelectorAll('.p21-def').forEach(cb => {
+            cb.addEventListener('change', syncP4);
+        });
         // Cancel
         document.getElementById('btnCancel').addEventListener('click', () => {
             if (confirm('Limpiar formulario?')) location.reload();
