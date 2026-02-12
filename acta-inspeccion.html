@@ -159,6 +159,58 @@ textarea{resize:vertical}
   body{padding:8px}
   .section{grid-template-columns: 1fr}
 }
+
+/* P2.1 GRID INTERNO */
+.p21-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap:20px;
+  margin-top:8px;
+}
+
+.p21-grid .col{
+  background:#f9fbff;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #e6eef5;
+}
+
+.p21-grid label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  margin:4px 0;
+}
+
+.p21-grid input[type="checkbox"]{
+  width:14px;
+  height:14px;
+}
+/* GRID INTERNO MODAL */
+.modal-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap:8px;
+  margin-top:8px;
+}
+
+.modal-grid label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  background:#f4f6f9;
+  padding:6px;
+  border-radius:6px;
+  border:1px solid #e2e8f0;
+}
+
+.modal-grid input[type="checkbox"]{
+  width:14px;
+  height:14px;
+}
+  
 </style>
 
 </head>
@@ -197,26 +249,33 @@ textarea{resize:vertical}
 <!-- P2 Mejorado - defectos siempre visibles (P2.1) -->
 <div class="section">
   <h2>P2. Seguimiento de la IDA (Instalación de Aprovechamiento)</h2>
-  <p class="small">P2.1 Detección de Defectos en IDA</p>
   <p class="small">P2.1 Detección de Defectos en IDA. Seleccione directamente los defectos aplicables, separados en Defectos Críticos / Precintado Total y Defectos Secundarios / Áreas de mejora.</p>
 
-  <div id="p21Defectos">
-  <div class="group-title">Defectos Críticos / Precintado Total</div>
-  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label>
-  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label>
-  <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label>
-  <label><input type="checkbox" class="p21-def" data-cat="crit" value="63 Fuga en válvula"> (63) Fuga en válvula</label>
-  <label><input type="checkbox" class="p21-def" data-cat="crit" value="83 IDA fuera de norma"> (83) IDA fuera de norma</label>
+  <div id="p21Defectos" class="p21-grid">
 
-  <div class="group-title" style="margin-top:10px">Defectos Secundarios / Áreas de mejora</div>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
-  <label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
-</div>
-
+    <div class="col">
+      <div class="group-title">Defectos Críticos / Precintado Total</div>
+  
+      <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label>
+      <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label>
+      <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label>
+      <label><input type="checkbox" class="p21-def" data-cat="crit" value="63 Fuga en válvula"> (63) Fuga en válvula</label>
+      <label><input type="checkbox" class="p21-def" data-cat="crit" value="83 IDA fuera de norma"> (83) IDA fuera de norma</label>
+    </div>
+  
+    <div class="col">
+      <div class="group-title">Defectos Secundarios / Áreas de mejora</div>
+  
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
+      <label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
+    </div>
+  
+  </div>
+  
   <div id="p2Aparatos" style="margin-top:12px">
     <h3>P2.2 Detección de defectos en aparatos conectados</h3>
     <table class="three-col" id="tablaEquipos"></table>
@@ -240,13 +299,14 @@ textarea{resize:vertical}
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>Seleccionar defectos</h3>
-    <div id="modalDefectos"></div>
+    <div id="modalDefectos" class="modal-grid"></div>
     <div class="modal-actions">
       <button type="button" class="btn secondary" onclick="cerrarModal()">Cancelar</button>
       <button type="button" class="btn primary" onclick="guardarDefectos()">Guardar</button>
     </div>
   </div>
 </div>
+
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
