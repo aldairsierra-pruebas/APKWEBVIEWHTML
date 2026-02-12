@@ -23,6 +23,19 @@ textarea{resize:vertical}
 .equipo-header{display:flex;align-items:center;gap:10px}
 .group-title{font-weight:700;margin-top:8px}
 .small{font-size:13px;color:#555}
+.eq-box{font-size:13px}
+.eq-header{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.eq-header input{width:65px}
+.co-box{margin-top:4px}
+.selected-list{margin-top:6px;font-size:12.5px;color:#333}
+.selected-item{background:#eef3ff;padding:3px 6px;border-radius:4px;margin:2px 0;display:inline-block}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal{background:#fff;width:90%;max-width:500px;border-radius:10px;padding:16px;max-height:80vh;overflow:auto}
+.modal h3{margin-top:0}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.modal label{display:block;margin:6px 0;font-size:13px}
 @media(max-width:700px){body{padding:8px}}
 </style>
 </head>
@@ -82,16 +95,7 @@ textarea{resize:vertical}
 
   <div id="p2Aparatos" style="margin-top:12px">
     <h3>P2.2 Detección de defectos en aparatos conectados</h3>
-    <label>Cantidad de aparatos con defecto (0-9)</label>
-    <input type="number" id="p22Cantidad" min="0" max="9" value="0">
-    <div id="p22Defectos" class="hidden" style="margin-top:8px">
-      <p class="small">Seleccione los defectos aplicables a los aparatos</p>
-      <label><input type="checkbox" class="p22-def" value="fuga_aparato"> Fuga en aparato</label>
-      <label><input type="checkbox" class="p22-def" value="comb_incompleta"> Combustión incompleta</label>
-      <label><input type="checkbox" class="p22-def" value="ventilacion"> Falta de ventilación</label>
-      <label><input type="checkbox" class="p22-def" value="conexion"> Conexión defectuosa</label>
-      <label><input type="checkbox" class="p22-def" value="inst_fuera_norma"> Instalación fuera de norma</label>
-    </div>
+    <table class="three-col" id="tablaEquipos"></table>
   </div>
 
 </div>
@@ -107,6 +111,18 @@ textarea{resize:vertical}
 </div>
 
 </form>
+
+<!-- MODAL P2.2 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>Seleccionar defectos</h3>
+    <div id="modalDefectos"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" onclick="cerrarModal()">Cancelar</button>
+      <button type="button" class="btn primary" onclick="guardarDefectos()">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* P1 diferencia */
@@ -144,42 +160,104 @@ const EQUIPOS_ORDER = [
   {id:'VS', name:'VS - Válvula Sin Aparato'}
 ];
 
-const container = document.getElementById('p2EquiposContainer');
+const DEFECTOS_APARATO = [
+  '(10) Dificultad de cierre',
+  '(13) Zona de ventilación permanente',
+  '(14) Material fuera de norma aparato',
+  '(17) Aparato fijo sin conexión fija',
+  '(61) Fuga en manguera interior',
+  '(62) Fuga en aparato',
+  '(63) Fuga en válvula',
+  '(64) Manguera dañada interior',
+  '(65) Sin ventilación permanente primer piso',
+  '(66) Sin conducto de evacuación de gases',
+  '(67) Fuga en manguera exterior',
+  '(68) Manguera dañada exterior',
+  '(80) Monóxido de carbono (CO) ppm',
+  '(85) Sin ventilación permanente por debajo del primer sótano',
+  '(86) Elemento de cierre'
+];
+
 const p4Cont = document.getElementById('p4Contenedor');
+const tablaEquipos = document.getElementById('tablaEquipos');
+const modal = document.getElementById('modalOverlay');
+const modalDefectos = document.getElementById('modalDefectos');
+const defectosPorEquipo = {};
+let equipoActivo = null;
 
-// Render equipos always visible in order
-// P2.1 defectos siempre visibles, sin cantidad
-
-
-function setupEqListeners(){
-  document.querySelectorAll('.eq-checkbox').forEach(cb=>{
-    cb.addEventListener('change', e=>{
-      const eq = e.target.dataset.eq;
-      const area = document.getElementById('def_area_'+eq);
-      if(!e.target.checked){
-        // uncheck its defects but keep area visible
-        area.querySelectorAll('.def-checkbox').forEach(d=>d.checked=false);
-        syncP4();
-      }
-    });
+function renderEquipos(){
+  let row;
+  EQUIPOS_ORDER.forEach((eq, i) => {
+    if(i % 3 === 0) row = tablaEquipos.insertRow();
+    const cell = row.insertCell();
+    cell.className = 'eq-box';
+    cell.innerHTML = `
+      <div class="eq-header">
+        <strong>${eq.name}</strong>
+        <input type="number" min="0" value="0" data-eq="${eq.id}" class="qty">
+      </div>
+      <div id="co_${eq.id}" class="co-box hidden">
+        <input type="number" min="0" placeholder="CO ppm">
+      </div>
+      <button type="button" class="btn secondary hidden" id="btn_${eq.id}" onclick="abrirModal('${eq.id}')">Defectos</button>
+      <div class="selected-list" id="list_${eq.id}"></div>
+    `;
   });
 }
-setupEqListeners();
 
-// P2.2 quantity handling
-const p22Cantidad = document.getElementById('p22Cantidad');
-p22Cantidad.addEventListener('input', ()=>{
-  const qty = Number(p22Cantidad.value||0);
-  const p22Def = document.getElementById('p22Defectos');
-  if(qty>0) p22Def.classList.remove('hidden'); else { p22Def.classList.add('hidden'); document.querySelectorAll('.p22-def').forEach(d=>d.checked=false); syncP4(); }
+document.addEventListener('input',e=>{
+  if(e.target.classList.contains('qty')){
+    const eq = e.target.dataset.eq;
+    const qty = Number(e.target.value || 0);
+    const coBox = document.getElementById('co_' + eq);
+    const btn = document.getElementById('btn_' + eq);
+    const list = document.getElementById('list_' + eq);
+
+    if(qty > 0){
+      coBox.classList.remove('hidden');
+      btn.classList.remove('hidden');
+    } else {
+      coBox.classList.add('hidden');
+      btn.classList.add('hidden');
+      list.innerHTML = '';
+      defectosPorEquipo[eq] = [];
+      syncP4();
+    }
+  }
 });
+
+function abrirModal(eq){
+  equipoActivo = eq;
+  const current = defectosPorEquipo[eq] || [];
+  modal.style.display = 'flex';
+  modalDefectos.innerHTML = DEFECTOS_APARATO.map(d=>{
+    const checked = current.includes(d) ? 'checked' : '';
+    return `<label><input type="checkbox" value="${d}" ${checked}> ${d}</label>`;
+  }).join('');
+}
+
+function cerrarModal(){
+  modal.style.display = 'none';
+}
+
+function guardarDefectos(){
+  if(!equipoActivo) return;
+  const checks = Array.from(modalDefectos.querySelectorAll('input:checked'));
+  const selected = checks.map(c => c.value);
+  defectosPorEquipo[equipoActivo] = selected;
+  const list = document.getElementById('list_' + equipoActivo);
+  list.innerHTML = selected.map(item => `<span class="selected-item">${item}</span>`).join('');
+  cerrarModal();
+  syncP4();
+}
+
+window.abrirModal = abrirModal;
+window.cerrarModal = cerrarModal;
+window.guardarDefectos = guardarDefectos;
 
 // Delegate change on defect checkboxes
 document.addEventListener('change', e=>{
   if(e.target && e.target.classList && e.target.classList.contains('def-checkbox')){
-    syncP4();
-  }
-  if(e.target && e.target.classList && e.target.classList.contains('p22-def')){
     syncP4();
   }
 });
@@ -188,8 +266,8 @@ document.addEventListener('change', e=>{
 function syncP4(){
   p4Cont.innerHTML = '';
   const p21Checked = Array.from(document.querySelectorAll('.p21-def')).filter(i=>i.checked);
-  const aparChecked = Array.from(document.querySelectorAll('.p22-def')).filter(i=>i.checked);
-  if(p21Checked.length===0 && aparChecked.length===0){ p4Cont.innerHTML = '<span class="muted">Sin defectos seleccionados.</span>'; return; }
+  const equiposConDefectos = Object.entries(defectosPorEquipo).filter(([, defects]) => defects.length > 0);
+  if(p21Checked.length===0 && equiposConDefectos.length===0){ p4Cont.innerHTML = '<span class="muted">Sin defectos seleccionados.</span>'; return; }
 
   if(p21Checked.length>0){
     const box = document.createElement('div'); box.className='defecto';
@@ -199,30 +277,18 @@ function syncP4(){
     });
     box.innerHTML = inner; p4Cont.appendChild(box);
   }
-  // group by equipment
-  const byEq = {};
-  checked.forEach(chk=>{
-    const eq = chk.dataset.eq; const code = chk.dataset.code; const label = chk.parentNode.textContent.trim();
-    if(!byEq[eq]) byEq[eq]=[];
-    byEq[eq].push({code, label});
-  });
-  Object.keys(byEq).forEach(eq => {
+  equiposConDefectos.forEach(([eq, defects]) => {
     const eqName = (EQUIPOS_ORDER.find(x=>x.id===eq)||{}).name || eq;
     const box = document.createElement('div'); box.className='defecto';
     let inner = `<strong>${eqName}</strong>`;
-    byEq[eq].forEach(d=>{
-      inner += `<div style="margin-top:6px"><em>${d.label}</em><textarea rows="2">Se detecta ${d.label.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.</textarea></div>`;
+    defects.forEach(defecto=>{
+      inner += `<div style="margin-top:6px"><em>${defecto}</em><textarea rows="2">Se detecta ${defecto.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.</textarea></div>`;
     });
     box.innerHTML = inner; p4Cont.appendChild(box);
   });
-  // Aparatos conectados section
-  if(aparChecked.length>0){
-    const box = document.createElement('div'); box.className='defecto';
-    let inner = `<strong>Aparatos conectados</strong>`;
-    aparChecked.forEach(a=>{ inner += `<div style="margin-top:6px"><em>${a.parentNode.textContent.trim()}</em><textarea rows="2">Se detecta ${a.parentNode.textContent.trim().toLowerCase()} en aparato conectado. Proceder según normativa.</textarea></div>`; });
-    box.innerHTML = inner; p4Cont.appendChild(box);
-  }
 }
+
+renderEquipos();
 
 // Cancel
 document.getElementById('btnCancel').addEventListener('click', ()=>{ if(confirm('Limpiar formulario?')) location.reload(); });
