@@ -1,1107 +1,713 @@
-f
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ODIS Incidencias - Formulario Completo (P2 Visible)</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 13px;
-            /* 👈 Letra más pequeña general */
-        }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ODIS Incidencias - Formulario Completo (Integrado)</title>
+<style>
+/* =========================================
+   ESTILOS BASE (De Cambios.txt)
+   ========================================= */
+*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:13px}
+body{margin:0;background:#f2f4f7;padding:16px}
+h1{font-size:18px}h2{font-size:16px;margin:10px 0;color:#0b3356}h3{font-size:14px;margin:8px 0;color:#0b3356}
+label{font-size:12.5px;margin-top:6px;display:block}
+input,select,textarea{width:100%;padding:6px;margin-top:3px;border:1px solid #ccc;border-radius:6px;font-size:12.5px}
+textarea{resize:vertical}
 
-        body {
-            margin: 0;
-            background: #f2f4f7;
-            padding: 16px;
-        }
+/* SECCIONES Y GRID */
+.section{background:#fff;padding:14px;border-radius:8px;margin-bottom:14px;box-shadow:0 3px 8px rgba(0,0,0,.06);display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.section h2,.section h3,.section p,.section .group-title,.section #p21Defectos,.section #p2Aparatos,.section #p4Contenedor{grid-column:1/-1}
+.hidden{display:none !important}
 
-        h1 {
-            font-size: 18px
-        }
+/* BOTONES */
+.btn{padding:8px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px}
+.primary{background:#0b3356;color:#fff}.secondary{background:#ddd}.actions{display:flex;justify-content:flex-end;gap:8px}
 
-        h2 {
-            font-size: 16px;
-            margin: 10px 0;
-            color: #0b3356
-        }
+/* ELEMENTOS ESPECÍFICOS */
+.defecto{border:1px dashed #ccc;padding:6px;border-radius:6px;margin-top:6px; background: #fafafa;}
+.muted{color:#777;font-size:12px}.equipo{border:1px solid #e6eef5;padding:8px;border-radius:8px;margin-bottom:8px}
+.group-title{font-weight:700;margin-top:6px;font-size:13px}.small{font-size:12px;color:#555}
 
-        h3 {
-            font-size: 14px;
-            margin: 8px 0;
-            color: #0b3356
-        }
+/* ESTILOS DE EQUIPOS (P2.2) RESTAURADOS */
+.eq-box{font-size:12px; border-bottom: 1px solid #eee; padding: 8px 0;}
+.eq-header{display:flex;justify-content:space-between;align-items:center;gap:6px}.eq-header input{width:60px}
+.co-box{margin-top:4px}
+.selected-list{margin-top:6px;font-size:12px;color:#333}
+.selected-item{background:#eef3ff;padding:2px 5px;border-radius:4px;margin:2px 0;display:inline-block; border: 1px solid #dce6f7;}
 
-        label {
-            font-size: 12.5px;
-            margin-top: 6px;
-            display: block;
-        }
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal{background:#fff;width:90%;max-width:500px;border-radius:10px;padding:14px;max-height:80vh;overflow:auto}
+.modal h3{margin-top:0}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.modal label{display:block;margin:4px 0;font-size:12px}
 
-        input,
-        select,
-        textarea {
-            width: 100%;
-            padding: 6px;
-            margin-top: 3px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 12.5px;
-        }
+/* RESPONSIVE */
+@media(max-width:600px){body{padding:8px}.section{grid-template-columns:1fr}}
 
-        textarea {
-            resize: vertical
-        }
+/* GRID P2.1 */
+.p21-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:8px}
+.p21-grid .col{background:#f9fbff;padding:10px;border-radius:8px;border:1px solid #e6eef5}
+.p21-grid label{display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0}
+.p21-grid input[type="checkbox"]{width:14px;height:14px}
 
-        .section {
-            background: #fff;
-            padding: 14px;
-            border-radius: 8px;
-            margin-bottom: 14px;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, .06);
+/* GRID MODAL */
+.modal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px}
+.modal-grid label{display:flex;align-items:center;gap:6px;font-size:12px;background:#f4f6f9;padding:6px;border-radius:6px;border:1px solid #e2e8f0}
+.modal-grid input[type="checkbox"]{width:14px;height:14px}
 
-            /* 👇 AQUÍ ESTA LA MAGIA */
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-        }
+/* FILAS P4 (Generadas dinámicamente) */
+.p4-row{display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:start;margin-top:6px; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;}
+.p4-row:last-child { border-bottom: none; }
+.p4-row textarea{width:100%; font-family: monospace; font-size: 11px;}
+.precinto-input{padding:6px;border:1px solid #ccc;border-radius:6px;font-size:12px}
 
-        /* Hace que los títulos ocupen todo el ancho */
-        .section h2,
-        .section h3,
-        .section p,
-        .section .group-title,
-        .section #p21Defectos,
-        .section #p2Aparatos,
-        .section #p4Contenedor {
-            grid-column: 1 / -1;
-        }
-
-        .hidden {
-            display: none
-        }
-
-        .btn {
-            padding: 8px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12.5px;
-        }
-
-        .primary {
-            background: #0b3356;
-            color: #fff
-        }
-
-        .secondary {
-            background: #ddd
-        }
-
-        .actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-        }
-
-        .defecto {
-            border: 1px dashed #ccc;
-            padding: 6px;
-            border-radius: 6px;
-            margin-top: 6px;
-        }
-
-        .muted {
-            color: #777;
-            font-size: 12px
-        }
-
-        .equipo {
-            border: 1px solid #e6eef5;
-            padding: 8px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-
-        .group-title {
-            font-weight: 700;
-            margin-top: 6px;
-            font-size: 13px;
-        }
-
-        .small {
-            font-size: 12px;
-            color: #555
-        }
-
-        .eq-box {
-            font-size: 12px
-        }
-
-        .eq-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 6px
-        }
-
-        .eq-header input {
-            width: 60px
-        }
-
-        .co-box {
-            margin-top: 4px
-        }
-
-        .selected-list {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #333
-        }
-
-        .selected-item {
-            background: #eef3ff;
-            padding: 2px 5px;
-            border-radius: 4px;
-            margin: 2px 0;
-            display: inline-block;
-        }
-
-        /* MODAL */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .4);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000
-        }
-
-        .modal {
-            background: #fff;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 10px;
-            padding: 14px;
-            max-height: 80vh;
-            overflow: auto
-        }
-
-        .modal h3 {
-            margin-top: 0
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 10px
-        }
-
-        .modal label {
-            display: block;
-            margin: 4px 0;
-            font-size: 12px
-        }
-
-        /* Móvil más compacto */
-        @media(max-width:600px) {
-            body {
-                padding: 8px
-            }
-
-            .section {
-                grid-template-columns: 1fr
-            }
-        }
-
-        /* P2.1 GRID INTERNO */
-        .p21-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-top: 8px;
-        }
-
-        .p21-grid .col {
-            background: #f9fbff;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #e6eef5;
-        }
-
-        .p21-grid label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            margin: 4px 0;
-        }
-
-        .p21-grid input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-        }
-
-        /* GRID INTERNO MODAL */
-        .modal-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .modal-grid label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            background: #f4f6f9;
-            padding: 6px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .modal-grid input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-        }
-
-        .p4-row {
-            display: grid;
-            grid-template-columns: 1fr 120px;
-            gap: 8px;
-            align-items: start;
-            margin-top: 6px;
-        }
-
-        .p4-row textarea {
-            width: 100%;
-        }
-
-        .precinto-input {
-            padding: 6px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 12px;
-        }
-
-        .section.collapsible h2,
-        .section.collapsible h3 {
-            cursor: pointer;
-            position: relative;
-        }
-
-        .section.collapsible h2::after,
-        .section.collapsible h3::after {
-            content: "▼";
-            position: absolute;
-            right: 0;
-            font-size: 12px;
-            transition: transform 0.2s ease;
-        }
-
-        .section.collapsed h2::after,
-        .section.collapsed h3::after {
-            transform: rotate(-90deg);
-        }
-
-        .section-content {
-            overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.2s ease;
-        }
-
-        .section.collapsed .section-content {
-            max-height: 0;
-            opacity: 0;
-            pointer-events: none;
-        }
-    </style>
-
+/* ACORDEÓN (Lógica Corregida de Cambios.txt) */
+.section.collapsible h2,.section.collapsible h3{cursor:pointer;position:relative}
+.section.collapsible h2::after,.section.collapsible h3::after{content:"▼";position:absolute;right:0;font-size:12px;transition:transform .2s}
+.section.collapsed h2::after,.section.collapsed h3::after{transform:rotate(-90deg)}
+.section-content{grid-column:1/-1;overflow:hidden;transition:max-height .3s ease,opacity .2s ease}
+.section.collapsed .section-content{max-height:0;opacity:0;pointer-events:none}
+</style>
 </head>
-
 <body>
-    <form id="formODIS">
+<form id="formODIS">
 
+<div class="section">
+<h2>Acta / Revisión Anual Preventiva</h2>
+</div>
 
-        <div class="section collapsible">
-            <h2>Datos del Cliente</h2>
-            <div class="section">
-                <label>Póliza</label><input type="number" name="poliza">
-                <label>Nombre</label><input type="text" name="nombre">
-                <label>Teléfono</label><input type="tel" name="telefono">
-                <label>Celular</label><input type="tel" name="celular">
-                <label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento">
-                <label>Correo electrónico</label><input type="email" name="email">
-                <h3>Fechas (autocomputadas)</h3>
-                <label>Fecha de solicitud (autogenerada)</label>
-                <input type="datetime-local" id="fechaSolicitud" name="fechaSolicitud" readonly>
+<div class="section collapsible">
+<h2>Datos del Cliente</h2>
+<div class="section-content">
+<label>Póliza</label><input type="number" name="poliza">
+<label>Nombre</label><input type="text" name="nombre">
+<label>Teléfono</label><input type="tel" name="telefono">
+<label>Celular</label><input type="tel" name="celular">
+<label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento">
+<label>Correo electrónico</label><input type="email" name="email">
+<h3>Fechas (autocomputadas)</h3>
+<label>Fecha de solicitud</label><input type="datetime-local" id="fechaSolicitud" name="fechaSolicitud" readonly>
+<label>Fecha requerida (+7 días)</label><input type="datetime-local" id="fechaRequerida" name="fechaRequerida" readonly>
+<label>Fecha de vencimiento (+1 mes)</label><input type="datetime-local" id="fechaVencimiento" name="fechaVencimiento" readonly>
+</div>
+</div>
 
-                <label>Fecha requerida (solicitud + 7 días)</label>
-                <input type="datetime-local" id="fechaRequerida" name="fechaRequerida" readonly>
+<div class="section collapsible">
+<h2>Datos del Medidor</h2>
+<div class="section-content">
+<label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion">
+<label>Latitud / Longitud</label><input type="text" name="latlng">
+</div>
+</div>
 
-                <label>Fecha de vencimiento (solicitud + 1 mes)</label>
-                <input type="datetime-local" id="fechaVencimiento" name="fechaVencimiento" readonly>
-            </div>
+<div class="section collapsible">
+<h2>P1. Prueba de litraje inicial</h2>
+<div class="section-content">
+<label>Lectura inicial</label><input type="number" id="p1Ini">
+<label>Lectura final</label><input type="number" id="p1Fin">
+<label>Diferencia</label><input type="number" id="p1Diff" readonly>
+</div>
+</div>
 
-        </div>
+<div class="section collapsible">
+<h2>P2. Seguimiento de la IDA (Instalación de Aprovechamiento)</h2>
+<div class="section-content">
+<p class="small">P2.1 Detección de Defectos en IDA. Seleccione directamente los defectos aplicables.</p>
 
+<div id="p21Defectos" class="p21-grid">
+<div class="col">
+<div class="group-title">Defectos Críticos / Precintado Total</div>
+<label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label>
+<label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label>
+<label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label>
+<label><input type="checkbox" class="p21-def" data-cat="crit" value="63 Fuga en válvula"> (63) Fuga en válvula</label>
+<label><input type="checkbox" class="p21-def" data-cat="crit" value="83 IDA fuera de norma"> (83) IDA fuera de norma</label>
+</div>
 
-        <h2>Datos del Medidor</h2>
-        <label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion">
-        <label>Latitud / Longitud</label><input type="text" name="latlng">
-        <div class="section collapsible">
-            <h2>P1. Prueba de litraje inicial</h2>
-            <div class="section">
-                <label>Lectura inicial</label><input type="number" id="p1Ini">
-                <label>Lectura final</label><input type="number" id="p1Fin">
-                <label>Diferencia</label><input type="number" id="p1Diff" readonly>
-            </div>
-        </div>
+<div class="col">
+<div class="group-title">Defectos Secundarios / Áreas de mejora</div>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
+</div>
+</div>
 
-        <div class="section collapsible">
-            <h2>P2. Seguimiento de la IDA</h2>
-            <div class="section">
-                <p class="small">P2.1 Detección de Defectos en IDA.
+<div id="p2Aparatos" style="margin-top:12px">
+<h3>P2.2 Detección de defectos en aparatos conectados</h3>
+<table class="three-col" id="tablaEquipos" style="width:100%; border-collapse: collapse;"></table>
+</div>
 
-                <div id="p21Defectos" class="p21-grid">
+</div>
+</div>
 
-                    <div class="col">
-                        <div class="group-title">Defectos Críticos / Precintado Total</div>
+<div class="section collapsible">
+<h2>P4. Descripción de verificación</h2>
+<div class="section-content">
+<div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
+<hr>
+<label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="2000"></textarea>
+<label id="precintoLabel" class="hidden">Precinto Global (solo si hay crítico)</label><input type="text" id="precinto" name="precinto" maxlength="50" class="hidden">
+</div>
+</div>
 
-                        <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="crit" value="63 Fuga en válvula"> (63) Fuga en válvula</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="crit" value="83 IDA fuera de norma"> (83) IDA fuera de norma</label>
-                    </div>
+<div class="section collapsible">
+<h2>Datos Extras</h2>
+<div class="section-content">
+<label>¿Cliente realiza aviso al CCAU?</label>
+<select id="clienteAvisoCcau" name="clienteAvisoCcau">
+<option value="">--Seleccione--</option>
+<option value="si">SI</option>
+<option value="no">NO</option>
+</select>
+<label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label><input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars">
 
-                    <div class="col">
-                        <div class="group-title">Defectos Secundarios / Áreas de mejora</div>
+<h3>Tipo de revisión</h3>
+<label><input type="checkbox" name="tipoRevision" value="Asistencia Gas"> Asistencia Gas</label>
+<label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</label>
+<label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
+<label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
+</div>
+</div>
 
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
-                        <label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
-                    </div>
+<div class="section collapsible">
+<h2>Técnico</h2>
+<div class="section-content">
+<label>Nombre del técnico</label><input type="text" id="nombreTecnico" name="nombreTecnico" value="Aldair Isaac Sierra Loa">
+<label>Empresa colaboradora</label><input type="text" id="empresaTecnico" name="empresaTecnico" value="Oca Global">
+<label>Número de técnico</label><input type="text" id="numTecnico" name="numTecnico" value="7236">
+<label>Hora de salida (+30 min)</label><input type="datetime-local" id="horaSalida" name="horaSalida" readonly>
+</div>
+</div>
 
+<div class="section">
+<div class="actions">
+<button type="button" class="btn secondary" id="btnCancel">Cancelar</button>
+<button type="submit" class="btn primary">Guardar Inspección</button>
+</div>
+</div>
+
+</form>
+
+<div class="modal-overlay" id="modalOverlay">
+<div class="modal">
+<h3>Seleccionar defectos</h3>
+<div id="modalDefectos" class="modal-grid"></div>
+<div class="modal-actions">
+<button type="button" class="btn secondary" onclick="window.cerrarModal()">Cancelar</button>
+<button type="button" class="btn primary" onclick="window.guardarDefectos()">Guardar</button>
+</div>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig={
+apiKey:"AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+authDomain:"asl-apk.firebaseapp.com",
+projectId:"asl-apk",
+storageBucket:"asl-apk.firebasestorage.app",
+messagingSenderId:"803053462437",
+appId:"1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
+
+// ==========================================
+// CONSTANTES Y ESTADO (Restaurado de anterior.txt)
+// ==========================================
+const EQUIPOS_ORDER = [
+  {id: 'CA', name: 'CA - Calentador de Acumulación'},
+  {id: 'CP', name: 'CP - Calentador de Paso'},
+  {id: 'ES', name: 'ES - Estufa'},
+  {id: 'HO', name: 'HO - Horno'},
+  {id: 'SE', name: 'SE - Secador'},
+  {id: 'CL', name: 'CL - Calentador'},
+  {id: 'VS', name: 'VS - Válvula Sin Aparato'}
+];
+
+const DEFECTOS_APARATO = [
+  '(10) Dificultad de cierre',
+  '(13) Zona de ventilación permanente',
+  '(14) Material fuera de norma aparato',
+  '(17) Aparato fijo sin conexión fija',
+  '(61) Fuga en manguera interior',
+  '(62) Fuga en aparato',
+  '(63) Fuga en válvula',
+  '(64) Manguera dañada interior',
+  '(65) Sin ventilación permanente primer piso',
+  '(66) Sin conducto de evacuación de gases',
+  '(67) Fuga en manguera exterior',
+  '(68) Manguera dañada exterior',
+  '(80) Monóxido de carbono (CO) ppm',
+  '(85) Sin ventilación permanente por debajo del primer sótano',
+  '(86) Elemento de cierre'
+];
+
+let defectosPorEquipo = {};
+let equipoActivo = null;
+
+// ==========================================
+// HELPERS
+// ==========================================
+const trimOrNull=v=>(v===undefined||v===null)?null:(String(v).trim()===""?null:String(v).trim());
+
+function gatherFormFields(form){
+  const out={};
+  const names=new Set(Array.from(form.elements).map(el=>el.name).filter(n=>n));
+  names.forEach(name=>{
+    const els=Array.from(form.querySelectorAll(`[name="${name}"]`));
+    if(!els.length)return;
+    const first=els[0];
+    if(first.type==="checkbox"){
+      if(els.length>1){
+        const checked=els.filter(e=>e.checked).map(e=>trimOrNull(e.value)).filter(Boolean);
+        out[name]=checked.length?checked:null;
+      }else{
+        out[name]=first.checked?(trimOrNull(first.value)??true):null;
+      }
+    }else if(first.tagName==="SELECT"){
+        const vals = Array.from(first.selectedOptions).map(o=>trimOrNull(o.value)).filter(Boolean);
+        out[name] = vals.length ? (first.multiple ? vals : vals[0]) : null;
+    }else{
+      out[name]=trimOrNull(first.value);
+    }
+  });
+  return out;
+}
+
+// ==========================================
+// FUNCIONES UI (Restaurado de anterior.txt)
+// ==========================================
+
+// 1. Renderizar tabla de equipos
+function renderEquipos() {
+    const tabla = document.getElementById('tablaEquipos');
+    if(!tabla) return;
+    tabla.innerHTML = ''; // Limpiar
+    
+    // Grid simple en JS para insertar filas
+    EQUIPOS_ORDER.forEach((eq) => {
+        const row = tabla.insertRow();
+        const cell = row.insertCell();
+        cell.className = 'eq-box';
+        cell.innerHTML = `
+          <div class="eq-header">
+            <strong>${eq.name}</strong>
+            <input type="number" min="0" value="0" data-eq="${eq.id}" class="qty" style="width:60px">
+          </div>
+          <div id="co_${eq.id}" class="co-box hidden">
+            <input type="number" min="0" placeholder="CO ppm" style="width:100px">
+          </div>
+          <div style="margin-top:4px;">
+             <button type="button" class="btn secondary hidden" id="btn_${eq.id}" onclick="window.abrirModal('${eq.id}')">Seleccionar Defectos</button>
+          </div>
+          <div class="selected-list" id="list_${eq.id}"></div>
+        `;
+    });
+}
+
+// 2. Modales (Exponemos a window porque es type module)
+window.abrirModal = (eq) => {
+    equipoActivo = eq;
+    const current = defectosPorEquipo[eq] || [];
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalDefectos = document.getElementById('modalDefectos');
+    
+    modalOverlay.style.display = 'flex';
+    modalDefectos.innerHTML = DEFECTOS_APARATO.map(d => {
+        const checked = current.includes(d) ? 'checked' : '';
+        return `<label><input type="checkbox" value="${d}" ${checked}> ${d}</label>`;
+    }).join('');
+};
+
+window.cerrarModal = () => {
+    document.getElementById('modalOverlay').style.display = 'none';
+};
+
+window.guardarDefectos = () => {
+    if (!equipoActivo) return;
+    const modalDefectos = document.getElementById('modalDefectos');
+    const checks = Array.from(modalDefectos.querySelectorAll('input:checked'));
+    const selected = checks.map(c => c.value);
+    defectosPorEquipo[equipoActivo] = selected;
+    
+    // Actualizar UI
+    const list = document.getElementById('list_' + equipoActivo);
+    list.innerHTML = selected.map(item => `<span class="selected-item">${item}</span>`).join(' ');
+    
+    window.cerrarModal();
+    syncP4(); // Regenerar textos
+};
+
+// 3. Sincronización P4 (EL CEREBRO DE LA GENERACIÓN DE TEXTO)
+function syncP4() {
+    const p4Cont = document.getElementById('p4Contenedor');
+    if(!p4Cont) return;
+    
+    p4Cont.innerHTML = '';
+    
+    // Defectos P2.1 (Checkboxes estáticos)
+    const p21Checked = Array.from(document.querySelectorAll('.p21-def')).filter(i => i.checked);
+    
+    // Defectos P2.2 (Dinámicos)
+    const equiposConDefectos = Object.entries(defectosPorEquipo).filter(([, defects]) => defects && defects.length > 0);
+    
+    if (p21Checked.length === 0 && equiposConDefectos.length === 0) {
+        p4Cont.innerHTML = '<span class="muted">Seleccione defectos en la sección P2 para generar observaciones automáticas aquí.</span>';
+        document.getElementById('precinto').classList.add('hidden');
+        document.getElementById('precintoLabel').classList.add('hidden');
+        return;
+    }
+
+    let hayCritico = false;
+
+    // A. Renderizar Defectos IDA (P2.1)
+    if (p21Checked.length > 0) {
+        const box = document.createElement('div');
+        box.className = 'defecto';
+        box.innerHTML = `<strong>IDA (Instalación)</strong>`;
+        p4Cont.appendChild(box);
+
+        p21Checked.forEach(d => {
+            const esCritico = d.dataset.cat === 'crit';
+            if(esCritico) hayCritico = true;
+            
+            const txt = d.parentNode.textContent.trim();
+            const row = document.createElement('div');
+            row.className = 'p4-row';
+            
+            // Input de precinto solo si es crítico (individual)
+            const precintoHtml = esCritico ? 
+                `<input type="text" class="precinto-input" placeholder="Precinto">` : `<div></div>`;
+
+            row.innerHTML = `
+                <div>
+                    <div style="font-weight:bold; font-size:11px; margin-bottom:2px;">${txt}</div>
+                    <textarea rows="2">Se detecta ${txt.toLowerCase()}. Proceder según normativa.</textarea>
                 </div>
-            </div>
-            <div class="section collapsible" id="p2Aparatos" style="margin-top:12px">
-                <h3>P2.2 Detección de defectos en aparatos conectados</h3>
-                <div class="section">
-                    <table class="three-col" id="tablaEquipos"></table>
+                ${precintoHtml}
+            `;
+            box.appendChild(row);
+        });
+    }
+
+    // B. Renderizar Defectos Aparatos (P2.2)
+    equiposConDefectos.forEach(([eqId, defects]) => {
+        const eqInfo = EQUIPOS_ORDER.find(x => x.id === eqId);
+        const eqName = eqInfo ? eqInfo.name : eqId;
+
+        const box = document.createElement('div');
+        box.className = 'defecto';
+        box.innerHTML = `<strong>${eqName}</strong>`;
+        p4Cont.appendChild(box);
+
+        defects.forEach(defecto => {
+            // Lógica simple para determinar crítico en aparato (basado en códigos comunes)
+            const codesCriticos = ['(61)', '(62)', '(63)', '(67)', '(80)'];
+            const esCritico = codesCriticos.some(c => defecto.includes(c));
+            if(esCritico) hayCritico = true;
+
+            const row = document.createElement('div');
+            row.className = 'p4-row';
+            
+            const precintoHtml = esCritico ? 
+                `<input type="text" class="precinto-input" placeholder="Precinto">` : `<div></div>`;
+
+            row.innerHTML = `
+                <div>
+                     <div style="font-weight:bold; font-size:11px; margin-bottom:2px;">${defecto}</div>
+                    <textarea rows="2">Se detecta ${defecto.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.</textarea>
                 </div>
-            </div>
+                ${precintoHtml}
+            `;
+            box.appendChild(row);
+        });
+    });
 
-        </div>
+    // Mostrar/Ocultar precinto global según si hubo críticos
+    const precintoGlobal = document.getElementById('precinto');
+    const precintoLabel = document.getElementById('precintoLabel');
+    if(hayCritico){
+        precintoGlobal.classList.remove('hidden');
+        precintoLabel.classList.remove('hidden');
+    } else {
+        precintoGlobal.classList.add('hidden');
+        precintoLabel.classList.add('hidden');
+    }
+}
 
-        <div class="section collapsible">
-            <h2>P4. Descripción de verificación</h2>
-            <div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
-            <div class="section">
-                <label>Observaciones globales</label>
-                <textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="2000"></textarea>
+// 4. Recolectores de Datos Complejos (para Firebase)
+function getP21DefectosFromDOM() {
+    const criticos = [];
+    const secundarios = [];
+    document.querySelectorAll('.p21-def').forEach(cb => {
+        if (!cb.checked) return;
+        const v = trimOrNull(cb.value);
+        if (!v) return;
+        if (cb.dataset.cat === "crit") criticos.push(v);
+        else if (cb.dataset.cat === "sec") secundarios.push(v);
+    });
+    return {
+        criticos: criticos.length ? criticos : null,
+        secundarios: secundarios.length ? secundarios : null
+    };
+}
 
-                <label id="precintoLabel" class="hidden">Precinto (solo si hay crítico)</label>
-                <input type="text" id="precinto" name="precinto" maxlength="50" class="hidden">
-            </div>
-        </div>
-        <div>
-            <div class="section collapsible">
-                <h2>Datos Extras</h2>
+function getEquiposDataFromDOM() {
+    const data = {};
+    document.querySelectorAll('.qty').forEach(inp => {
+        const eq = inp.dataset.eq;
+        const cantidad = Number(inp.value || 0);
+        if (cantidad <= 0) return;
+        
+        const coContainer = document.querySelector(`#co_${eq} input`);
+        const co_ppm = coContainer && coContainer.value ? Number(coContainer.value) : null;
+        
+        const defects = defectosPorEquipo[eq];
 
-                <label>¿Cliente realiza aviso al CCAU?</label>
-                <select id="clienteAvisoCcau" name="clienteAvisoCcau">
-                    <label><input type="checkbox" name="ClienteAvisoCcau" value="si">Si</label>
-                    <label><input type="checkbox" name="ClienteAvisoCcau" value="no">No</label>
-                    <option value="si">SI</option>
-                    <option value="no">No</option>
-
-                    <label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label>
-                    <input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars">
-
-                    <h2>Tipo de revisión</h2>
-                    <label><input type="checkbox" name="tipoRevision" value="Asistencia Gas"> Asistencia Gas</label>
-                    <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</label>
-                    <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
-                    <label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
-                    <div>
-                        <!-- E. Datos técnico fijos -->
-                        <div class="section">
-                            <h2>Técnico</h2>
-                            <label>Nombre del técnico</label><input type="text" id="nombreTecnico" name="nombreTecnico" value="Aldair Isaac Sierra Loa">
-                            <label>Empresa colaboradora</label><input type="text" id="empresaTecnico" name="empresaTecnico" value="Oca Global">
-                            <label>Número de técnico</label><input type="text" id="numTecnico" name="numTecnico" value="7236">
-                            <label>Hora de salida (solicitud + 30 min)</label><input type="datetime-local" id="horaSalida" name="horaSalida" readonly>
-                        </div>
-
-                        <div class="section actions">
-                            <button type="button" class="btn secondary" id="btnCancel">Cancelar</button>
-                            <button type="submit" class="btn primary">Guardar</button>
-                        </div>
-
-    </form>
-
-    <!-- MODAL P2.2 -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal">
-            <h3>Seleccionar defectos</h3>
-            <div id="modalDefectos" class="modal-grid"></div>
-            <div class="modal-actions">
-                <button type="button" class="btn secondary" onclick="cerrarModal()">Cancelar</button>
-                <button type="button" class="btn primary" onclick="guardarDefectos()">Guardar</button>
-            </div>
-        </div>
-    </div>
-
-
-    <script type="module">
-        import {
-            initializeApp
-        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-        import {
-            getFirestore,
-            collection,
-            addDoc
-        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
-            authDomain: "asl-apk.firebaseapp.com",
-            projectId: "asl-apk",
-            storageBucket: "asl-apk.firebasestorage.app",
-            messagingSenderId: "803053462437",
-            appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+        data[eq] = {
+            cantidad,
+            co_ppm,
+            defectos: defects && defects.length ? defects : null
         };
+    });
+    return Object.keys(data).length ? data : null;
+}
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+function getP4GeneratedFromDOM() {
+    const out = [];
+    const p4Cont = document.getElementById('p4Contenedor');
+    if (!p4Cont) return null;
 
-        console.log("🔥 Firebase conectado (module) 🔥");
-
-        // ---------- Helpers ----------
-        const trimOrNull = v => (v === undefined || v === null) ? null : (String(v).trim() === "" ? null : String(v).trim());
-
-        function gatherFormFields(form) {
-            // Recopila todos los campos del form por name. Maneja grupos de checkboxes, radios y selects.
-            const out = {};
-            const names = new Set(Array.from(form.elements).map(el => el.name).filter(n => n));
-
-            names.forEach(name => {
-                const els = Array.from(form.querySelectorAll(`[name="${name}"]`));
-                if (els.length === 0) return;
-
-                const first = els[0];
-
-                if (first.type === "checkbox") {
-                    // Si hay múltiples checkboxes con el mismo name -> array de valores marcados (o null).
-                    if (els.length > 1) {
-                        const checked = els.filter(e => e.checked).map(e => trimOrNull(e.value)).filter(Boolean);
-                        out[name] = checked.length ? checked : null;
-                    } else {
-                        // checkbox único -> valor si está marcado, si no null
-                        out[name] = first.checked ? (trimOrNull(first.value) ?? true) : null;
-                    }
-                } else if (first.type === "radio") {
-                    const checked = els.find(e => e.checked);
-                    out[name] = checked ? trimOrNull(checked.value) : null;
-                } else if (first.tagName.toLowerCase() === "select" && first.multiple) {
-                    const vals = Array.from(first.selectedOptions).map(o => trimOrNull(o.value)).filter(Boolean);
-                    out[name] = vals.length ? vals : null;
-                } else {
-                    out[name] = trimOrNull(first.value);
-                }
-            });
-
-            return out;
+    const filas = p4Cont.querySelectorAll('.p4-row');
+    filas.forEach(f => {
+        const ta = f.querySelector('textarea');
+        const prec = f.querySelector('.precinto-input');
+        const desc = ta ? trimOrNull(ta.value) : null;
+        const precVal = prec ? trimOrNull(prec.value) : null;
+        if (desc || precVal) {
+            out.push({ descripcion: desc, precinto: precVal });
         }
-
-        function getP21DefectosFromDOM() {
-            const criticos = [];
-            const secundarios = [];
-            document.querySelectorAll('.p21-def').forEach(cb => {
-                if (!cb.checked) return;
-                const v = trimOrNull(cb.value);
-                if (!v) return;
-                if (cb.dataset.cat === "crit") criticos.push(v);
-                else if (cb.dataset.cat === "sec") secundarios.push(v);
-            });
-            return {
-                criticos: criticos.length ? criticos : null,
-                secundarios: secundarios.length ? secundarios : null
-            };
-        }
-
-        function getEquiposDataFromDOM() {
-            const data = {};
-            document.querySelectorAll('.qty').forEach(inp => {
-                const eq = inp.dataset.eq;
-                const cantidad = Number(inp.value || 0);
-                if (cantidad <= 0) return;
-
-                // CO ppm dentro de #co_{eq} input (si existe)
-                const coContainer = document.querySelector(`#co_${eq}`);
-                const coInput = coContainer ? coContainer.querySelector('input') : null;
-                const co_ppm = coInput && coInput.value ? Number(coInput.value) : null;
-
-                // Defectos: .selected-list #list_{eq} .selected-item
-                const listEl = document.getElementById(`list_${eq}`);
-                const defects = listEl ? Array.from(listEl.querySelectorAll('.selected-item')).map(s => trimOrNull(s.textContent)).filter(Boolean) : null;
-
-                data[eq] = {
-                    cantidad,
-                    co_ppm: co_ppm ?? null,
-                    defectos: defects && defects.length ? defects : null
-                };
-            });
-
-            return Object.keys(data).length ? data : null;
-        }
-
-        function getP4GeneratedFromDOM() {
-            const out = [];
-            // Cada fila .p4-row generada contiene un textarea y, posiblemente, un input.precinto-input
-            p4Cont = document.getElementById('p4Contenedor');
-            if (!p4Cont) return null;
-
-            const filas = p4Cont.querySelectorAll('.p4-row');
-            filas.forEach(f => {
-                const ta = f.querySelector('textarea');
-                const prec = f.querySelector('.precinto-input');
-                const desc = ta ? trimOrNull(ta.value) : null;
-                const precVal = prec ? trimOrNull(prec.value) : null;
-                if (desc || precVal) {
-                    out.push({
-                        descripcion: desc,
-                        precinto: precVal
-                    });
-                }
-            });
-
-            return out.length ? out : null;
-        }
-
-        // ---------- Submit handler ----------
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('formODIS');
-            if (!form) return;
-
-            form.addEventListener('submit', async (ev) => {
-                ev.preventDefault();
-
-                // 1) Campos planos del formulario
-                const flat = gatherFormFields(form);
-
-                // 2) Datos específicos construidos desde DOM (no dependen de nombres)
-                const p21 = getP21DefectosFromDOM();
-                const equipos = getEquiposDataFromDOM();
-                const p4Generado = getP4GeneratedFromDOM();
-
-                // 3) Valores calculados / utiles (fechas autogeneradas y calculos p1)
-                const computed = {
-                    fechaSolicitud: trimOrNull(document.getElementById('fechaSolicitud')?.value) ?? null,
-                    fechaRequerida: trimOrNull(document.getElementById('fechaRequerida')?.value) ?? null,
-                    fechaVencimiento: trimOrNull(document.getElementById('fechaVencimiento')?.value) ?? null,
-                    horaSalida: trimOrNull(document.getElementById('horaSalida')?.value) ?? null,
-                    lecturaInicial: trimOrNull(document.getElementById('p1Ini')?.value) ?? null,
-                    lecturaFinal: trimOrNull(document.getElementById('p1Fin')?.value) ?? null,
-                    diferencia: trimOrNull(document.getElementById('p1Diff')?.value) ?? null
-                };
-
-                // 4) Estructura final: incluimos tanto el mapa plano (flat) como estructuras por seccion
-                const registro = {
-                    createdAt: new Date().toISOString(),
-
-                    // Guardamos el "flat" para que aparezcan exactamente los names del form
-                    formFields: flat,
-
-                    // Estructura organizada por secciones (útil para consultas)
-                    cliente: {
-                        poliza: flat.poliza ?? null,
-                        nombre: flat.nombre ?? null,
-                        telefono: flat.telefono ?? null,
-                        celular: flat.celular ?? null,
-                        fechaNacimiento: flat.fechaNacimiento ?? null,
-                        email: flat.email ?? null
-                    },
-
-                    fechas: {
-                        solicitud: computed.fechaSolicitud,
-                        requerida: computed.fechaRequerida,
-                        vencimiento: computed.fechaVencimiento
-                    },
-
-                    inspeccion: {
-                        fechaInspeccion: flat.fechaInspeccion ?? null,
-                        latlng: flat.latlng ?? null,
-                        lecturaInicial: computed.lecturaInicial,
-                        lecturaFinal: computed.lecturaFinal,
-                        diferencia: computed.diferencia
-                    },
-
-                    p2: {
-                        ida: p21,
-                        aparatos: equipos
-                    },
-
-                    p4: {
-                        observacionesGlobal: flat.observacionesGlobal ?? null,
-                        precintoGlobal: flat.precinto ?? null,
-                        generados: p4Generado
-                    },
-
-                    cca: {
-                        clienteAviso: flat.clienteAvisoCcau ?? flat.ClienteAvisoCcau ?? null,
-                        numeroAviso: flat.numAvisoCcau ?? null
-                    },
-
-                    tipoRevision: flat.tipoRevision ?? null,
-
-                    tecnico: {
-                        nombre: flat.nombreTecnico ?? null,
-                        empresa: flat.empresaTecnico ?? null,
-                        numero: flat.numTecnico ?? null,
-                        horaSalida: computed.horaSalida
-                    }
-                };
-
-                try {
-                    await addDoc(collection(db, "Inspecciones"), registro);
-                    alert("✅ Inspección guardada correctamente en la colección Inspecciones.");
-                    form.reset();
-                    // recalcula las fechas autogeneradas y UI si es necesario
-                    if (typeof calcularFechasIniciales === "function") calcularFechasIniciales();
-                    // limpia listas dinámicas (puedes recargar si prefieres)
-                    location.reload();
-                } catch (err) {
-                    console.error("Error guardando inspección:", err);
-                    alert("❌ Error al guardar la inspección (revisa consola).");
-                }
-            });
-        });
-    </script>
+    });
+    return out.length ? out : null;
+}
 
 
+// ==========================================
+// INICIALIZACIÓN
+// ==========================================
+document.addEventListener('DOMContentLoaded',()=>{
+    
+    // 1. Renderizar tabla vacía
+    renderEquipos();
 
-    <script>
-        /* P1 diferencia */
-        const ini = document.getElementById('p1Ini');
-        const fin = document.getElementById('p1Fin');
-        const diff = document.getElementById('p1Diff');
+    // 2. Listeners para Inputs de Cantidad (mostrar CO y botón defectos)
+    document.addEventListener('input', e => {
+        if (e.target.classList.contains('qty')) {
+            const eq = e.target.dataset.eq;
+            const qty = Number(e.target.value || 0);
+            const coBox = document.getElementById('co_' + eq);
+            const btn = document.getElementById('btn_' + eq);
+            const list = document.getElementById('list_' + eq);
 
-        function calc() {
-            diff.value = (Number(fin.value || 0) - Number(ini.value || 0));
-        }
-        ini.addEventListener('input', calc);
-        fin.addEventListener('input', calc);
-
-        /* Equipo y defectos (lista exacta) */
-        const P2_CRITICOS = [{
-                code: '60B_ext',
-                label: '(60B) Exterior'
-            },
-            {
-                code: '60B_oculta',
-                label: '(60B) Fuga oculta'
-            },
-            {
-                code: '60B_int',
-                label: '(60B) Interior'
-            },
-            {
-                code: '63_valvula',
-                label: '(63) Fuga en válvula'
-            },
-            {
-                code: '83_fuera_norma',
-                label: '(83) IDA fuera de norma'
-            }
-        ];
-        const P2_SECUNDARIOS = [{
-                code: '1_material',
-                label: '(1) Material fuera de norma'
-            },
-            {
-                code: '16_sin_tapon',
-                label: '(16) Salida sin tapón'
-            },
-            {
-                code: '3_cercano',
-                label: '(3) IDA cercana a otros servicios'
-            },
-            {
-                code: '4_falta_sujecion',
-                label: '(4) Falta de sujeción'
-            },
-            {
-                code: '5_conexion_danada',
-                label: '(5) Conexión de IDA dañada'
-            },
-            {
-                code: '87_no_identificada',
-                label: '(87) IDA no identificada'
-            }
-        ];
-
-        const EQUIPOS_ORDER = [{
-                id: 'CA',
-                name: 'CA - Calentador de Acumulación'
-            },
-            {
-                id: 'CP',
-                name: 'CP - Calentador de Paso'
-            },
-            {
-                id: 'ES',
-                name: 'ES - Estufa'
-            },
-            {
-                id: 'HO',
-                name: 'HO - Horno'
-            },
-            {
-                id: 'SE',
-                name: 'SE - Secador'
-            },
-            {
-                id: 'CL',
-                name: 'CL - Calentador'
-            },
-            {
-                id: 'VS',
-                name: 'VS - Válvula Sin Aparato'
-            }
-        ];
-
-        const DEFECTOS_APARATO = [
-            '(10) Dificultad de cierre',
-            '(13) Zona de ventilación permanente',
-            '(14) Material fuera de norma aparato',
-            '(17) Aparato fijo sin conexión fija',
-            '(61) Fuga en manguera interior',
-            '(62) Fuga en aparato',
-            '(63) Fuga en válvula',
-            '(64) Manguera dañada interior',
-            '(65) Sin ventilación permanente primer piso',
-            '(66) Sin conducto de evacuación de gases',
-            '(67) Fuga en manguera exterior',
-            '(68) Manguera dañada exterior',
-            '(80) Monóxido de carbono (CO) ppm',
-            '(85) Sin ventilación permanente por debajo del primer sótano',
-            '(86) Elemento de cierre'
-        ];
-
-        const p4Cont = document.getElementById('p4Contenedor');
-        const tablaEquipos = document.getElementById('tablaEquipos');
-        const modal = document.getElementById('modalOverlay');
-        const modalDefectos = document.getElementById('modalDefectos');
-        const defectosPorEquipo = {};
-        let equipoActivo = null;
-
-        function renderEquipos() {
-            let row;
-            EQUIPOS_ORDER.forEach((eq, i) => {
-                if (i % 3 === 0) row = tablaEquipos.insertRow();
-                const cell = row.insertCell();
-                cell.className = 'eq-box';
-                cell.innerHTML = `
-      <div class="eq-header">
-        <strong>${eq.name}</strong>
-        <input type="number" min="0" value="0" data-eq="${eq.id}" class="qty">
-      </div>
-      <div id="co_${eq.id}" class="co-box hidden">
-        <input type="number" min="0" placeholder="CO ppm">
-      </div>
-      <button type="button" class="btn secondary hidden" id="btn_${eq.id}" onclick="abrirModal('${eq.id}')">Defectos</button>
-      <div class="selected-list" id="list_${eq.id}"></div>
-    `;
-            });
-        }
-
-        document.addEventListener('input', e => {
-            if (e.target.classList.contains('qty')) {
-                const eq = e.target.dataset.eq;
-                const qty = Number(e.target.value || 0);
-                const coBox = document.getElementById('co_' + eq);
-                const btn = document.getElementById('btn_' + eq);
-                const list = document.getElementById('list_' + eq);
-
-                if (qty > 0) {
-                    coBox.classList.remove('hidden');
-                    btn.classList.remove('hidden');
-                } else {
-                    coBox.classList.add('hidden');
-                    btn.classList.add('hidden');
-                    list.innerHTML = '';
-                    defectosPorEquipo[eq] = [];
-                    syncP4();
-                }
-            }
-        });
-
-        function abrirModal(eq) {
-            equipoActivo = eq;
-            const current = defectosPorEquipo[eq] || [];
-            modal.style.display = 'flex';
-            modalDefectos.innerHTML = DEFECTOS_APARATO.map(d => {
-                const checked = current.includes(d) ? 'checked' : '';
-                return `<label><input type="checkbox" value="${d}" ${checked}> ${d}</label>`;
-            }).join('');
-        }
-
-        function cerrarModal() {
-            modal.style.display = 'none';
-        }
-
-        function guardarDefectos() {
-            if (!equipoActivo) return;
-            const checks = Array.from(modalDefectos.querySelectorAll('input:checked'));
-            const selected = checks.map(c => c.value);
-            defectosPorEquipo[equipoActivo] = selected;
-            const list = document.getElementById('list_' + equipoActivo);
-            list.innerHTML = selected.map(item => `<span class="selected-item">${item}</span>`).join('');
-            cerrarModal();
-            syncP4();
-        }
-
-        window.abrirModal = abrirModal;
-        window.cerrarModal = cerrarModal;
-        window.guardarDefectos = guardarDefectos;
-
-        // Delegate change on defect checkboxes
-        document.addEventListener('change', e => {
-            if (e.target && e.target.classList && e.target.classList.contains('def-checkbox')) {
+            if (qty > 0) {
+                coBox.classList.remove('hidden');
+                btn.classList.remove('hidden');
+            } else {
+                coBox.classList.add('hidden');
+                btn.classList.add('hidden');
+                list.innerHTML = '';
+                defectosPorEquipo[eq] = [];
                 syncP4();
             }
-        });
-
-        // Sync to P4 (pre-filled descriptions)
-        function esDefectoCriticoAparato(texto) {
-            const criticos = ['(61)', '(62)', '(63)', '(67)', '(80)'];
-            return criticos.some(c => texto.includes(c));
         }
+    });
 
-        function syncP4() {
-            p4Cont.innerHTML = '';
+    // 3. Listener para Checkboxes P2.1 (Sync P4)
+    document.querySelectorAll('.p21-def').forEach(cb => {
+        cb.addEventListener('change', syncP4);
+    });
 
-            const p21Checked = Array.from(document.querySelectorAll('.p21-def'))
-                .filter(i => i.checked);
+    // 4. Listener para Aviso CCAU
+    document.getElementById('clienteAvisoCcau')?.addEventListener('change', function(e) {
+        const esSi = e.target.value === 'si';
+        const numInput = document.getElementById('numAvisoCcau');
+        const label = document.getElementById('numAvisoLabel');
+        if(esSi){
+            numInput.classList.remove('hidden');
+            label.classList.remove('hidden');
+        } else {
+            numInput.classList.add('hidden');
+            label.classList.add('hidden');
+        }
+    });
 
-            const equiposConDefectos = Object.entries(defectosPorEquipo)
-                .filter(([, defects]) => defects.length > 0);
+    // 5. SUBMIT DEL FORMULARIO
+    const form=document.getElementById('formODIS');
+    if(!form)return;
 
-            if (p21Checked.length === 0 && equiposConDefectos.length === 0) {
-                p4Cont.innerHTML = '<span class="muted">Sin defectos seleccionados.</span>';
-                return;
+    form.addEventListener('submit',async ev=>{
+        ev.preventDefault();
+        
+        // A. Recopilar datos planos (para fallbacks)
+        const flat=gatherFormFields(form);
+        
+        // B. Recopilar datos estructurados (Restaurado)
+        const p21 = getP21DefectosFromDOM();
+        const equipos = getEquiposDataFromDOM();
+        const p4Generado = getP4GeneratedFromDOM();
+        
+        // Valores calculados
+        const computed = {
+             lecturaInicial: trimOrNull(document.getElementById('p1Ini')?.value),
+             lecturaFinal: trimOrNull(document.getElementById('p1Fin')?.value),
+             diferencia: trimOrNull(document.getElementById('p1Diff')?.value),
+             horaSalida: trimOrNull(document.getElementById('horaSalida')?.value)
+        };
+
+        // C. Construir Objeto Completo
+        const registro={
+            createdAt:new Date().toISOString(),
+            // Guardamos el flat también por seguridad
+            formFields: flat, 
+            
+            // Estructura Organizada
+            cliente: {
+                poliza: flat.poliza, nombre: flat.nombre, telefono: flat.telefono,
+                celular: flat.celular, email: flat.email, fechaNacimiento: flat.fechaNacimiento
+            },
+            fechas: {
+                solicitud: flat.fechaSolicitud, requerida: flat.fechaRequerida, vencimiento: flat.fechaVencimiento
+            },
+            inspeccion: {
+                fecha: flat.fechaInspeccion, latlng: flat.latlng,
+                p1: { inicial: computed.lecturaInicial, final: computed.lecturaFinal, diff: computed.diferencia }
+            },
+            p2: {
+                ida: p21,
+                aparatos: equipos
+            },
+            p4: {
+                observacionesGlobal: flat.observacionesGlobal,
+                precintoGlobal: flat.precinto,
+                generados: p4Generado
+            },
+            extras: {
+                avisoCcau: flat.clienteAvisoCcau,
+                numAviso: flat.numAvisoCcau,
+                tipoRevision: flat.tipoRevision
+            },
+            tecnico: {
+                nombre: flat.nombreTecnico, empresa: flat.empresaTecnico,
+                numero: flat.numTecnico, horaSalida: computed.horaSalida
             }
+        };
 
-            /* ================= IDA ================= */
-            if (p21Checked.length > 0) {
-                const box = document.createElement('div');
-                box.className = 'defecto';
-                box.innerHTML = `<strong>IDA</strong>`;
-                p4Cont.appendChild(box);
-
-                p21Checked.forEach(d => {
-                    const esCritico = d.dataset.cat === 'crit';
-                    const row = document.createElement('div');
-                    row.className = 'p4-row';
-
-                    const descripcion = `
-        <div>
-          <em>${d.parentNode.textContent.trim()}</em>
-          <textarea rows="2">
-Se detecta ${d.parentNode.textContent.trim().toLowerCase()}. Proceder según normativa.
-          </textarea>
-        </div>
-      `;
-
-                    const precinto = esCritico ?
-                        `<input type="text" class="precinto-input" placeholder="Precinto">` :
-                        `<div></div>`;
-
-                    row.innerHTML = descripcion + precinto;
-                    box.appendChild(row);
-                });
+        try{
+            await addDoc(collection(db,"Inspecciones"),registro);
+            alert("✅ Inspección guardada correctamente.");
+            if(confirm("¿Desea limpiar el formulario?")){
+                location.reload();
             }
-
-            /* ================= APARATOS ================= */
-            equiposConDefectos.forEach(([eq, defects]) => {
-
-                const eqName = (EQUIPOS_ORDER.find(x => x.id === eq) || {}).name || eq;
-
-                const box = document.createElement('div');
-                box.className = 'defecto';
-                box.innerHTML = `<strong>${eqName}</strong>`;
-                p4Cont.appendChild(box);
-
-                defects.forEach(defecto => {
-
-                    const esCritico = esDefectoCriticoAparato(defecto);
-
-                    const row = document.createElement('div');
-                    row.className = 'p4-row';
-
-                    const descripcion = `
-        <div>
-          <em>${defecto}</em>
-          <textarea rows="2">
-Se detecta ${defecto.toLowerCase()} en ${eqName.toLowerCase()}. Proceder según normativa.
-          </textarea>
-        </div>
-      `;
-
-                    const precinto = esCritico ?
-                        `<input type="text" class="precinto-input" placeholder="Precinto">` :
-                        `<div></div>`;
-
-                    row.innerHTML = descripcion + precinto;
-                    box.appendChild(row);
-                });
-            });
+        }catch(err){
+            console.error(err);
+            alert("❌ Error al guardar. Revise la consola.");
         }
+    });
+});
+</script>
 
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
 
-        renderEquipos();
+/* DIFERENCIA P1 */
+const ini=document.getElementById('p1Ini');
+const fin=document.getElementById('p1Fin');
+const diff=document.getElementById('p1Diff');
 
-        // 👇 AQUI
-        document.querySelectorAll('.p21-def').forEach(cb => {
-            cb.addEventListener('change', syncP4);
-        });
-        // Cancel
-        document.getElementById('btnCancel').addEventListener('click', () => {
-            if (confirm('Limpiar formulario?')) location.reload();
-        });
+function calc(){if(diff)diff.value=(Number(fin?.value||0)-Number(ini?.value||0))}
+ini?.addEventListener('input',calc);
+fin?.addEventListener('input',calc);
 
-        /* ============================
-           4️⃣ Mostrar / ocultar campos
-        ============================ */
+/* CALCULO FECHAS */
+function toLocalInputFormat(date){
+const pad=n=>String(n).padStart(2,'0');
+return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
-        // Mostrar número de aviso si responde SI
-        document.getElementById('clienteAvisoCcau').addEventListener('change', function(e) {
-            const esSi = e.target.value === 'si';
-            document.getElementById('numAvisoCcau').classList.toggle('hidden', !esSi);
-            document.getElementById('numAvisoLabel').classList.toggle('hidden', !esSi);
-        });
+function calcularFechasIniciales(){
+const ahora=new Date();
+const requerida=new Date(ahora);
+requerida.setDate(requerida.getDate()+7);
+const vencimiento=new Date(ahora);
+vencimiento.setMonth(vencimiento.getMonth()+1);
+const salida=new Date(ahora);
+salida.setMinutes(salida.getMinutes()+30);
 
-        // Mostrar campo precinto SOLO si hay defecto crítico
-        function updatePrecintoVisibility() {
-            const hayCritico = Array.from(document.querySelectorAll('.p21-def[data-cat="crit"]'))
-                .some(cb => cb.checked);
+const fSol = document.getElementById('fechaSolicitud');
+if(fSol && !fSol.value) fSol.value=toLocalInputFormat(ahora); // Solo si esta vacio
 
-            document.getElementById('precinto').classList.toggle('hidden', !hayCritico);
-            document.getElementById('precintoLabel').classList.toggle('hidden', !hayCritico);
-        }
+document.getElementById('fechaRequerida')&&(document.getElementById('fechaRequerida').value=toLocalInputFormat(requerida));
+document.getElementById('fechaVencimiento')&&(document.getElementById('fechaVencimiento').value=toLocalInputFormat(vencimiento));
+document.getElementById('horaSalida')&&(document.getElementById('horaSalida').value=toLocalInputFormat(salida));
+}
 
-        // Escuchar cambios en defectos críticos
-        document.querySelectorAll('.p21-def[data-cat="crit"]')
-            .forEach(cb => cb.addEventListener('change', updatePrecintoVisibility));
+calcularFechasIniciales();
 
-        updatePrecintoVisibility();
+/* AUTOLLENADO URL */
+function autocompletarDesdeURL(){
+const params=new URLSearchParams(window.location.search);
+const poliza=params.get("poliza");
+const nombre=params.get("nombre");
+const lat=params.get("lat");
+const lng=params.get("lng");
 
+if(poliza){
+const el=document.querySelector('[name="poliza"]');
+if(el){el.value=poliza;el.readOnly=true;el.tabIndex=-1;}
+}
+if(nombre){
+const el=document.querySelector('[name="nombre"]');
+if(el){el.value=nombre;el.readOnly=true;el.tabIndex=-1;}
+}
+if(lat&&lng){
+const el=document.querySelector('[name="latlng"]');
+if(el){el.value=`${lat}, ${lng}`;el.readOnly=true;el.tabIndex=-1;}
+}
+}
+autocompletarDesdeURL();
 
-        /* ============================
-           5️⃣ Cálculo automático fechas
-        ============================ */
+/* ACORDEON (Lógica Corregida) */
+document.querySelectorAll('.section.collapsible').forEach(section=>{
+const header=section.querySelector('h2, h3');
+const content=section.querySelector('.section-content');
+if(!header||!content)return;
+// Inicializar altura
+content.style.maxHeight=content.scrollHeight+"px"; 
 
-        function toLocalInputFormat(date) {
-            const pad = n => String(n).padStart(2, '0');
-            return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-        }
+header.addEventListener('click',()=>{
+section.classList.toggle('collapsed');
+// Recalcular altura al clickear
+if (section.classList.contains('collapsed')) {
+    content.style.maxHeight = "0px";
+} else {
+    content.style.maxHeight = content.scrollHeight + "px";
+}
+});
+});
 
-        function calcularFechasIniciales() {
+/* CANCELAR */
+document.getElementById('btnCancel')?.addEventListener('click',()=>{
+if(confirm("¿Limpiar formulario?"))location.reload();
+});
 
-            const ahora = new Date();
-
-            const requerida = new Date(ahora);
-            requerida.setDate(requerida.getDate() + 7);
-
-            const vencimiento = new Date(ahora);
-            vencimiento.setMonth(vencimiento.getMonth() + 1);
-
-            const salida = new Date(ahora);
-            salida.setMinutes(salida.getMinutes() + 30);
-
-            document.getElementById('fechaSolicitud').value = toLocalInputFormat(ahora);
-            document.getElementById('fechaRequerida').value = toLocalInputFormat(requerida);
-            document.getElementById('fechaVencimiento').value = toLocalInputFormat(vencimiento);
-            document.getElementById('horaSalida').value = toLocalInputFormat(salida);
-        }
-
-        calcularFechasIniciales();
-        /* ============================
-   AUTOLLENADO DESDE MAPA
-============================ */
-
-        function autocompletarDesdeURL() {
-
-            const params = new URLSearchParams(window.location.search);
-
-            const poliza = params.get("poliza");
-            const nombre = params.get("nombre");
-            const lat = params.get("lat");
-            const lng = params.get("lng");
-
-            if (poliza) {
-                const el = document.querySelector('[name="poliza"]');
-                if (el) {
-                    el.value = poliza;
-                    el.readOnly = true;
-                    el.tabIndex = -1;
-                }
-            }
-
-            if (nombre) {
-                const el = document.querySelector('[name="nombre"]');
-                if (el) {
-                    el.value = nombre;
-                    el.readOnly = true;
-                    el.tabIndex = -1;
-                }
-            }
-
-            if (lat && lng) {
-                const el = document.querySelector('[name="latlng"]');
-                if (el) {
-                    el.value = `${lat}, ${lng}`;
-                    el.readOnly = true;
-                    el.tabIndex = -1;
-                }
-            }
-        }
-
-        autocompletarDesdeURL();
-        document.querySelectorAll('.section.collapsible').forEach(section => {
-
-            const header = section.querySelector('h2, h3');
-            const content = section.querySelector('.section-content');
-
-            if (!header || !content) return;
-
-            content.style.maxHeight = content.scrollHeight + "px";
-
-            header.addEventListener('click', () => {
-
-                section.classList.toggle('collapsed');
-
-                if (section.classList.contains('collapsed')) {
-                    content.style.maxHeight = "0px";
-                } else {
-                    content.style.maxHeight = content.scrollHeight + "px";
-                }
-
-            });
-
-        });
-    </script>
+});
+</script>
 </body>
-
 </html>
