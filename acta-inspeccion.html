@@ -439,8 +439,7 @@ f
             getFirestore,
             collection,
             addDoc
-        }
-        from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -454,20 +453,210 @@ f
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        console.log("🔥 Firebase conectado 🔥");
+        console.log("🔥 Firebase conectado (module) 🔥");
 
-        // 🔥 PRUEBA DIRECTA
-        try {
-            const ref = await addDoc(collection(db, "db"), {
-                prueba: "conexion directa",
-                fecha: new Date()
+        // ---------- Helpers ----------
+        const trimOrNull = v => (v === undefined || v === null) ? null : (String(v).trim() === "" ? null : String(v).trim());
+
+        function gatherFormFields(form) {
+            // Recopila todos los campos del form por name. Maneja grupos de checkboxes, radios y selects.
+            const out = {};
+            const names = new Set(Array.from(form.elements).map(el => el.name).filter(n => n));
+
+            names.forEach(name => {
+                const els = Array.from(form.querySelectorAll(`[name="${name}"]`));
+                if (els.length === 0) return;
+
+                const first = els[0];
+
+                if (first.type === "checkbox") {
+                    // Si hay múltiples checkboxes con el mismo name -> array de valores marcados (o null).
+                    if (els.length > 1) {
+                        const checked = els.filter(e => e.checked).map(e => trimOrNull(e.value)).filter(Boolean);
+                        out[name] = checked.length ? checked : null;
+                    } else {
+                        // checkbox único -> valor si está marcado, si no null
+                        out[name] = first.checked ? (trimOrNull(first.value) ?? true) : null;
+                    }
+                } else if (first.type === "radio") {
+                    const checked = els.find(e => e.checked);
+                    out[name] = checked ? trimOrNull(checked.value) : null;
+                } else if (first.tagName.toLowerCase() === "select" && first.multiple) {
+                    const vals = Array.from(first.selectedOptions).map(o => trimOrNull(o.value)).filter(Boolean);
+                    out[name] = vals.length ? vals : null;
+                } else {
+                    out[name] = trimOrNull(first.value);
+                }
             });
 
-            console.log("Documento creado con ID:", ref.id);
-        } catch (error) {
-            console.error("Error al escribir:", error);
+            return out;
         }
+
+        function getP21DefectosFromDOM() {
+            const criticos = [];
+            const secundarios = [];
+            document.querySelectorAll('.p21-def').forEach(cb => {
+                if (!cb.checked) return;
+                const v = trimOrNull(cb.value);
+                if (!v) return;
+                if (cb.dataset.cat === "crit") criticos.push(v);
+                else if (cb.dataset.cat === "sec") secundarios.push(v);
+            });
+            return {
+                criticos: criticos.length ? criticos : null,
+                secundarios: secundarios.length ? secundarios : null
+            };
+        }
+
+        function getEquiposDataFromDOM() {
+            const data = {};
+            document.querySelectorAll('.qty').forEach(inp => {
+                const eq = inp.dataset.eq;
+                const cantidad = Number(inp.value || 0);
+                if (cantidad <= 0) return;
+
+                // CO ppm dentro de #co_{eq} input (si existe)
+                const coContainer = document.querySelector(`#co_${eq}`);
+                const coInput = coContainer ? coContainer.querySelector('input') : null;
+                const co_ppm = coInput && coInput.value ? Number(coInput.value) : null;
+
+                // Defectos: .selected-list #list_{eq} .selected-item
+                const listEl = document.getElementById(`list_${eq}`);
+                const defects = listEl ? Array.from(listEl.querySelectorAll('.selected-item')).map(s => trimOrNull(s.textContent)).filter(Boolean) : null;
+
+                data[eq] = {
+                    cantidad,
+                    co_ppm: co_ppm ?? null,
+                    defectos: defects && defects.length ? defects : null
+                };
+            });
+
+            return Object.keys(data).length ? data : null;
+        }
+
+        function getP4GeneratedFromDOM() {
+            const out = [];
+            // Cada fila .p4-row generada contiene un textarea y, posiblemente, un input.precinto-input
+            p4Cont = document.getElementById('p4Contenedor');
+            if (!p4Cont) return null;
+
+            const filas = p4Cont.querySelectorAll('.p4-row');
+            filas.forEach(f => {
+                const ta = f.querySelector('textarea');
+                const prec = f.querySelector('.precinto-input');
+                const desc = ta ? trimOrNull(ta.value) : null;
+                const precVal = prec ? trimOrNull(prec.value) : null;
+                if (desc || precVal) {
+                    out.push({
+                        descripcion: desc,
+                        precinto: precVal
+                    });
+                }
+            });
+
+            return out.length ? out : null;
+        }
+
+        // ---------- Submit handler ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('formODIS');
+            if (!form) return;
+
+            form.addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+
+                // 1) Campos planos del formulario
+                const flat = gatherFormFields(form);
+
+                // 2) Datos específicos construidos desde DOM (no dependen de nombres)
+                const p21 = getP21DefectosFromDOM();
+                const equipos = getEquiposDataFromDOM();
+                const p4Generado = getP4GeneratedFromDOM();
+
+                // 3) Valores calculados / utiles (fechas autogeneradas y calculos p1)
+                const computed = {
+                    fechaSolicitud: trimOrNull(document.getElementById('fechaSolicitud')?.value) ?? null,
+                    fechaRequerida: trimOrNull(document.getElementById('fechaRequerida')?.value) ?? null,
+                    fechaVencimiento: trimOrNull(document.getElementById('fechaVencimiento')?.value) ?? null,
+                    horaSalida: trimOrNull(document.getElementById('horaSalida')?.value) ?? null,
+                    lecturaInicial: trimOrNull(document.getElementById('p1Ini')?.value) ?? null,
+                    lecturaFinal: trimOrNull(document.getElementById('p1Fin')?.value) ?? null,
+                    diferencia: trimOrNull(document.getElementById('p1Diff')?.value) ?? null
+                };
+
+                // 4) Estructura final: incluimos tanto el mapa plano (flat) como estructuras por seccion
+                const registro = {
+                    createdAt: new Date().toISOString(),
+
+                    // Guardamos el "flat" para que aparezcan exactamente los names del form
+                    formFields: flat,
+
+                    // Estructura organizada por secciones (útil para consultas)
+                    cliente: {
+                        poliza: flat.poliza ?? null,
+                        nombre: flat.nombre ?? null,
+                        telefono: flat.telefono ?? null,
+                        celular: flat.celular ?? null,
+                        fechaNacimiento: flat.fechaNacimiento ?? null,
+                        email: flat.email ?? null
+                    },
+
+                    fechas: {
+                        solicitud: computed.fechaSolicitud,
+                        requerida: computed.fechaRequerida,
+                        vencimiento: computed.fechaVencimiento
+                    },
+
+                    inspeccion: {
+                        fechaInspeccion: flat.fechaInspeccion ?? null,
+                        latlng: flat.latlng ?? null,
+                        lecturaInicial: computed.lecturaInicial,
+                        lecturaFinal: computed.lecturaFinal,
+                        diferencia: computed.diferencia
+                    },
+
+                    p2: {
+                        ida: p21,
+                        aparatos: equipos
+                    },
+
+                    p4: {
+                        observacionesGlobal: flat.observacionesGlobal ?? null,
+                        precintoGlobal: flat.precinto ?? null,
+                        generados: p4Generado
+                    },
+
+                    cca: {
+                        clienteAviso: flat.clienteAvisoCcau ?? flat.ClienteAvisoCcau ?? null,
+                        numeroAviso: flat.numAvisoCcau ?? null
+                    },
+
+                    tipoRevision: flat.tipoRevision ?? null,
+
+                    tecnico: {
+                        nombre: flat.nombreTecnico ?? null,
+                        empresa: flat.empresaTecnico ?? null,
+                        numero: flat.numTecnico ?? null,
+                        horaSalida: computed.horaSalida
+                    }
+                };
+
+                try {
+                    await addDoc(collection(db, "Inspecciones"), registro);
+                    alert("✅ Inspección guardada correctamente en la colección Inspecciones.");
+                    form.reset();
+                    // recalcula las fechas autogeneradas y UI si es necesario
+                    if (typeof calcularFechasIniciales === "function") calcularFechasIniciales();
+                    // limpia listas dinámicas (puedes recargar si prefieres)
+                    location.reload();
+                } catch (err) {
+                    console.error("Error guardando inspección:", err);
+                    alert("❌ Error al guardar la inspección (revisa consola).");
+                }
+            });
+        });
     </script>
+
 
 
     <script>
