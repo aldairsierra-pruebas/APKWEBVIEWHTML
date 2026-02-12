@@ -5,39 +5,162 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ODIS Incidencias - Formulario Completo (P2 Visible)</title>
 <style>
-*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
-body{margin:0;background:#f2f4f7;padding:16px}
-h2,h3{margin:12px 0;color:#0b3356}
-label{font-size:14px;margin-top:8px;display:block}
-input,select,textarea{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px}
+*{
+  box-sizing:border-box;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:13px; /* 👈 Letra más pequeña general */
+}
+
+body{
+  margin:0;
+  background:#f2f4f7;
+  padding:16px;
+}
+
+h1{font-size:18px}
+h2{font-size:16px;margin:10px 0;color:#0b3356}
+h3{font-size:14px;margin:8px 0;color:#0b3356}
+
+label{
+  font-size:12.5px;
+  margin-top:6px;
+  display:block;
+}
+
+input,select,textarea{
+  width:100%;
+  padding:6px;
+  margin-top:3px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:12.5px;
+}
+
 textarea{resize:vertical}
-.section{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+
+.section{
+  background:#fff;
+  padding:14px;
+  border-radius:8px;
+  margin-bottom:14px;
+  box-shadow:0 3px 8px rgba(0,0,0,.06);
+
+  /* 👇 AQUÍ ESTA LA MAGIA */
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+
+/* Hace que los títulos ocupen todo el ancho */
+.section h2,
+.section h3,
+.section p,
+.section .group-title,
+.section #p21Defectos,
+.section #p2Aparatos,
+.section #p4Contenedor{
+  grid-column: 1 / -1;
+}
+
 .hidden{display:none}
-.btn{padding:10px 16px;border:none;border-radius:6px;cursor:pointer}
+
+.btn{
+  padding:8px 14px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:12.5px;
+}
+
 .primary{background:#0b3356;color:#fff}
 .secondary{background:#ddd}
-.actions{display:flex;justify-content:flex-end;gap:10px}
-.defecto{border:1px dashed #ccc;padding:8px;border-radius:6px;margin-top:6px}
-.muted{color:#777;font-size:13px}
-.equipo{border:1px solid #e6eef5;padding:10px;border-radius:8px;margin-bottom:8px}
-.equipo-header{display:flex;align-items:center;gap:10px}
-.group-title{font-weight:700;margin-top:8px}
-.small{font-size:13px;color:#555}
-.eq-box{font-size:13px}
+
+.actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
+
+.defecto{
+  border:1px dashed #ccc;
+  padding:6px;
+  border-radius:6px;
+  margin-top:6px;
+}
+
+.muted{color:#777;font-size:12px}
+
+.equipo{
+  border:1px solid #e6eef5;
+  padding:8px;
+  border-radius:8px;
+  margin-bottom:8px;
+}
+
+.group-title{
+  font-weight:700;
+  margin-top:6px;
+  font-size:13px;
+}
+
+.small{font-size:12px;color:#555}
+
+.eq-box{font-size:12px}
 .eq-header{display:flex;justify-content:space-between;align-items:center;gap:6px}
-.eq-header input{width:65px}
+.eq-header input{width:60px}
+
 .co-box{margin-top:4px}
-.selected-list{margin-top:6px;font-size:12.5px;color:#333}
-.selected-item{background:#eef3ff;padding:3px 6px;border-radius:4px;margin:2px 0;display:inline-block}
+.selected-list{margin-top:6px;font-size:12px;color:#333}
+.selected-item{
+  background:#eef3ff;
+  padding:2px 5px;
+  border-radius:4px;
+  margin:2px 0;
+  display:inline-block;
+}
 
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000}
-.modal{background:#fff;width:90%;max-width:500px;border-radius:10px;padding:16px;max-height:80vh;overflow:auto}
+.modal-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.4);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:1000
+}
+
+.modal{
+  background:#fff;
+  width:90%;
+  max-width:500px;
+  border-radius:10px;
+  padding:14px;
+  max-height:80vh;
+  overflow:auto
+}
+
 .modal h3{margin-top:0}
-.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
-.modal label{display:block;margin:6px 0;font-size:13px}
-@media(max-width:700px){body{padding:8px}}
+.modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:10px
+}
+
+.modal label{
+  display:block;
+  margin:4px 0;
+  font-size:12px
+}
+
+/* Móvil más compacto */
+@media(max-width:600px){
+  body{padding:8px}
+  .section{grid-template-columns: 1fr}
+}
 </style>
+
 </head>
 <body>
 <h1 style="color:red">VERSION 3 FIREBASE</h1>
