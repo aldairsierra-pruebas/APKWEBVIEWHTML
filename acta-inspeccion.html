@@ -290,6 +290,37 @@ f
             border-radius: 6px;
             font-size: 12px;
         }
+
+        .section.collapsible h2,
+        .section.collapsible h3 {
+            cursor: pointer;
+            position: relative;
+        }
+
+        .section.collapsible h2::after,
+        .section.collapsible h3::after {
+            content: "▼";
+            position: absolute;
+            right: 0;
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .section.collapsed h2::after,
+        .section.collapsed h3::after {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.2s ease;
+        }
+
+        .section.collapsed .section-content {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 
 </head>
