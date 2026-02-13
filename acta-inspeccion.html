@@ -58,7 +58,7 @@ textarea{resize:vertical}
 
 /* FILAS P4 (Generadas dinámicamente) */
 .p4-row{display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:start;margin-top:6px; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;}
-.p4-row:last-child { border-bottom: none; }
+.p4-row:last-child { border-bottom: none; }   
 .p4-row textarea{width:100%; font-family: monospace; font-size: 11px;}
 .precinto-input{padding:6px;border:1px solid #ccc;border-radius:6px;font-size:12px}
 
@@ -82,11 +82,11 @@ textarea{resize:vertical}
 <div class="section-content">
 <label>Póliza</label><input type="number" name="poliza">
 <label>Nombre</label><input type="text" name="nombre">
-<label>Teléfono</label><input type="tel" name="telefono">
-<label>Celular</label><input type="tel" name="celular">
+<label>Teléfono</label><input type="number" maxlength="10" name="telefono">
+<label>Celular</label><input type="numer" maxlength="10" name="celular">
 <label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento">
 <label>Correo electrónico</label><input type="email" name="email">
-<h3>Fechas (autocomputadas)</h3>
+<h3>Fechas reg</h3>
 <label>Fecha de solicitud</label><input type="datetime-local" id="fechaSolicitud" name="fechaSolicitud" readonly>
 <label>Fecha requerida (+7 días)</label><input type="datetime-local" id="fechaRequerida" name="fechaRequerida" readonly>
 <label>Fecha de vencimiento (+1 mes)</label><input type="datetime-local" id="fechaVencimiento" name="fechaVencimiento" readonly>
@@ -96,16 +96,16 @@ textarea{resize:vertical}
 <div class="section collapsible">
 <h2>Datos del Medidor</h2>
 <div class="section-content">
-<label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion">
-<label>Latitud / Longitud</label><input type="text" name="latlng">
+<label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion" readonly>
+<label>Latitud / Longitud</label><input type="text" name="latlng" readonly>
 </div>
 </div>
 
 <div class="section collapsible">
 <h2>P1. Prueba de litraje inicial</h2>
 <div class="section-content">
-<label>Lectura inicial</label><input type="number" id="p1Ini">
-<label>Lectura final</label><input type="number" id="p1Fin">
+<label>Lectura inicial</label><input type="number" maxlength="8" id="p1Ini">
+<label>Lectura final</label><input type="number" maxlength="8" id="p1Fin">
 <label>Diferencia</label><input type="number" id="p1Diff" readonly>
 </div>
 </div>
@@ -127,12 +127,12 @@ textarea{resize:vertical}
 
 <div class="col">
 <div class="group-title">Defectos Secundarios / Áreas de mejora</div>
+<label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
 <label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label>
 <label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label>
 <label><input type="checkbox" class="p21-def" data-cat="sec" value="3 IDA cercana a otros servicios"> (3) IDA cercana a otros servicios</label>
 <label><input type="checkbox" class="p21-def" data-cat="sec" value="4 Falta de sujeción"> (4) Falta de sujeción</label>
 <label><input type="checkbox" class="p21-def" data-cat="sec" value="5 Conexión de IDA dañada"> (5) Conexión de IDA dañada</label>
-<label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label>
 </div>
 </div>
 
@@ -149,7 +149,7 @@ textarea{resize:vertical}
 <div class="section-content">
 <div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
 <hr>
-<label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="2000"></textarea>
+<label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="10"></textarea>
 <label id="precintoLabel" class="hidden">Precinto Global (solo si hay crítico)</label><input type="text" id="precinto" name="precinto" maxlength="50" class="hidden">
 </div>
 </div>
@@ -166,8 +166,8 @@ textarea{resize:vertical}
 <label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label><input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars">
 
 <h3>Tipo de revisión</h3>
-<label><input type="checkbox" name="tipoRevision" value="Asistencia Gas"> Asistencia Gas</label>
-<label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</label>
+<label><input type="checkbox" name="tipoRevision" value="Asistencia Gas" checked> Asistencia Gas</label>
+<label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</1label>
 <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
 <label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
 </div>
