@@ -373,7 +373,7 @@
         <div class="section collapsible">
             <h2>Datos del Medidor</h2>
             <div class="section-content">
-                <div class="field"><label>Fecha y hora de inspección</label><input type="datetime-local" name="fechaInspeccion" readonly></div>
+                <div class="field"><label>Fecha y hora de inspección</label><input type="text" name="fechaInspeccion" id="fechaInspeccion" readonly></div>
                 <div class="field"><label>Latitud / Longitud</label><input type="text" name="latlng" readonly></div>
             </div>
         </div>
@@ -969,6 +969,21 @@
             fin?.addEventListener('input', calc);
 
             /* CALCULO FECHAS */
+            function formatearFechaDDMMYYYY(date) {
+                const pad = n => String(n).padStart(2, '0');
+                return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+            }
+
+            function ponerFechaInspeccion() {
+                const ahora = new Date();
+                const input = document.getElementById('fechaInspeccion');
+                if (input) {
+                    input.value = formatearFechaDDMMYYYY(ahora);
+                }
+            }
+
+            ponerFechaInspeccion();
+
             function toLocalInputFormat(date) {
                 const pad = n => String(n).padStart(2, '0');
                 return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
