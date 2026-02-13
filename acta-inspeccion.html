@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>ODIS Incidencias - Formulario Completo (Integrado)</title>
     <style>
-   
         * {
             box-sizing: border-box;
             font-family: Arial, Helvetica, sans-serif;
@@ -358,10 +357,10 @@
         <div class="section collapsible">
             <h2>Datos del Cliente</h2>
             <div class="section-content">
-                <div class="field"><label>Póliza</label><input type="number" name="poliza"></div>
+                <div class="field"><label>Póliza</label><input type="text" maxlength="12" inputmode="numeric" name="poliza"></div>
                 <div class="field"><label>Nombre</label><input type="text" name="nombre"></div>
-                <div class="field"><label>Teléfono</label><input type="number" maxlength="10" name="telefono"></div>
-                <div class="field"><label>Celular</label><input type="numer" maxlength="10" name="celular"></div>
+                <div class="field"><label>Teléfono</label><input type="text" maxlength="10" inputmode="numeric" name="telefono"></div>
+                <div class="field"><label>Celular</label><input type="text" maxlength="10" inputmode="numeric" name="celular"></div>
                 <div class="field"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento"></div>
                 <div class="field"><label>Correo electrónico</label><input type="email" name="email"></div>
                 <h3>Fechas reg</h3>
@@ -435,20 +434,24 @@
         <div class="section collapsible">
             <h2>Datos Extras</h2>
             <div class="section-content">
-                <div class="field"><label>¿Cliente realiza aviso al CCAU?</label><select id="clienteAvisoCcau" name="clienteAvisoCcau"></div>
-                <option value="">--Seleccione--</option>
-                <option value="si">SI</option>
-                <option value="no">NO</option>
-                </select>
+                <div class="field"><label>¿Cliente realiza aviso al CCAU?</label><select id="clienteAvisoCcau" name="clienteAvisoCcau">
+                        <option value="">--Seleccione--</option>
+                        <option value="si">SI</option>
+                        <option value="no">NO</option>
+                    </select></div>
                 <div class="field"><label id="numAvisoLabel" class="hidden">Número de aviso al CCAU</label><input type="text" id="numAvisoCcau" name="numAvisoCcau" maxlength="15" class="hidden" placeholder="Máx 15 chars"></div>
 
                 <div class="field">
-                    <h3>Tipo de revisión</h3>
-                    <label><input type="checkbox" name="tipoRevision" value="Asistencia Gas" checked> Asistencia Gas</label>
-                    <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar"> Asistencia Hogar</1label>
-                        <label><input type="checkbox" name="tipoRevision" value="Asistencia Hogar Plus"> Asistencia Hogar Plus</label>
-                        <label><input type="checkbox" name="tipoRevision" value="Servigas Natural"> Servigas Natural</label>
+                    <label for="tipoRevision">Tipo de revisión</label>
+                    <select id="tipoRevision" name="tipoRevision">
+                        <option value="">-- Seleccione --</option>
+                        <option value="Asistencia Gas" selected>Asistencia Gas</option>
+                        <option value="Asistencia Hogar">Asistencia Hogar</option>
+                        <option value="Asistencia Hogar Plus">Asistencia Hogar Plus</option>
+                        <option value="Servigas Natural">Servigas Natural</option>
+                    </select>
                 </div>
+
             </div>
         </div>
 
@@ -481,6 +484,7 @@
             </div>
         </div>
     </div>
+
 
     <script type="module">
         import {
@@ -703,6 +707,8 @@
                 });
             }
 
+
+
             // B. Renderizar Defectos Aparatos (P2.2)
             equiposConDefectos.forEach(([eqId, defects]) => {
                 const eqInfo = EQUIPOS_ORDER.find(x => x.id === eqId);
@@ -839,9 +845,12 @@
             });
 
             // 3. Listener para Checkboxes P2.1 (Sync P4)
-            document.querySelectorAll('.p21-def').forEach(cb => {
-                cb.addEventListener('change', syncP4);
+            document.addEventListener('change', e => {
+                if (e.target.classList.contains('p21-def')) {
+                    syncP4();
+                }
             });
+
 
             // 4. Listener para Aviso CCAU
             document.getElementById('clienteAvisoCcau')?.addEventListener('change', function(e) {
