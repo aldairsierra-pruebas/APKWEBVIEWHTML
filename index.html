@@ -119,7 +119,23 @@
     .modal-backdrop li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
 
     /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
-    #locateBtn, #refreshBtn, #toggleBtn, #autoNarrarBtn { position: static; right: auto; z-index: auto; }
+    #locateBtn, #refreshBtn, #toggleBtn, #autoNarrarBtn, #actionMenuBtn, #importFirebaseBtn, #viewInspectionsBtn { position: static; right: auto; z-index: auto; }
+
+    #topActions { position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:9999; align-items:flex-end; }
+    #actionMenu { display:none; flex-direction:column; gap:8px; padding:8px; background:rgba(255,255,255,0.95); border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
+    #actionMenu.active { display:flex; }
+
+    .quick-btn { background:#0d6efd;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3); }
+    .quick-btn.gray { background:#6c757d; }
+    .quick-btn.green { background:#198754; }
+    .quick-btn.dark { background:#343a40; }
+    .quick-btn.cyan { background:#0dcaf0; }
+    .quick-btn.orange { background:#fd7e14; }
+
+    #inspectionsModal .modal { margin: 6% auto; width: 95%; max-width: 900px; max-height: 82%; }
+    #inspectionsTable { width:100%; border-collapse:collapse; font-size:13px; }
+    #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
+    #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
 
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
@@ -130,11 +146,16 @@
   <div id="map"></div>
 
   <!-- Controles superiores -->
-  <div style="position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:9999;">
-    <button id="locateBtn" style="background:#0d6efd;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</button>
-    <button id="refreshBtn" style="background:#6c757d;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔄</button>
-    <button id="toggleBtn" style="background:#343a40;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📋</button>
-    <button id="autoNarrarBtn" style="background:#198754;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
+  <div id="topActions">
+    <button id="actionMenuBtn" class="quick-btn dark" title="Mostrar / ocultar funciones">☰</button>
+    <div id="actionMenu" aria-hidden="true">
+      <button id="locateBtn" class="quick-btn" title="Ordenar por cercanía">📍</button>
+      <button id="refreshBtn" class="quick-btn gray" title="Recargar base">🔄</button>
+      <button id="autoNarrarBtn" class="quick-btn green" title="Narrador automático">▶️</button>
+    </div>
+    <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista">📋</button>
+    <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase">☁️</button>
+    <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase">🗂️</button>
   </div>
 
   <!-- PANEL LISTA -->
@@ -179,6 +200,108 @@
     </div>
   </div>
 
+
+
+  <div id="inspectionsModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <h3 style="margin:0;">Inspecciones realizadas (Firebase)</h3>
+        <button id="closeInspectionsModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <div style="overflow:auto; margin-top:10px; max-height:65vh;">
+        <table id="inspectionsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Póliza</th>
+              <th>Nombre</th>
+              <th>Dirección</th>
+              <th>Inspector</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="inspectionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+      authDomain: "asl-apk.firebaseapp.com",
+      projectId: "asl-apk",
+      storageBucket: "asl-apk.firebasestorage.app",
+      messagingSenderId: "803053462437",
+      appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
+      const data = Array.isArray(window.currentData) ? window.currentData : [];
+      if (!data.length) { alert('No hay datos cargados para importar.'); return; }
+      if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
+
+      let ok = 0;
+      let fail = 0;
+      for (const row of data) {
+        try {
+          await addDoc(collection(db, 'BasePolizas'), {
+            poliza: row['Póliza'] || '',
+            nombre: row['Nombre Contratante'] || '',
+            calle: row['calle'] || '',
+            numeroFinca: row['Número finca'] || '',
+            colonia: row['Colonia'] || '',
+            inspector: row['Inspector'] || '',
+            adicional: row['Adicional'] || '',
+            lat: row.lat || '',
+            lng: row.lng || '',
+            importadoEn: new Date().toISOString()
+          });
+          ok++;
+        } catch (err) {
+          console.error('Error importando registro', row, err);
+          fail++;
+        }
+      }
+      alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
+    };
+
+    window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
+      const tbody = document.getElementById('inspectionsTableBody');
+      tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
+      try {
+        const snapshot = await getDocs(collection(db, 'Inspecciones'));
+        const rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        rows.sort((a, b) => String(b?.inspeccion?.fecha || '').localeCompare(String(a?.inspeccion?.fecha || '')));
+
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="6">No hay inspecciones registradas.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${(r?.cliente?.poliza || '').toString()}</td>
+            <td>${(r?.cliente?.nombre || '').toString()}</td>
+            <td>${(r?.cliente?.direccion || '').toString()}</td>
+            <td>${(r?.tecnico?.nombre || '').toString()}</td>
+            <td>${(r?.inspeccion?.fecha || '').toString()}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="6">Error consultando Firebase.</td></tr>';
+      }
+    };
+  </script>
+
   <script>
     // ---------- MAPA ----------
     const map = L.map('map').setView([25.6866, -100.3161], 12);
@@ -188,6 +311,7 @@
     const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
     const streetColors = {};
     let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, userMarker = null;
+    window.currentData = currentData;
     let currentSort = { column: null, asc: true };
 
     // ---------- VISITADOS (localStorage) ----------
@@ -293,6 +417,7 @@
             if (isNaN(lat) || isNaN(lng)) return;
             currentData.push(r);
           });
+          window.currentData = currentData;
           filteredStreet = null; filteredAdicional = null;
           if (currentSort.column !== null) applySort();
           renderAll();
@@ -530,6 +655,7 @@
         }
 
         currentData = rutaOrdenada;
+        window.currentData = currentData;
         renderAll();
         showTable();
       }, () => alert('No se pudo obtener ubicación'), { enableHighAccuracy: true, timeout: 10000 });
@@ -538,8 +664,41 @@
     document.getElementById('refreshBtn').addEventListener('click', loadData);
 
     const listPanel = document.getElementById('listPanel');
+    const actionMenu = document.getElementById('actionMenu');
+    const actionMenuBtn = document.getElementById('actionMenuBtn');
+
+    actionMenuBtn.addEventListener('click', () => {
+      actionMenu.classList.toggle('active');
+      actionMenu.setAttribute('aria-hidden', actionMenu.classList.contains('active') ? 'false' : 'true');
+    });
+
     document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
     document.getElementById('hideBtn').addEventListener('click', hideTable);
+
+    document.getElementById('importFirebaseBtn').addEventListener('click', () => {
+      if (typeof window.importDatabaseToFirebase === 'function') window.importDatabaseToFirebase();
+      else alert('Firebase aún no está listo.');
+    });
+
+    const inspectionsModal = document.getElementById('inspectionsModal');
+    function openInspectionsModal() {
+      inspectionsModal.style.display = 'block';
+      inspectionsModal.setAttribute('aria-hidden', 'false');
+    }
+    function closeInspectionsModal() {
+      inspectionsModal.style.display = 'none';
+      inspectionsModal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.getElementById('viewInspectionsBtn').addEventListener('click', async () => {
+      openInspectionsModal();
+      if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
+    });
+
+    document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
+    inspectionsModal.addEventListener('click', (e) => {
+      if (e.target === inspectionsModal) closeInspectionsModal();
+    });
 
     // ---------- VOZ ----------
     let voiceCanceled = false;
