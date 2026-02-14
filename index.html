@@ -119,7 +119,23 @@
     .modal-backdrop li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
 
     /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
-    #locateBtn, #refreshBtn, #toggleBtn, #autoNarrarBtn { position: static; right: auto; z-index: auto; }
+    #locateBtn, #refreshBtn, #toggleBtn, #autoNarrarBtn, #actionMenuBtn, #importFirebaseBtn, #viewInspectionsBtn, #lastImportBtn { position: static; right: auto; z-index: auto; }
+
+    #topActions { position:absolute; bottom:14px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:9999; align-items:flex-end; }
+    #actionMenu { display:none; flex-direction:column; gap:8px; padding:8px; background:rgba(255,255,255,0.95); border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.25); margin-bottom:6px; }
+    #actionMenu.active { display:flex; }
+
+    .quick-btn { background:#0d6efd;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3); }
+    .quick-btn.gray { background:#6c757d; }
+    .quick-btn.green { background:#198754; }
+    .quick-btn.dark { background:#343a40; }
+    .quick-btn.cyan { background:#0dcaf0; }
+    .quick-btn.orange { background:#fd7e14; }
+
+    #inspectionsModal .modal { margin: 6% auto; width: 95%; max-width: 900px; max-height: 82%; }
+    #inspectionsTable { width:100%; border-collapse:collapse; font-size:13px; }
+    #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
+    #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
 
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
@@ -130,12 +146,19 @@
   <div id="map"></div>
 
   <!-- Controles superiores -->
-  <div style="position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:9999;">
-    <button id="locateBtn" style="background:#0d6efd;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</button>
-    <button id="refreshBtn" style="background:#6c757d;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔄</button>
-    <button id="toggleBtn" style="background:#343a40;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📋</button>
-    <button id="autoNarrarBtn" style="background:#198754;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);">▶️</button>
+  <div id="topActions">
+    <div id="actionMenu" aria-hidden="true">
+      <button id="locateBtn" class="quick-btn" title="Ordenar por cercanía">📍</button>
+      <button id="refreshBtn" class="quick-btn gray" title="Recargar base">🔄</button>
+      <button id="autoNarrarBtn" class="quick-btn green" title="Narrador automático">▶️</button>
+      <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista">📋</button>
+      <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar archivo y subirlo">☁️</button>
+      <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase">🗂️</button>
+      <button id="lastImportBtn" class="quick-btn gray" title="Ver última importación">🧾</button>
+    </div>
+    <button id="actionMenuBtn" class="quick-btn dark" title="Mostrar / ocultar funciones">☰</button>
   </div>
+  <input type="file" id="importFileInput" accept=".csv,text/csv" style="display:none;" />
 
   <!-- PANEL LISTA -->
   <div id="listPanel" aria-hidden="true">
@@ -179,6 +202,204 @@
     </div>
   </div>
 
+
+  <div id="lastImportModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <h3 style="margin:0;">Última importación (base global)</h3>
+        <button id="closeLastImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <div style="overflow:auto; margin-top:10px; max-height:65vh;">
+        <table id="lastImportTable">
+          <thead>
+            <tr>
+              <th>#</th><th>Póliza</th><th>Nombre</th><th>Dirección</th><th>Inspector</th><th>Fecha importación</th>
+            </tr>
+          </thead>
+          <tbody id="lastImportTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="inspectionsModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <h3 style="margin:0;">Inspecciones realizadas (Firebase)</h3>
+        <button id="closeInspectionsModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <div style="overflow:auto; margin-top:10px; max-height:65vh;">
+        <table id="inspectionsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Póliza</th>
+              <th>Nombre</th>
+              <th>Dirección</th>
+              <th>Inspector</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="inspectionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+      authDomain: "asl-apk.firebaseapp.com",
+      projectId: "asl-apk",
+      storageBucket: "asl-apk.firebasestorage.app",
+      messagingSenderId: "803053462437",
+      appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const LOCAL_BASE_KEY = 'base_global_last_import_v1';
+    const REQUIRED_HEADERS = ['Póliza','calle','Número finca','Colonia','Municipio','Nombre Contratante','Empresa','Inspector'];
+    const OPTIONAL_HEADERS = ['Número Portal','Fecha inspección','Resultado de inspección','lat','lng'];
+
+    function cleanRow(row) {
+      const out = {};
+      [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS].forEach(k => out[k] = (row[k] || '').toString().trim());
+      out['Fecha importación'] = new Date().toISOString();
+      return out;
+    }
+
+    function isRowValid(row) {
+      return REQUIRED_HEADERS.every(h => (row[h] || '').toString().trim().length > 0);
+    }
+
+    function renderLastImportTable(rows) {
+      const tbody = document.getElementById('lastImportTableBody');
+      if (!tbody) return;
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6">No hay importaciones.</td></tr>'; return; }
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${(r['Póliza'] || '').toString()}</td>
+          <td>${(r['Nombre Contratante'] || '').toString()}</td>
+          <td>${(r['calle'] || '').toString()} ${(r['Número finca'] || '').toString()}</td>
+          <td>${(r['Inspector'] || '').toString()}</td>
+          <td>${(r['Fecha importación'] || '').toString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    window.getLocalImportedBase = function getLocalImportedBase() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(LOCAL_BASE_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    };
+
+    window.importDatabaseToFirebase = async function importDatabaseToFirebase(file) {
+      if (!file) { alert('Selecciona un archivo CSV.'); return; }
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async function(results) {
+          const headers = (results.meta && results.meta.fields) ? results.meta.fields : [];
+          const missing = REQUIRED_HEADERS.filter(h => !headers.includes(h));
+          if (missing.length) {
+            alert('Faltan encabezados obligatorios: ' + missing.join(', '));
+            return;
+          }
+
+          const sourceRows = Array.isArray(results.data) ? results.data : [];
+          const validRows = sourceRows.map(cleanRow).filter(isRowValid);
+
+          if (!validRows.length) {
+            alert('No hay filas válidas para importar.');
+            return;
+          }
+
+          localStorage.setItem(LOCAL_BASE_KEY, JSON.stringify(validRows));
+          renderLastImportTable(validRows);
+
+          let ok = 0;
+          let fail = 0;
+          for (const row of validRows) {
+            try {
+              await addDoc(collection(db, 'BaseGlobalImportada'), row);
+              ok++;
+            } catch (err) {
+              console.error('Error importando registro', row, err);
+              fail++;
+            }
+          }
+
+          const normalizedRows = validRows.map(r => ({
+            'Póliza': r['Póliza'],
+            'calle': r['calle'],
+            'Número finca': r['Número finca'],
+            'Número Portal': r['Número Portal'],
+            'Colonia': r['Colonia'],
+            'Municipio': r['Municipio'],
+            'Nombre Contratante': r['Nombre Contratante'],
+            'Empresa': r['Empresa'],
+            'Inspector': r['Inspector'],
+            'Fecha inspección': r['Fecha inspección'],
+            'Resultado de inspección': r['Resultado de inspección'],
+            'Adicional': r['Resultado de inspección'],
+            lat: r['lat'],
+            lng: r['lng']
+          }));
+
+          window.currentData = normalizedRows;
+
+          if (typeof window.setCurrentDataFromExternal === 'function') window.setCurrentDataFromExternal(normalizedRows);
+          alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
+        },
+        error: function(err) {
+          console.error(err);
+          alert('No se pudo leer el archivo CSV.');
+        }
+      });
+    };
+
+    window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
+      const tbody = document.getElementById('inspectionsTableBody');
+      tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
+      try {
+        const snapshot = await getDocs(collection(db, 'Inspecciones'));
+        const rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        rows.sort((a, b) => String(b?.inspeccion?.fecha || '').localeCompare(String(a?.inspeccion?.fecha || '')));
+
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="6">No hay inspecciones registradas.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${(r?.cliente?.poliza || '').toString()}</td>
+            <td>${(r?.cliente?.nombre || '').toString()}</td>
+            <td>${(r?.cliente?.direccion || '').toString()}</td>
+            <td>${(r?.tecnico?.nombre || '').toString()}</td>
+            <td>${(r?.inspeccion?.fecha || '').toString()}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="6">Error consultando Firebase.</td></tr>';
+      }
+    };
+
+    renderLastImportTable(window.getLocalImportedBase());
+  </script>
+
   <script>
     // ---------- MAPA ----------
     const map = L.map('map').setView([25.6866, -100.3161], 12);
@@ -188,6 +409,14 @@
     const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
     const streetColors = {};
     let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, userMarker = null;
+    window.currentData = currentData;
+    window.setCurrentDataFromExternal = function(rows) {
+      currentData = Array.isArray(rows) ? rows.slice() : [];
+      window.currentData = currentData;
+      filteredStreet = null;
+      filteredAdicional = null;
+      refreshMapFromCurrentData();
+    };
     let currentSort = { column: null, asc: true };
 
     // ---------- VISITADOS (localStorage) ----------
@@ -277,13 +506,50 @@
     }
 
     // ---------- CARGAR DATOS ----------
+    function normalizeImportedRow(r) {
+      return {
+        'Póliza': r['Póliza'] || '',
+        'calle': r['calle'] || '',
+        'Número finca': r['Número finca'] || '',
+        'Número Portal': r['Número Portal'] || '',
+        'Colonia': r['Colonia'] || '',
+        'Municipio': r['Municipio'] || '',
+        'Nombre Contratante': r['Nombre Contratante'] || '',
+        'Empresa': r['Empresa'] || '',
+        'Inspector': r['Inspector'] || '',
+        'Fecha inspección': r['Fecha inspección'] || '',
+        'Resultado de inspección': r['Resultado de inspección'] || '',
+        'Adicional': r['Resultado de inspección'] || '',
+        lat: r['lat'] || '',
+        lng: r['lng'] || ''
+      };
+    }
+
+    function refreshMapFromCurrentData() {
+      window.currentData = currentData;
+      if (currentSort.column !== null) applySort();
+      renderAll();
+      showTable();
+    }
+    window.refreshMapFromCurrentData = refreshMapFromCurrentData;
+
     function loadData() {
       document.getElementById('dataTableBody').innerHTML = '';
       document.getElementById('legend').innerHTML = '';
       for (const k in streetColors) delete streetColors[k];
       markers.forEach(m => map.removeLayer(m)); markers = [];
-      currentData = [];
 
+      const importedLocal = (typeof window.getLocalImportedBase === 'function') ? window.getLocalImportedBase() : [];
+      if (Array.isArray(importedLocal) && importedLocal.length) {
+        currentData = importedLocal.map(normalizeImportedRow).filter(r => {
+          const lat = parseFloat(r.lat), lng = parseFloat(r.lng);
+          return !isNaN(lat) && !isNaN(lng);
+        });
+        refreshMapFromCurrentData();
+        return;
+      }
+
+      currentData = [];
       Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNllSnU8y3ZHSS7QNCpSSxO50Yk_Ugnf7Cc88Q6XX2zn_6gAeTrkMBlX_SmeallPV6UgPEzt-aXvma/pub?gid=0&single=true&output=csv", {
         download: true, header: true,
         complete: function(results) {
@@ -293,13 +559,11 @@
             if (isNaN(lat) || isNaN(lng)) return;
             currentData.push(r);
           });
-          filteredStreet = null; filteredAdicional = null;
-          if (currentSort.column !== null) applySort();
-          renderAll();
-          showTable();
+          refreshMapFromCurrentData();
         }
       });
     }
+
 
     // ---------- RENDER LISTA / MARCADORES ----------
     function renderAll() {
@@ -530,6 +794,7 @@
         }
 
         currentData = rutaOrdenada;
+        window.currentData = currentData;
         renderAll();
         showTable();
       }, () => alert('No se pudo obtener ubicación'), { enableHighAccuracy: true, timeout: 10000 });
@@ -538,8 +803,63 @@
     document.getElementById('refreshBtn').addEventListener('click', loadData);
 
     const listPanel = document.getElementById('listPanel');
+    const actionMenu = document.getElementById('actionMenu');
+    const actionMenuBtn = document.getElementById('actionMenuBtn');
+
+    actionMenuBtn.addEventListener('click', () => {
+      actionMenu.classList.toggle('active');
+      actionMenu.setAttribute('aria-hidden', actionMenu.classList.contains('active') ? 'false' : 'true');
+    });
+
     document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
     document.getElementById('hideBtn').addEventListener('click', hideTable);
+
+    const importFileInput = document.getElementById('importFileInput');
+    document.getElementById('importFirebaseBtn').addEventListener('click', () => {
+      importFileInput.value = '';
+      importFileInput.click();
+    });
+    importFileInput.addEventListener('change', () => {
+      const file = importFileInput.files && importFileInput.files[0];
+      if (!file) return;
+      if (typeof window.importDatabaseToFirebase === 'function') window.importDatabaseToFirebase(file);
+      else alert('Firebase aún no está listo.');
+    });
+
+    const lastImportModal = document.getElementById('lastImportModal');
+    function openLastImportModal() {
+      lastImportModal.style.display = 'block';
+      lastImportModal.setAttribute('aria-hidden', 'false');
+    }
+    function closeLastImportModal() {
+      lastImportModal.style.display = 'none';
+      lastImportModal.setAttribute('aria-hidden', 'true');
+    }
+    document.getElementById('lastImportBtn').addEventListener('click', openLastImportModal);
+    document.getElementById('closeLastImportModalBtn').addEventListener('click', closeLastImportModal);
+    lastImportModal.addEventListener('click', (e) => {
+      if (e.target === lastImportModal) closeLastImportModal();
+    });
+
+    const inspectionsModal = document.getElementById('inspectionsModal');
+    function openInspectionsModal() {
+      inspectionsModal.style.display = 'block';
+      inspectionsModal.setAttribute('aria-hidden', 'false');
+    }
+    function closeInspectionsModal() {
+      inspectionsModal.style.display = 'none';
+      inspectionsModal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.getElementById('viewInspectionsBtn').addEventListener('click', async () => {
+      openInspectionsModal();
+      if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
+    });
+
+    document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
+    inspectionsModal.addEventListener('click', (e) => {
+      if (e.target === inspectionsModal) closeInspectionsModal();
+    });
 
     // ---------- VOZ ----------
     let voiceCanceled = false;
