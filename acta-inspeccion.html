@@ -142,26 +142,56 @@
             color: #555
         }
 
+
+        .check-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+        }
+
+        .check-columns label,
+        .binary-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            margin: 2px 0;
+        }
+
+        .check-columns input[type="checkbox"],
+        .binary-group input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            margin-top: 0;
+        }
+
+        .binary-group {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
         /* ESTILOS DE EQUIPOS (P2.2) RESTAURADOS */
         .eq-box {
             font-size: 12px;
             border: 1px solid #e6eef5;
             border-radius: 8px;
-            padding: 10px;
+            padding: 8px;
             background: #f9fbff;
         }
 
         .equipos-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 8px;
             width: 100%;
         }
 
         .eq-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 6px
         }
 
@@ -169,7 +199,14 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-shrink: 0;
         }
+
+        .eq-header strong {
+            line-height: 1.2;
+            flex: 1;
+        }
+
 
         .qty-btn {
             width: 26px;
@@ -257,7 +294,8 @@
             }
 
             .equipos-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 6px;
             }
         }
 
@@ -390,39 +428,102 @@
         <div class="section collapsible">
             <h2>Datos del Cliente</h2>
             <div class="section-content">
-                <div class="field"><label>Póliza</label><input type="text" maxlength="12" inputmode="numeric" name="poliza"></div>
-                <div class="field"><label>Nombre</label><input type="text" name="nombre"></div>
+                <div class="field"><label>Póliza</label><input type="text" maxlength="12" inputmode="numeric" name="poliza" required></div>
+                <div class="field"><label>Nombre</label><input type="text" name="nombre" required></div>
                 <div class="field"><label>Teléfono</label><input type="text" maxlength="10" inputmode="numeric" name="telefono"></div>
                 <div class="field"><label>Celular</label><input type="text" maxlength="10" inputmode="numeric" name="celular"></div>
                 <div class="field"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento"></div>
                 <div class="field"><label>Correo electrónico</label><input type="email" name="email"></div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>Identificación presentada</label>
+                    <div class="check-columns" id="identificacionCliente">
+                        <label><input type="checkbox" name="identificacionCliente" value="Cedula"> Cédula</label>
+                        <label><input type="checkbox" name="identificacionCliente" value="Pasaporte"> Pasaporte</label>
+                        <label><input type="checkbox" name="identificacionCliente" value="Licencia"> Licencia</label>
+                        <label><input type="checkbox" name="identificacionCliente" value="Otro"> Otro</label>
+                    </div>
+                </div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>¿Es titular del servicio?</label>
+                    <div class="binary-group" id="titularServicioGroup">
+                        <label><input type="checkbox" name="titularServicio" value="si"> Sí</label>
+                        <label><input type="checkbox" name="titularServicio" value="no"> No</label>
+                    </div>
+                </div>
+                <div class="field hidden" id="fieldParentesco"><label>Parentesco</label><input type="text" id="parentesco" name="parentesco"></div>
+
                 <h3>Fechas reg</h3>
                 <div class="field"><label>Fecha de solicitud</label><input type="datetime-local" id="fechaSolicitud" name="fechaSolicitud" readonly></div>
                 <div class="field"><label>Fecha requerida (+7 días)</label><input type="datetime-local" id="fechaRequerida" name="fechaRequerida" readonly></div>
                 <div class="field"><label>Fecha de vencimiento (+1 mes)</label><input type="datetime-local" id="fechaVencimiento" name="fechaVencimiento" readonly></div>
-
-                <div class="field"><label>Fecha y hora de inspección</label><input type="text" name="fechaInspeccion" id="fechaInspeccion" readonly></div>
-                <div class="field"><label>Latitud / Longitud</label><input type="text" name="latlng" readonly></div>
             </div>
         </div>
 
-        <div class="section collapsible">
+        <div class="section collapsible" id="sectionMedidor">
+            <h2>Datos del Medidor</h2>
+            <div class="section-content">
+                <div class="field"><label>Fecha y hora de inspección</label><input type="text" name="fechaInspeccion" id="fechaInspeccion" readonly></div>
+                <div class="field"><label>Latitud / Longitud</label><input type="text" name="latlng" readonly></div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>Presente tambor litraje</label>
+                    <div class="binary-group" data-exclusive-group="tamborLitraje">
+                        <label><input type="checkbox" name="tamborLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="tamborLitraje" value="no"> No</label>
+                    </div>
+                </div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>Registro litraje</label>
+                    <div class="binary-group" data-exclusive-group="registroLitraje">
+                        <label><input type="checkbox" name="registroLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="registroLitraje" value="no"> No</label>
+                    </div>
+                </div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>Nivel de accesibilidad</label>
+                    <div class="binary-group" id="accesibilidadGroup">
+                        <label><input type="checkbox" name="nivelAccesibilidad" value="G1"> G1</label>
+                        <label><input type="checkbox" name="nivelAccesibilidad" value="G2"> G2</label>
+                        <label><input type="checkbox" name="nivelAccesibilidad" value="G3"> G3</label>
+                    </div>
+                </div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>¿Se realiza prueba de litraje?</label>
+                    <div class="binary-group" data-exclusive-group="pruebaLitraje" id="pruebaLitrajeGroup">
+                        <label><input type="checkbox" name="pruebaLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="pruebaLitraje" value="no"> No</label>
+                    </div>
+                </div>
+
+                <div class="field hidden" id="fieldLecturaActual">
+                    <label>Lectura actual</label>
+                    <input type="number" id="lecturaActual" name="lecturaActual" inputmode="numeric" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)">
+                </div>
+            </div>
+        </div>
+
+        <div class="section collapsible" id="sectionP1">
             <h2>P1. Prueba de litraje inicial</h2>
             <div class="section-content">
-                <div class="field"><label>Lectura inicial</label><input type="number" maxlength="8" id="p1Ini"></div>
-                <div class="field"><label>Lectura final</label><input type="number" maxlength="8" id="p1Fin"></div>
+                <div class="field"><label>Lectura inicial</label><input type="number" maxlength="8" id="p1Ini" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)"></div>
+                <div class="field"><label>Lectura final</label><input type="number" maxlength="8" id="p1Fin" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)"></div>
                 <div class="field"><label>Diferencia</label><input type="number" id="p1Diff" readonly></div>
             </div>
         </div>
 
-        <div class="section collapsible">
+        <div class="section collapsible" id="sectionP2">
             <h2>P2. Seguimiento de la IDA (Instalación de Aprovechamiento)</h2>
             <div class="section-content">
                 <p class="small">P2.1 Detección de Defectos en IDA. Seleccione directamente los defectos aplicables.</p>
 
                 <div id="p21Defectos" class="p21-grid">
                     <div class="col">
-                        <div class="group-title">Defectos Críticos</div>
+                        <div class="group-title">Defectos Críticos / Precintado Total</div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Exterior"> Fuga Visible (60B) Exterior</label></div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Fuga oculta"> (60B) Fuga oculta</label></div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="crit" value="60B Interior"> (60B) Interior</label></div>
@@ -431,7 +532,7 @@
                     </div>
 
                     <div class="col">
-                        <div class="group-title">Defectos Secundarios y Áreas de mejora</div>
+                        <div class="group-title">Defectos Secundarios / Áreas de mejora</div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="sec" value="87 IDA no identificada"> (87) IDA no identificada</label></div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="sec" value="1 Material fuera de norma"> (1) Material fuera de norma</label></div>
                         <div class="field"><label><input type="checkbox" class="p21-def" data-cat="sec" value="16 Salida sin tapón"> (16) Salida sin tapón</label></div>
@@ -442,9 +543,11 @@
                 </div>
             </div>
         </div>
-        <div class="section">
+        <div class="section collapsible" id="sectionP22">
             <h2>P2.2 Detección de defectos en aparatos conectados</h2>
-                <div id="tablaEquipos" class="equipos-grid"></div>
+            <div class="section-content">
+                <div id="p2Aparatos" class="equipos-grid"></div>
+            </div>
         </div>
 
         <div class="section collapsible" id="sectionP4">
@@ -452,13 +555,13 @@
             <div class="section-content">
                 <div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
                 <hr>
-                <div class="field"><label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="500"></textarea></div>
+                <div class="field"><label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="500" required></textarea></div>
                 <div class="field"><label id="precintoLabel" class="hidden">Precinto Global (solo si hay crítico)</label><input type="text" id="precinto" name="precinto" maxlength="50" class="hidden"></div>
             </div>
         </div>
 
-        <div class="section collapsible">
-            <h2>Datos Extras</h2>
+        <div class="section collapsible hidden" id="sectionDatosExtras">
+            <h2>CCAU</h2>
             <div class="section-content">
                 <div class="field"><label>¿Cliente realiza aviso al CCAU?</label><select id="clienteAvisoCcau" name="clienteAvisoCcau">
                         <option value="">--Seleccione--</option>
@@ -623,7 +726,7 @@
 
         // 1. Renderizar tabla de equipos
         function renderEquipos() {
-            const tabla = document.getElementById('tablaEquipos');
+            const tabla = document.getElementById('p2Aparatos');
             if (!tabla) return;
             tabla.innerHTML = ''; // Limpiar
 
@@ -640,7 +743,7 @@
             </div>
           </div>
           <div id="co_${eq.id}" class="co-box hidden">
-            <input type="number" min="0" placeholder="CO ppm" style="width:100px">
+            <input type="number" min="0" value="0" placeholder="CO ppm" style="width:100px">
           </div>
           <div style="margin-top:4px;">
              <button type="button" class="btn secondary hidden" id="btn_${eq.id}" onclick="window.abrirModal('${eq.id}')">Seleccionar Defectos</button>
@@ -688,14 +791,19 @@
             const coBox = document.getElementById('co_' + eq);
             const btn = document.getElementById('btn_' + eq);
             const list = document.getElementById('list_' + eq);
-            if (!coBox || !btn || !list) return;
+            const coInput = document.querySelector(`#co_${eq} input`);
+            if (!coBox || !btn || !list || !coInput) return;
 
             if (qty > 0) {
                 coBox.classList.remove('hidden');
                 btn.classList.remove('hidden');
+                coInput.value = coInput.value === '' ? '0' : coInput.value;
+                coInput.required = true;
             } else {
                 coBox.classList.add('hidden');
                 btn.classList.add('hidden');
+                coInput.value = '0';
+                coInput.required = false;
                 list.innerHTML = '';
                 defectosPorEquipo[eq] = [];
                 syncP4();
@@ -710,6 +818,157 @@
 
             section.classList.remove('collapsed');
             content.style.maxHeight = content.scrollHeight + 'px';
+        }
+
+
+        function syncExclusiveGroup(groupName, selectedInput) {
+            document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => {
+                if (cb !== selectedInput) cb.checked = false;
+            });
+        }
+
+        function updateTitularParentesco() {
+            const noTitular = document.querySelector('input[name="titularServicio"][value="no"]');
+            const parentescoField = document.getElementById('fieldParentesco');
+            const parentescoInput = document.getElementById('parentesco');
+            if (!noTitular || !parentescoField || !parentescoInput) return;
+
+            if (noTitular.checked) {
+                parentescoField.classList.remove('hidden');
+                parentescoInput.required = true;
+            } else {
+                parentescoField.classList.add('hidden');
+                parentescoInput.required = false;
+                parentescoInput.value = '';
+            }
+        }
+
+        function hasFugaSeleccionada(p21Checked, equiposConDefectos) {
+            const fugaEnIda = p21Checked.some(item => {
+                const text = `${item.value || ''} ${item.parentNode?.textContent || ''}`.toLowerCase();
+                return text.includes('fuga');
+            });
+
+            const fugaEnAparatos = equiposConDefectos.some(([, defects]) =>
+                (defects || []).some(def => String(def).toLowerCase().includes('fuga'))
+            );
+
+            return fugaEnIda || fugaEnAparatos;
+        }
+
+        function syncDatosExtras(fugaActiva) {
+            const section = document.getElementById('sectionDatosExtras');
+            const clienteAviso = document.getElementById('clienteAvisoCcau');
+            const tipoRevision = document.getElementById('tipoRevision');
+            const numAviso = document.getElementById('numAvisoCcau');
+            const numAvisoLabel = document.getElementById('numAvisoLabel');
+            if (!section || !clienteAviso || !tipoRevision || !numAviso || !numAvisoLabel) return;
+
+            if (fugaActiva) {
+                section.classList.remove('hidden');
+                clienteAviso.required = true;
+                tipoRevision.required = true;
+                const content = section.querySelector('.section-content');
+                if (content && !section.classList.contains('collapsed')) {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                }
+            } else {
+                section.classList.add('hidden');
+                clienteAviso.required = false;
+                tipoRevision.required = false;
+                numAviso.required = false;
+                clienteAviso.value = '';
+                numAviso.value = '';
+                numAviso.classList.add('hidden');
+                numAvisoLabel.classList.add('hidden');
+            }
+        }
+
+        function updatePruebaLitrajeUI() {
+            const pruebaNo = document.querySelector('input[name="pruebaLitraje"][value="no"]');
+            const fieldLecturaActual = document.getElementById('fieldLecturaActual');
+            const lecturaActual = document.getElementById('lecturaActual');
+            const sectionP1 = document.getElementById('sectionP1');
+            const sectionP22 = document.getElementById('sectionP22');
+            const p1Ini = document.getElementById('p1Ini');
+            const p1Fin = document.getElementById('p1Fin');
+
+            if (!pruebaNo || !fieldLecturaActual || !lecturaActual || !sectionP1 || !sectionP22 || !p1Ini || !p1Fin) return;
+
+            const noPrueba = pruebaNo.checked;
+            if (noPrueba) {
+                fieldLecturaActual.classList.remove('hidden');
+                lecturaActual.required = true;
+                sectionP1.classList.add('hidden');
+                sectionP22.classList.add('hidden');
+                p1Ini.required = false;
+                p1Fin.required = false;
+
+                document.querySelectorAll('.qty').forEach(inp => {
+                    inp.value = 0;
+                    updateEquipoVisibility(inp.dataset.eq, 0);
+                });
+            } else {
+                fieldLecturaActual.classList.add('hidden');
+                lecturaActual.required = false;
+                lecturaActual.value = '';
+                sectionP1.classList.remove('hidden');
+                sectionP22.classList.remove('hidden');
+                p1Ini.required = true;
+                p1Fin.required = true;
+            }
+        }
+
+        function validateBusinessRules() {
+            const form = document.getElementById('formODIS');
+            if (!form) return false;
+
+            if (!form.reportValidity()) return false;
+
+            const titularSeleccionado = document.querySelectorAll('input[name="titularServicio"]:checked').length;
+            if (!titularSeleccionado) {
+                alert('Debe seleccionar si es titular del servicio (Sí/No).');
+                return false;
+            }
+
+            const grupos = ['tamborLitraje', 'registroLitraje', 'pruebaLitraje'];
+            for (const g of grupos) {
+                if (!document.querySelector(`input[name="${g}"]:checked`)) {
+                    alert('Complete toda la sección de datos del medidor.');
+                    return false;
+                }
+            }
+
+            if (!document.querySelector('input[name="nivelAccesibilidad"]:checked')) {
+                alert('Seleccione el nivel de accesibilidad (G1, G2 o G3).');
+                return false;
+            }
+
+            const sectionP22 = document.getElementById('sectionP22');
+            const p22Visible = sectionP22 && !sectionP22.classList.contains('hidden');
+            if (p22Visible) {
+                const totalAparatos = Array.from(document.querySelectorAll('.qty')).reduce((acc, el) => acc + Number(el.value || 0), 0);
+                if (totalAparatos < 1) {
+                    alert('Debe seleccionar mínimo un aparato en P2.2.');
+                    return false;
+                }
+            }
+
+            const totalDefectos = document.querySelectorAll('.p21-def:checked').length + Object.values(defectosPorEquipo).reduce((acc, arr) => acc + (arr?.length || 0), 0);
+            const totalFilasP4 = document.querySelectorAll('#p4Contenedor .p4-row').length;
+            if (totalDefectos > 0 && totalFilasP4 < totalDefectos) {
+                alert('Si selecciona defectos, deben reflejarse en P4.');
+                return false;
+            }
+
+            const precintoGlobal = document.getElementById('precinto');
+            if (precintoGlobal && !precintoGlobal.classList.contains('hidden') && !trimOrNull(precintoGlobal.value)) {
+                alert('El precinto es obligatorio cuando hay defecto crítico.');
+                precintoGlobal.focus();
+                return false;
+            }
+
+            return true;
         }
 
         // 3. Sincronización P4 (EL CEREBRO DE LA GENERACIÓN DE TEXTO)
@@ -728,7 +987,9 @@
             if (p21Checked.length === 0 && equiposConDefectos.length === 0) {
                 p4Cont.innerHTML = '<span class="muted">Seleccione defectos en la sección P2 para generar observaciones automáticas aquí.</span>';
                 document.getElementById('precinto').classList.add('hidden');
+                document.getElementById('precinto').required = false;
                 document.getElementById('precintoLabel').classList.add('hidden');
+                syncDatosExtras(false);
                 expandSectionP4();
                 return;
             }
@@ -805,12 +1066,16 @@
             const precintoLabel = document.getElementById('precintoLabel');
             if (hayCritico) {
                 precintoGlobal.classList.remove('hidden');
+                precintoGlobal.required = true;
                 precintoLabel.classList.remove('hidden');
             } else {
                 precintoGlobal.classList.add('hidden');
+                precintoGlobal.required = false;
                 precintoLabel.classList.add('hidden');
             }
 
+            const fugaActiva = hasFugaSeleccionada(p21Checked, equiposConDefectos);
+            syncDatosExtras(fugaActiva);
             expandSectionP4();
         }
 
@@ -881,6 +1146,9 @@
 
             // 1. Renderizar tabla vacía
             renderEquipos();
+            document.getElementById('p1Ini') && (document.getElementById('p1Ini').required = true);
+            document.getElementById('p1Fin') && (document.getElementById('p1Fin').required = true);
+            syncDatosExtras(false);
 
             // 2. Listeners para Inputs/Botones de Cantidad (mostrar CO y botón defectos)
             document.addEventListener('input', e => {
@@ -905,13 +1173,28 @@
                 updateEquipoVisibility(eq, next);
             });
 
-            // 3. Listener para Checkboxes P2.1 (Sync P4)
+            // 3. Listeners para checkboxes y reglas de visibilidad
             document.addEventListener('change', e => {
                 if (e.target.classList.contains('p21-def')) {
                     syncP4();
                 }
+
+                if (e.target.matches('input[name="titularServicio"]')) {
+                    syncExclusiveGroup('titularServicio', e.target);
+                    updateTitularParentesco();
+                }
+
+                if (e.target.matches('input[name="tamborLitraje"]')) syncExclusiveGroup('tamborLitraje', e.target);
+                if (e.target.matches('input[name="registroLitraje"]')) syncExclusiveGroup('registroLitraje', e.target);
+                if (e.target.matches('input[name="pruebaLitraje"]')) {
+                    syncExclusiveGroup('pruebaLitraje', e.target);
+                    updatePruebaLitrajeUI();
+                }
+                if (e.target.matches('input[name="nivelAccesibilidad"]')) syncExclusiveGroup('nivelAccesibilidad', e.target);
             });
 
+            updateTitularParentesco();
+            updatePruebaLitrajeUI();
 
             // 4. Listener para Aviso CCAU
             document.getElementById('clienteAvisoCcau')?.addEventListener('change', function(e) {
@@ -921,9 +1204,12 @@
                 if (esSi) {
                     numInput.classList.remove('hidden');
                     label.classList.remove('hidden');
+                    numInput.required = true;
                 } else {
                     numInput.classList.add('hidden');
                     label.classList.add('hidden');
+                    numInput.required = false;
+                    numInput.value = '';
                 }
             });
 
@@ -933,6 +1219,8 @@
 
             form.addEventListener('submit', async ev => {
                 ev.preventDefault();
+
+                if (!validateBusinessRules()) return;
 
                 // A. Recopilar datos planos (para fallbacks)
                 const flat = gatherFormFields(form);
@@ -963,7 +1251,10 @@
                         telefono: flat.telefono,
                         celular: flat.celular,
                         email: flat.email,
-                        fechaNacimiento: flat.fechaNacimiento
+                        fechaNacimiento: flat.fechaNacimiento,
+                        identificacion: flat.identificacionCliente,
+                        titularServicio: flat.titularServicio,
+                        parentesco: flat.parentesco
                     },
                     fechas: {
                         solicitud: flat.fechaSolicitud,
