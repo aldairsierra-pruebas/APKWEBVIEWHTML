@@ -177,21 +177,21 @@
             font-size: 12px;
             border: 1px solid #e6eef5;
             border-radius: 8px;
-            padding: 8px;
+            padding: 10px;
             background: #f9fbff;
         }
 
         .equipos-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
             width: 100%;
         }
 
         .eq-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 6px
         }
 
@@ -199,14 +199,7 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            flex-shrink: 0;
         }
-
-        .eq-header strong {
-            line-height: 1.2;
-            flex: 1;
-        }
-
 
         .qty-btn {
             width: 26px;
@@ -294,8 +287,7 @@
             }
 
             .equipos-grid {
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                gap: 6px;
+                grid-template-columns: 1fr;
             }
         }
 
@@ -470,7 +462,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Presente tambor litraje</label>
                     <div class="binary-group" data-exclusive-group="tamborLitraje">
-                        <label><input type="checkbox" name="tamborLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="tamborLitraje" value="si" required> Sí</label>
                         <label><input type="checkbox" name="tamborLitraje" value="no"> No</label>
                     </div>
                 </div>
@@ -478,7 +470,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Registro litraje</label>
                     <div class="binary-group" data-exclusive-group="registroLitraje">
-                        <label><input type="checkbox" name="registroLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="registroLitraje" value="si" required> Sí</label>
                         <label><input type="checkbox" name="registroLitraje" value="no"> No</label>
                     </div>
                 </div>
@@ -486,7 +478,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Nivel de accesibilidad</label>
                     <div class="binary-group" id="accesibilidadGroup">
-                        <label><input type="checkbox" name="nivelAccesibilidad" value="G1"> G1</label>
+                        <label><input type="checkbox" name="nivelAccesibilidad" value="G1" required> G1</label>
                         <label><input type="checkbox" name="nivelAccesibilidad" value="G2"> G2</label>
                         <label><input type="checkbox" name="nivelAccesibilidad" value="G3"> G3</label>
                     </div>
@@ -495,7 +487,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>¿Se realiza prueba de litraje?</label>
                     <div class="binary-group" data-exclusive-group="pruebaLitraje" id="pruebaLitrajeGroup">
-                        <label><input type="checkbox" name="pruebaLitraje" value="si"> Sí</label>
+                        <label><input type="checkbox" name="pruebaLitraje" value="si" required> Sí</label>
                         <label><input type="checkbox" name="pruebaLitraje" value="no"> No</label>
                     </div>
                 </div>
@@ -503,6 +495,12 @@
                 <div class="field hidden" id="fieldLecturaActual">
                     <label>Lectura actual</label>
                     <input type="number" id="lecturaActual" name="lecturaActual" inputmode="numeric" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)">
+                </div>
+
+                <div class="field" style="grid-column:1/-1;">
+                    <label>Fotografías del medidor</label>
+                    <input type="file" id="fotosMedidor" name="fotosMedidor" accept="image/*" multiple>
+                    <div class="small">Puede cargar varias fotos del medidor (JPG/PNG/WEBP).</div>
                 </div>
             </div>
         </div>
@@ -624,6 +622,12 @@
             collection,
             addDoc
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+        import {
+            getStorage,
+            ref,
+            uploadBytes,
+            getDownloadURL
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -636,6 +640,7 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const storage = getStorage(app);
 
         // ==========================================
         // CONSTANTES Y ESTADO (Restaurado de anterior.txt)
@@ -968,7 +973,45 @@
                 return false;
             }
 
+            const fotosMedidorInput = document.getElementById('fotosMedidor');
+            const fotos = fotosMedidorInput?.files ? Array.from(fotosMedidorInput.files) : [];
+            if (fotos.length > 10) {
+                alert('Máximo 10 fotos del medidor por inspección.');
+                return false;
+            }
+            const noImagen = fotos.find(file => !file.type?.startsWith('image/'));
+            if (noImagen) {
+                alert('Solo se permiten imágenes en Fotografías del medidor.');
+                return false;
+            }
+
             return true;
+        }
+
+        async function uploadFotosMedidor(files, poliza) {
+            if (!files || files.length === 0) return [];
+
+            const safePoliza = (poliza || 'sin-poliza').replace(/[^a-zA-Z0-9_-]/g, '_');
+            const timestamp = Date.now();
+            const uploads = [];
+
+            for (const file of files) {
+                if (!file.type?.startsWith('image/')) continue;
+                const cleanName = (file.name || 'foto-medidor').replace(/[^a-zA-Z0-9._-]/g, '_');
+                const path = `inspecciones/${safePoliza}/medidor/${timestamp}_${cleanName}`;
+                const fileRef = ref(storage, path);
+                const snap = await uploadBytes(fileRef, file);
+                const url = await getDownloadURL(snap.ref);
+                uploads.push({
+                    nombre: cleanName,
+                    tipo: file.type,
+                    tamano: file.size,
+                    path,
+                    url
+                });
+            }
+
+            return uploads;
         }
 
         // 3. Sincronización P4 (EL CEREBRO DE LA GENERACIÓN DE TEXTO)
@@ -1238,6 +1281,16 @@
                     horaSalida: trimOrNull(document.getElementById('horaSalida')?.value)
                 };
 
+                const fotosMedidorInput = document.getElementById('fotosMedidor');
+                let fotosMedidor = [];
+                try {
+                    fotosMedidor = await uploadFotosMedidor(fotosMedidorInput?.files, flat.poliza);
+                } catch (err) {
+                    console.error(err);
+                    alert("❌ Error al subir fotografías del medidor.");
+                    return;
+                }
+
                 // C. Construir Objeto Completo
                 const registro = {
                     createdAt: new Date().toISOString(),
@@ -1264,6 +1317,7 @@
                     inspeccion: {
                         fecha: flat.fechaInspeccion,
                         latlng: flat.latlng,
+                        fotosMedidor,
                         p1: {
                             inicial: computed.lecturaInicial,
                             final: computed.lecturaFinal,
