@@ -177,21 +177,21 @@
             font-size: 12px;
             border: 1px solid #e6eef5;
             border-radius: 8px;
-            padding: 10px;
+            padding: 8px;
             background: #f9fbff;
         }
 
         .equipos-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 8px;
             width: 100%;
         }
 
         .eq-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 6px
         }
 
@@ -199,7 +199,14 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-shrink: 0;
         }
+
+        .eq-header strong {
+            line-height: 1.2;
+            flex: 1;
+        }
+
 
         .qty-btn {
             width: 26px;
@@ -287,7 +294,8 @@
             }
 
             .equipos-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 6px;
             }
         }
 
@@ -462,7 +470,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Presente tambor litraje</label>
                     <div class="binary-group" data-exclusive-group="tamborLitraje">
-                        <label><input type="checkbox" name="tamborLitraje" value="si" required> Sí</label>
+                        <label><input type="checkbox" name="tamborLitraje" value="si"> Sí</label>
                         <label><input type="checkbox" name="tamborLitraje" value="no"> No</label>
                     </div>
                 </div>
@@ -470,7 +478,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Registro litraje</label>
                     <div class="binary-group" data-exclusive-group="registroLitraje">
-                        <label><input type="checkbox" name="registroLitraje" value="si" required> Sí</label>
+                        <label><input type="checkbox" name="registroLitraje" value="si"> Sí</label>
                         <label><input type="checkbox" name="registroLitraje" value="no"> No</label>
                     </div>
                 </div>
@@ -478,7 +486,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>Nivel de accesibilidad</label>
                     <div class="binary-group" id="accesibilidadGroup">
-                        <label><input type="checkbox" name="nivelAccesibilidad" value="G1" required> G1</label>
+                        <label><input type="checkbox" name="nivelAccesibilidad" value="G1"> G1</label>
                         <label><input type="checkbox" name="nivelAccesibilidad" value="G2"> G2</label>
                         <label><input type="checkbox" name="nivelAccesibilidad" value="G3"> G3</label>
                     </div>
@@ -487,7 +495,7 @@
                 <div class="field" style="grid-column:1/-1;">
                     <label>¿Se realiza prueba de litraje?</label>
                     <div class="binary-group" data-exclusive-group="pruebaLitraje" id="pruebaLitrajeGroup">
-                        <label><input type="checkbox" name="pruebaLitraje" value="si" required> Sí</label>
+                        <label><input type="checkbox" name="pruebaLitraje" value="si"> Sí</label>
                         <label><input type="checkbox" name="pruebaLitraje" value="no"> No</label>
                     </div>
                 </div>
