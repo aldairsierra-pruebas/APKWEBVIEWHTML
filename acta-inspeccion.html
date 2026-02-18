@@ -145,8 +145,17 @@
         /* ESTILOS DE EQUIPOS (P2.2) RESTAURADOS */
         .eq-box {
             font-size: 12px;
-            border-bottom: 1px solid #eee;
-            padding: 8px 0;
+            border: 1px solid #e6eef5;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f9fbff;
+        }
+
+        .equipos-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            width: 100%;
         }
 
         .eq-header {
@@ -156,8 +165,28 @@
             gap: 6px
         }
 
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .qty-btn {
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid #b9c7d8;
+            background: #fff;
+            border-radius: 6px;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
         .eq-header input {
-            width: 60px
+            width: 52px;
+            text-align: center;
+            margin-top: 0;
         }
 
         .co-box {
@@ -225,6 +254,10 @@
 
             .section {
                 grid-template-columns: 1fr
+            }
+
+            .equipos-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -417,16 +450,16 @@
         <div class="section collapsible">
             <h2>P2.2 Detección de defectos en aparatos conectados</h2>
             <div class="section-content">
-                <table class="three-col" id="tablaEquipos" style="width:100%; border-collapse: collapse;"></table>
+                <div id="tablaEquipos" class="equipos-grid"></div>
             </div>
         </div>
 
-        <div class="section collapsible">
+        <div class="section collapsible" id="sectionP4">
             <h2>P4. Descripción de verificación</h2>
             <div class="section-content">
                 <div id="p4Contenedor" class="muted">Seleccione defectos en P2 para generar esta sección.</div>
                 <hr>
-                <div class="field"><label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="10"></textarea></div>
+                <div class="field"><label>Observaciones globales (Manual)</label><textarea id="observacionesGlobal" name="observacionesGlobal" rows="3" maxlength="500"></textarea></div>
                 <div class="field"><label id="precintoLabel" class="hidden">Precinto Global (solo si hay crítico)</label><input type="text" id="precinto" name="precinto" maxlength="50" class="hidden"></div>
             </div>
         </div>
@@ -601,15 +634,17 @@
             if (!tabla) return;
             tabla.innerHTML = ''; // Limpiar
 
-            // Grid simple en JS para insertar filas
             EQUIPOS_ORDER.forEach((eq) => {
-                const row = tabla.insertRow();
-                const cell = row.insertCell();
-                cell.className = 'eq-box';
-                cell.innerHTML = `
+                const card = document.createElement('div');
+                card.className = 'eq-box';
+                card.innerHTML = `
           <div class="eq-header">
             <strong>${eq.name}</strong>
-            <input type="number" min="0" value="0" data-eq="${eq.id}" class="qty" style="width:60px">
+            <div class="qty-controls">
+                <button type="button" class="qty-btn" data-action="minus" data-eq="${eq.id}" aria-label="Restar ${eq.name}">−</button>
+                <input type="number" min="0" value="0" data-eq="${eq.id}" class="qty">
+                <button type="button" class="qty-btn" data-action="plus" data-eq="${eq.id}" aria-label="Sumar ${eq.name}">+</button>
+            </div>
           </div>
           <div id="co_${eq.id}" class="co-box hidden">
             <input type="number" min="0" placeholder="CO ppm" style="width:100px">
@@ -619,6 +654,7 @@
           </div>
           <div class="selected-list" id="list_${eq.id}"></div>
         `;
+                tabla.appendChild(card);
             });
         }
 
@@ -655,6 +691,34 @@
             syncP4(); // Regenerar textos
         };
 
+        function updateEquipoVisibility(eq, qty) {
+            const coBox = document.getElementById('co_' + eq);
+            const btn = document.getElementById('btn_' + eq);
+            const list = document.getElementById('list_' + eq);
+            if (!coBox || !btn || !list) return;
+
+            if (qty > 0) {
+                coBox.classList.remove('hidden');
+                btn.classList.remove('hidden');
+            } else {
+                coBox.classList.add('hidden');
+                btn.classList.add('hidden');
+                list.innerHTML = '';
+                defectosPorEquipo[eq] = [];
+                syncP4();
+            }
+        }
+
+        function expandSectionP4() {
+            const section = document.getElementById('sectionP4');
+            if (!section) return;
+            const content = section.querySelector('.section-content');
+            if (!content) return;
+
+            section.classList.remove('collapsed');
+            content.style.maxHeight = content.scrollHeight + 'px';
+        }
+
         // 3. Sincronización P4 (EL CEREBRO DE LA GENERACIÓN DE TEXTO)
         function syncP4() {
             const p4Cont = document.getElementById('p4Contenedor');
@@ -672,6 +736,7 @@
                 p4Cont.innerHTML = '<span class="muted">Seleccione defectos en la sección P2 para generar observaciones automáticas aquí.</span>';
                 document.getElementById('precinto').classList.add('hidden');
                 document.getElementById('precintoLabel').classList.add('hidden');
+                expandSectionP4();
                 return;
             }
 
@@ -752,6 +817,8 @@
                 precintoGlobal.classList.add('hidden');
                 precintoLabel.classList.add('hidden');
             }
+
+            expandSectionP4();
         }
 
         // 4. Recolectores de Datos Complejos (para Firebase)
@@ -822,26 +889,27 @@
             // 1. Renderizar tabla vacía
             renderEquipos();
 
-            // 2. Listeners para Inputs de Cantidad (mostrar CO y botón defectos)
+            // 2. Listeners para Inputs/Botones de Cantidad (mostrar CO y botón defectos)
             document.addEventListener('input', e => {
                 if (e.target.classList.contains('qty')) {
                     const eq = e.target.dataset.eq;
-                    const qty = Number(e.target.value || 0);
-                    const coBox = document.getElementById('co_' + eq);
-                    const btn = document.getElementById('btn_' + eq);
-                    const list = document.getElementById('list_' + eq);
-
-                    if (qty > 0) {
-                        coBox.classList.remove('hidden');
-                        btn.classList.remove('hidden');
-                    } else {
-                        coBox.classList.add('hidden');
-                        btn.classList.add('hidden');
-                        list.innerHTML = '';
-                        defectosPorEquipo[eq] = [];
-                        syncP4();
-                    }
+                    const qty = Math.max(0, Number(e.target.value || 0));
+                    e.target.value = qty;
+                    updateEquipoVisibility(eq, qty);
                 }
+            });
+
+            document.addEventListener('click', e => {
+                if (!e.target.classList.contains('qty-btn')) return;
+                const eq = e.target.dataset.eq;
+                const action = e.target.dataset.action;
+                const qtyInput = document.querySelector(`.qty[data-eq="${eq}"]`);
+                if (!qtyInput) return;
+
+                const current = Math.max(0, Number(qtyInput.value || 0));
+                const next = action === 'plus' ? current + 1 : Math.max(0, current - 1);
+                qtyInput.value = next;
+                updateEquipoVisibility(eq, next);
             });
 
             // 3. Listener para Checkboxes P2.1 (Sync P4)
