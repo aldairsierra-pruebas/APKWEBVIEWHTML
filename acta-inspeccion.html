@@ -1291,58 +1291,67 @@
                     return;
                 }
 
-                // C. Construir Objeto Completo
+                // C. Construir Objeto seccionado tal cual el cuestionario
+                const pruebaLitrajeNo = document.querySelector('input[name="pruebaLitraje"][value="no"]')?.checked;
+                const ccauVisible = !document.getElementById('sectionDatosExtras')?.classList.contains('hidden');
+
                 const registro = {
                     createdAt: new Date().toISOString(),
-                    // Guardamos el flat también por seguridad
-                    formFields: flat,
-
-                    // Estructura Organizada
-                    cliente: {
-                        poliza: flat.poliza,
-                        nombre: flat.nombre,
-                        telefono: flat.telefono,
-                        celular: flat.celular,
-                        email: flat.email,
-                        fechaNacimiento: flat.fechaNacimiento,
-                        identificacion: flat.identificacionCliente,
-                        titularServicio: flat.titularServicio,
-                        parentesco: flat.parentesco
-                    },
-                    fechas: {
-                        solicitud: flat.fechaSolicitud,
-                        requerida: flat.fechaRequerida,
-                        vencimiento: flat.fechaVencimiento
-                    },
-                    inspeccion: {
-                        fecha: flat.fechaInspeccion,
-                        latlng: flat.latlng,
-                        fotosMedidor,
-                        p1: {
-                            inicial: computed.lecturaInicial,
-                            final: computed.lecturaFinal,
-                            diff: computed.diferencia
+                    cuestionario: {
+                        datosCliente: {
+                            poliza: flat.poliza,
+                            nombre: flat.nombre,
+                            telefono: flat.telefono,
+                            celular: flat.celular,
+                            fechaNacimiento: flat.fechaNacimiento,
+                            email: flat.email,
+                            identificacionPresentada: flat.identificacionCliente,
+                            titularServicio: flat.titularServicio,
+                            parentesco: flat.parentesco,
+                            fechasReg: {
+                                fechaSolicitud: flat.fechaSolicitud,
+                                fechaRequerida: flat.fechaRequerida,
+                                fechaVencimiento: flat.fechaVencimiento
+                            }
+                        },
+                        datosMedidor: {
+                            fechaInspeccion: flat.fechaInspeccion,
+                            latlng: flat.latlng,
+                            presenteTamborLitraje: flat.tamborLitraje,
+                            registroLitraje: flat.registroLitraje,
+                            nivelAccesibilidad: flat.nivelAccesibilidad,
+                            pruebaLitraje: flat.pruebaLitraje,
+                            lecturaActual: flat.lecturaActual,
+                            fotografiasMedidor: fotosMedidor
+                        },
+                        p1PruebaLitrajeInicial: {
+                            visible: !pruebaLitrajeNo,
+                            lecturaInicial: computed.lecturaInicial,
+                            lecturaFinal: computed.lecturaFinal,
+                            diferencia: computed.diferencia
+                        },
+                        p2SeguimientoIDA: {
+                            visible: !pruebaLitrajeNo,
+                            p21DefectosIDA: p21,
+                            p22AparatosConectados: equipos
+                        },
+                        p4DescripcionVerificacion: {
+                            observacionesGlobales: flat.observacionesGlobal,
+                            precintoGlobal: flat.precinto,
+                            descripcionesGeneradas: p4Generado
+                        },
+                        ccau: {
+                            visible: ccauVisible,
+                            clienteAvisoCcau: flat.clienteAvisoCcau,
+                            numeroAvisoCcau: flat.numAvisoCcau,
+                            tipoRevision: flat.tipoRevision
+                        },
+                        tecnico: {
+                            nombreTecnico: flat.nombreTecnico,
+                            empresaColaboradora: flat.empresaTecnico,
+                            numeroTecnico: flat.numTecnico,
+                            horaSalida: computed.horaSalida
                         }
-                    },
-                    p2: {
-                        ida: p21,
-                        aparatos: equipos
-                    },
-                    p4: {
-                        observacionesGlobal: flat.observacionesGlobal,
-                        precintoGlobal: flat.precinto,
-                        generados: p4Generado
-                    },
-                    extras: {
-                        avisoCcau: flat.clienteAvisoCcau,
-                        numAviso: flat.numAvisoCcau,
-                        tipoRevision: flat.tipoRevision
-                    },
-                    tecnico: {
-                        nombre: flat.nombreTecnico,
-                        empresa: flat.empresaTecnico,
-                        numero: flat.numTecnico,
-                        horaSalida: computed.horaSalida
                     }
                 };
 
