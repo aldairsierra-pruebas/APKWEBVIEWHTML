@@ -137,6 +137,13 @@
     #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
     #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
 
+    #importModal .modal { margin: 4% auto; width: 96%; max-width: 1200px; max-height: 88%; }
+    #importExcelTable { width:100%; border-collapse: collapse; font-size: 13px; }
+    #importExcelTable th, #importExcelTable td { border:1px solid #ddd; padding:6px; text-align:left; min-width:120px; }
+    #importExcelTable th { background:#f8f9fa; position: sticky; top: 0; z-index: 2; }
+    #importExcelTable td[contenteditable="true"] { background: #fffef2; }
+    #importStatus { font-size:12px; color:#555; }
+
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
   </style>
@@ -225,10 +232,44 @@
       </div>
     </div>
   </div>
+  <div id="importModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h3 style="margin:0;">Importar base (pegar desde Excel)</h3>
+        <button id="closeImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <p style="margin:8px 0 6px; font-size:13px; color:#555;">Copia desde Excel y pega en la primera celda amarilla. El orden es: Póliza, calle, Número finca, Colonia, Municipio, Nombre Contratante, Empresa, Inspector, Adicional.</p>
+      <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
+        <button id="addImportRowBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">+ Fila</button>
+        <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
+        <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
+      </div>
+      <div id="importStatus">Listo para pegar datos.</div>
+      <div style="overflow:auto; margin-top:10px; max-height:58vh;">
+        <table id="importExcelTable">
+          <thead>
+            <tr>
+              <th>Póliza</th>
+              <th>calle</th>
+              <th>Número finca</th>
+              <th>Colonia</th>
+              <th>Municipio</th>
+              <th>Nombre Contratante</th>
+              <th>Empresa</th>
+              <th>Inspector</th>
+              <th>Adicional</th>
+            </tr>
+          </thead>
+          <tbody id="importExcelTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -243,32 +284,52 @@
     const db = getFirestore(app);
 
     window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
-      const data = Array.isArray(window.currentData) ? window.currentData : [];
+      const source = Array.isArray(window.pendingImportData) && window.pendingImportData.length ? window.pendingImportData : window.currentData;
+      const data = Array.isArray(source) ? source : [];
       if (!data.length) { alert('No hay datos cargados para importar.'); return; }
       if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
 
+      const importedAt = new Date().toISOString();
+      const globalCollection = collection(db, 'BasePolizasGlobal');
+      const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
+
       let ok = 0;
       let fail = 0;
+
+      // Limpiar tabla de última actualización
+      const latestSnapshot = await getDocs(latestCollection);
+      for (const d of latestSnapshot.docs) {
+        await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+      }
+
+      // Usamos addDoc para evitar dependencia en IDs únicos de póliza
       for (const row of data) {
+        const payload = {
+          poliza: row['Póliza'] || '',
+          calle: row['calle'] || '',
+          numeroFinca: row['Número finca'] || '',
+          colonia: row['Colonia'] || '',
+          municipio: row['Municipio'] || '',
+          nombreContratante: row['Nombre Contratante'] || '',
+          empresa: row['Empresa'] || '',
+          inspector: row['Inspector'] || '',
+          adicional: row['Adicional'] || '',
+          lat: row.lat || '',
+          lng: row.lng || '',
+          importadoEn: importedAt
+        };
+
         try {
-          await addDoc(collection(db, 'BasePolizas'), {
-            poliza: row['Póliza'] || '',
-            nombre: row['Nombre Contratante'] || '',
-            calle: row['calle'] || '',
-            numeroFinca: row['Número finca'] || '',
-            colonia: row['Colonia'] || '',
-            inspector: row['Inspector'] || '',
-            adicional: row['Adicional'] || '',
-            lat: row.lat || '',
-            lng: row.lng || '',
-            importadoEn: new Date().toISOString()
-          });
+          await addDoc(globalCollection, payload);
+          await addDoc(latestCollection, payload);
           ok++;
         } catch (err) {
           console.error('Error importando registro', row, err);
           fail++;
         }
       }
+
+      window.pendingImportData = null;
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
 
@@ -675,9 +736,158 @@
     document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
     document.getElementById('hideBtn').addEventListener('click', hideTable);
 
-    document.getElementById('importFirebaseBtn').addEventListener('click', () => {
-      if (typeof window.importDatabaseToFirebase === 'function') window.importDatabaseToFirebase();
-      else alert('Firebase aún no está listo.');
+    const importModal = document.getElementById('importModal');
+    const importExcelTbody = document.getElementById('importExcelTbody');
+    const importStatus = document.getElementById('importStatus');
+    const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
+
+    function setImportStatus(text) {
+      importStatus.textContent = text;
+    }
+
+    function createImportRow(cells = []) {
+      const tr = document.createElement('tr');
+      importColumns.forEach((_, idx) => {
+        const td = document.createElement('td');
+        td.contentEditable = 'true';
+        td.textContent = cells[idx] || '';
+        tr.appendChild(td);
+      });
+      importExcelTbody.appendChild(tr);
+      return tr;
+    }
+
+    function ensureImportRows(min = 12) {
+      while (importExcelTbody.children.length < min) createImportRow();
+    }
+
+    function clearImportTable() {
+      importExcelTbody.innerHTML = '';
+      ensureImportRows();
+      setImportStatus('Tabla limpia. Lista para pegar datos.');
+    }
+
+    function openImportModal() {
+      importModal.style.display = 'block';
+      importModal.setAttribute('aria-hidden', 'false');
+      if (!importExcelTbody.children.length) ensureImportRows();
+    }
+
+    function closeImportModal() {
+      importModal.style.display = 'none';
+      importModal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function geocodeAddress(row) {
+      const parts = [row['calle'], row['Número finca'], row['Colonia'], row['Municipio'], 'México']
+        .map(v => (v || '').toString().trim())
+        .filter(Boolean);
+      const q = parts.join(', ');
+      if (!q) return { lat: '', lng: '' };
+
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=${encodeURIComponent(q)}`;
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        if (!response.ok) return { lat: '', lng: '' };
+        const list = await response.json();
+        if (!Array.isArray(list) || !list.length) return { lat: '', lng: '' };
+        return { lat: String(list[0].lat || ''), lng: String(list[0].lon || '') };
+      } catch (_) {
+        return { lat: '', lng: '' };
+      }
+    }
+
+    async function processPastedImport() {
+      const rows = Array.from(importExcelTbody.querySelectorAll('tr'));
+      const parsed = rows.map(tr => {
+        const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
+        const obj = {};
+        importColumns.forEach((name, i) => { obj[name] = cells[i] || ''; });
+        return obj;
+      }).filter(r => importColumns.some(c => r[c]));
+
+      if (!parsed.length) {
+        alert('No hay datos para procesar.');
+        return;
+      }
+
+      setImportStatus(`Procesando ${parsed.length} filas...`);
+      const geocoded = [];
+      let found = 0;
+      for (let i = 0; i < parsed.length; i++) {
+        const row = parsed[i];
+        setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
+        const geo = await geocodeAddress(row);
+        if (geo.lat && geo.lng) found++;
+        geocoded.push({ ...row, lat: geo.lat, lng: geo.lng });
+        await delay(250);
+      }
+
+      window.pendingImportData = geocoded;
+      currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+      window.currentData = currentData;
+      filteredStreet = null;
+      filteredAdicional = null;
+      if (currentSort.column !== null) applySort();
+      renderAll();
+      showTable();
+
+      setImportStatus(`Geocoding completado. Coordenadas encontradas: ${found}/${parsed.length}. Guardando en Firebase...`);
+
+      if (typeof window.importDatabaseToFirebase === 'function') {
+        await window.importDatabaseToFirebase();
+      } else {
+        alert('Firebase aún no está listo.');
+      }
+
+      setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}.`);
+    }
+
+    importExcelTbody.addEventListener('paste', (event) => {
+      const text = event.clipboardData?.getData('text/plain') || '';
+      if (!text) return;
+      event.preventDefault();
+
+      const rowChunks = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+      const matrix = rowChunks.map(r => r.split('\t'));
+      if (!matrix.length) return;
+
+      const activeCell = document.activeElement;
+      let startRow = 0;
+      let startCol = 0;
+
+      if (activeCell && activeCell.tagName === 'TD' && activeCell.parentElement?.parentElement === importExcelTbody) {
+        const tr = activeCell.parentElement;
+        startRow = Array.from(importExcelTbody.children).indexOf(tr);
+        startCol = Array.from(tr.children).indexOf(activeCell);
+      }
+
+      while (importExcelTbody.children.length < startRow + matrix.length) createImportRow();
+
+      matrix.forEach((cells, rIdx) => {
+        const tr = importExcelTbody.children[startRow + rIdx];
+        cells.forEach((value, cIdx) => {
+          const col = startCol + cIdx;
+          if (col >= importColumns.length) return;
+          const td = tr.children[col];
+          if (td) td.textContent = value.trim();
+        });
+      });
+
+      setImportStatus(`Pegado completado: ${matrix.length} fila(s).`);
+    });
+
+    document.getElementById('importFirebaseBtn').addEventListener('click', openImportModal);
+    document.getElementById('closeImportModalBtn').addEventListener('click', closeImportModal);
+    document.getElementById('addImportRowBtn').addEventListener('click', () => createImportRow());
+    document.getElementById('clearImportTableBtn').addEventListener('click', clearImportTable);
+    document.getElementById('processImportBtn').addEventListener('click', processPastedImport);
+    importModal.addEventListener('click', (e) => {
+      if (e.target === importModal) closeImportModal();
     });
 
     const inspectionsModal = document.getElementById('inspectionsModal');
