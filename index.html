@@ -262,6 +262,12 @@
         <small style="color:#666;">Si defines esta URL, se usa primero (más preciso para número exterior). Si falla, usa respaldo automático.</small>
       </div>
       <div id="importStatus">Listo para pegar datos.</div>
+      <div style="margin-top:8px;">
+        <div style="height:8px;background:#e9ecef;border-radius:999px;overflow:hidden;">
+          <div id="importProgressBar" style="height:100%;width:0%;background:#0d6efd;transition:width 0.2s;"></div>
+        </div>
+        <div id="importProgressText" style="font-size:12px;color:#666;margin-top:4px;">0%</div>
+      </div>
       <div style="overflow:auto; margin-top:10px; max-height:58vh;">
         <table id="importExcelTable">
           <thead>
@@ -435,7 +441,8 @@
     // ---------- ESTADO ----------
     const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
     const streetColors = {};
-    let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, filteredColonia = '', filteredFecha = '', userMarker = null;
+    let currentData = [], filteredStreet = null, filteredAdicional = null, filteredColonia = '', filteredFecha = '', userMarker = null;
+    const AppState = { markersByKey: new Map(), markers: [] };
     window.currentData = currentData;
     let currentSort = { column: null, asc: true };
 
@@ -460,6 +467,23 @@
 
     function escapeHtml(text) {
       return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
+    }
+
+    function getRowKey(row, index = 0) {
+      const poliza = (row['Póliza'] || '').toString().trim();
+      const calle = (row['calle'] || '').toString().trim();
+      const numero = (row['Número finca'] || '').toString().trim();
+      const colonia = (row['Colonia'] || '').toString().trim();
+      const fecha = (row.importadoEn || '').toString().trim();
+      return `${poliza}|${calle}|${numero}|${colonia}|${fecha}|${index}`;
+    }
+
+    function resetMarkerStore() {
+      AppState.markers.forEach(m => {
+        if (map.hasLayer(m)) map.removeLayer(m);
+      });
+      AppState.markersByKey.clear();
+      AppState.markers = [];
     }
 
     function createIcon(number, color) {
@@ -554,7 +578,7 @@
       document.getElementById('dataTableBody').innerHTML = '';
       document.getElementById('legend').innerHTML = '';
       for (const k in streetColors) delete streetColors[k];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
+      resetMarkerStore();
       currentData = [];
 
       const mode = document.getElementById('viewModeSelect')?.value || 'latest';
@@ -579,7 +603,6 @@
     function renderAll() {
       const tbody = document.getElementById('dataTableBody');
       tbody.innerHTML = '';
-      markers.forEach(m => map.removeLayer(m)); markers = [];
 
       const list = currentData.filter(r => {
         if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
@@ -589,60 +612,70 @@
         return true;
       });
 
+      const visibleKeys = new Set();
       list.forEach((row, i) => {
+        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const rowKey = row._rowKey || getRowKey(row, i);
+        row._rowKey = rowKey;
+        visibleKeys.add(rowKey);
+
         const street = row["calle"] || 'Sin calle';
         const color = ensureColor(street);
         const icon = createIcon(i+1, color);
-        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
 
-        const marker = L.marker([lat, lng], { icon }).addTo(map);
-        marker._rowData = row;
-        marker._poliza = (row["Póliza"]||'').toString();
-        markers.push(marker);
+        let marker = AppState.markersByKey.get(rowKey);
+        if (!marker) {
+          const popupHtml = `
+            <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
+              <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
+                <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🚗 Google</button>
+                <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🧭 Waze</button>
+                <button class="voice-btn" title="Reproducir/Pausar voz" style="flex:1; background:#28a745; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🔈</button>
+              </div>
 
-        if (isVisited(marker._poliza)) marker.setOpacity(0.4);
+              <div style="padding:6px 8px;">
+                <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
+                <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
+                <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
+                <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
+                <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
+                <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
+              </div>
 
-        // popup (botones arriba, checkbox visitado dentro del popup)
-        const popupHtml = `
-          <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
-            <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
-              <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🚗 Google</button>
-              <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🧭 Waze</button>
-              <button class="voice-btn" title="Reproducir/Pausar voz" style="flex:1; background:#28a745; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🔈</button>
-            </div>
+              <div style="padding:8px;">
+                <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
+                  <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
+                </label>
+              </div>
 
-            <div style="padding:6px 8px;">
-              <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
-              <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
-              <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
-              <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
-              <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
-              <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
-            </div>
+              <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
+              <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
+            </div>`;
 
-            <!-- Checkbox de marcado (solo aquí y en la lista) -->
-            <div style="padding:8px;">
-              <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
-                <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
-              </label>
-            </div>
+          marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
+          marker._rowData = row;
+          marker._poliza = (row["Póliza"]||'').toString();
+          marker._rowKey = rowKey;
+          AppState.markersByKey.set(rowKey, marker);
+          AppState.markers.push(marker);
+        } else {
+          marker._rowData = row;
+          marker._poliza = (row["Póliza"]||'').toString();
+          marker.setIcon(icon);
+          marker.setLatLng([lat, lng]);
+        }
 
-            <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion
-</button>
-
-            <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
-          </div>`;
-
-        marker.bindPopup(popupHtml);
+        if (!map.hasLayer(marker)) marker.addTo(map);
+        marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
 
         const distanciaText = (row._distance && isFinite(row._distance))
           ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
           : '';
 
-        // fila en la tabla con checkbox (esta es una de las dos formas válidas para marcar)
         const polizaVal = (row["Póliza"]||'').toString();
         const visited = isVisited(polizaVal);
-
         const tr = document.createElement('tr');
         tr.style.background = color + '22';
         if (visited) tr.style.opacity = '0.45';
@@ -660,19 +693,14 @@
           <td>${escapeHtml(row["Adicional"]||'')}</td>`;
 
         const checkbox = tr.querySelector('input.list-visited-checkbox');
-
-        // cuando se marca desde la lista, sincronizamos (marker + localStorage + popup si está abierto)
         checkbox.addEventListener('click', (e) => {
-          e.stopPropagation(); // evitar que abra popup por el clic en la fila
+          e.stopPropagation();
           const checked = checkbox.checked;
           setVisited(polizaVal, checked);
           tr.style.opacity = checked ? '0.45' : '1';
-          // ajustar marcador correspondiente
-          const m = markers.find(x => x._poliza === polizaVal);
-          if (m && m.setOpacity) m.setOpacity(checked ? 0.4 : 1);
+          if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
 
-          // si el popup de ese marcador está abierto, también reflejar checkbox dentro del popup
-          markers.forEach(mk => {
+          AppState.markers.forEach(mk => {
             if (mk._poliza === polizaVal && mk.getPopup && mk.getPopup().isOpen && mk.getPopup().isOpen()) {
               const popupEl = mk.getPopup().getElement();
               if (popupEl) {
@@ -683,7 +711,6 @@
           });
         });
 
-        // Al hacer click en la fila: abrir popup y centrar (pero NO marcar)
         tr.addEventListener('click', () => {
           marker.openPopup();
           map.setView([lat, lng], 17);
@@ -691,6 +718,10 @@
         });
 
         tbody.appendChild(tr);
+      });
+
+      AppState.markers.forEach(marker => {
+        if (!visibleKeys.has(marker._rowKey) && map.hasLayer(marker)) map.removeLayer(marker);
       });
     }
 
@@ -772,6 +803,12 @@
         userMarker = L.marker([originLat, originLng]).addTo(map).bindPopup('📍 Inicio de ruta').openPopup();
         map.setView([originLat, originLng], 16);
 
+        const MAX_ROUTE_RECORDS = 500;
+        if (currentData.length > MAX_ROUTE_RECORDS) {
+          alert(`La base tiene ${currentData.length} registros. El modo ruta está limitado a ${MAX_ROUTE_RECORDS} para mantener rendimiento.`);
+          return;
+        }
+
         let pendientes = currentData.slice();
         let rutaOrdenada = [];
 
@@ -829,10 +866,19 @@
     const importModal = document.getElementById('importModal');
     const importExcelTbody = document.getElementById('importExcelTbody');
     const importStatus = document.getElementById('importStatus');
+    const importProgressBar = document.getElementById('importProgressBar');
+    const importProgressText = document.getElementById('importProgressText');
+    const processImportBtn = document.getElementById('processImportBtn');
     const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
 
     function setImportStatus(text) {
       importStatus.textContent = text;
+    }
+
+    function setImportProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      importProgressBar.style.width = `${pct}%`;
+      importProgressText.textContent = `${pct}%`;
     }
 
     function createImportRow(cells = []) {
@@ -855,6 +901,7 @@
       importExcelTbody.innerHTML = '';
       ensureImportRows();
       setImportStatus('Tabla limpia. Lista para pegar datos.');
+      setImportProgress(0, 1);
     }
 
     function openImportModal() {
@@ -954,38 +1001,53 @@
       const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
       if (geocoderInput) localStorage.setItem(GEO_LOCAL_STORAGE_KEY, geocoderInput.value.trim());
 
-      setImportStatus(`Procesando ${parsed.length} filas...`);
-      const geocoded = [];
-      let found = 0;
-      for (let i = 0; i < parsed.length; i++) {
-        const row = parsed[i];
-        setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
-        const geo = await geocodeAddress(row);
-        if (geo.lat && geo.lng) found++;
-        geocoded.push({ ...row, lat: geo.lat, lng: geo.lng, geoProvider: geo.provider || 'none' });
-        await delay(250);
+      processImportBtn.disabled = true;
+      processImportBtn.style.opacity = '0.7';
+      try {
+        setImportProgress(0, parsed.length);
+        setImportStatus(`Procesando ${parsed.length} filas...`);
+        const geocoded = [];
+        let found = 0;
+        for (let i = 0; i < parsed.length; i++) {
+          const row = parsed[i];
+          setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
+          const geo = await geocodeAddress(row);
+          if (geo.lat && geo.lng) found++;
+          geocoded.push({ ...row, lat: geo.lat, lng: geo.lng, geoProvider: geo.provider || 'none' });
+          setImportProgress(i + 1, parsed.length);
+          await delay(250);
+        }
+
+        window.pendingImportData = geocoded;
+        currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        window.currentData = currentData;
+        filteredStreet = null;
+        filteredAdicional = null;
+        if (currentSort.column !== null) applySort();
+        renderAll();
+        showTable();
+
+        const byProvider = geocoded.reduce((acc, r) => {
+          const key = r.geoProvider || 'none';
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {});
+        const withoutCoords = parsed.length - found;
+        setImportStatus(`Geocoding completado. Coordenadas: ${found}/${parsed.length}. Sin coordenadas: ${withoutCoords}. Proveedor: ${JSON.stringify(byProvider)}. Guardando en Firebase...`);
+
+        if (typeof window.importDatabaseToFirebase === 'function') {
+          await window.importDatabaseToFirebase();
+        } else {
+          alert('Firebase aún no está listo.');
+        }
+
+        setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}. Sin coordenadas: ${parsed.length - found}.`);
+        document.getElementById('viewModeSelect').value = 'latest';
+        await loadData();
+      } finally {
+        processImportBtn.disabled = false;
+        processImportBtn.style.opacity = '1';
       }
-
-      window.pendingImportData = geocoded;
-      currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
-      window.currentData = currentData;
-      filteredStreet = null;
-      filteredAdicional = null;
-      if (currentSort.column !== null) applySort();
-      renderAll();
-      showTable();
-
-      setImportStatus(`Geocoding completado. Coordenadas encontradas: ${found}/${parsed.length}. Guardando en Firebase...`);
-
-      if (typeof window.importDatabaseToFirebase === 'function') {
-        await window.importDatabaseToFirebase();
-      } else {
-        alert('Firebase aún no está listo.');
-      }
-
-      setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}.`);
-      document.getElementById('viewModeSelect').value = 'latest';
-      await loadData();
     }
 
     importExcelTbody.addEventListener('paste', (event) => {
@@ -1125,14 +1187,14 @@
       autoModeActive = true;
       document.getElementById('autoNarrarBtn').textContent = '⏹';
 
-      const visibles = markers.filter(m => map.hasLayer(m));
+      const visibles = AppState.markers.filter(m => map.hasLayer(m));
       for (let i = 0; i < visibles.length && autoModeActive; i++) {
         const marker = visibles[i];
         let row = marker._rowData;
         if (!row) {
           const lat = marker.getLatLng().lat;
           const lng = marker.getLatLng().lng;
-          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-6 && Math.abs(parseFloat(r.lng) - lng) < 1e-6);
+          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-5 && Math.abs(parseFloat(r.lng) - lng) < 1e-5);
         }
         if (!row) continue;
         map.setView(marker.getLatLng(), 17);
@@ -1174,8 +1236,6 @@
       }
 
       // Acta button
-      // Acta button
-      // Acta button
 const actaBtn = popupEl.querySelector('.acta-btn');
   if (actaBtn) {
     actaBtn.onclick = (ev) => {
@@ -1212,7 +1272,7 @@ const actaBtn = popupEl.querySelector('.acta-btn');
       if (nextBtn) {
         nextBtn.onclick = (ev) => {
           ev.preventDefault();
-          const visibles = markers.filter(m => map.hasLayer(m));
+          const visibles = AppState.markers.filter(m => map.hasLayer(m));
           if (visibles.length === 0) return;
           let idx = visibles.findIndex(m => m === marker);
           if (idx < 0) return;
@@ -1229,8 +1289,8 @@ const actaBtn = popupEl.querySelector('.acta-btn');
         let markerData = marker && marker._rowData;
         if (!markerData) {
           markerData = currentData.find(r =>
-            Math.abs(parseFloat(r.lat) - markerLat) < 1e-6 &&
-            Math.abs(parseFloat(r.lng) - markerLng) < 1e-6
+            Math.abs(parseFloat(r.lat) - markerLat) < 1e-5 &&
+            Math.abs(parseFloat(r.lng) - markerLng) < 1e-5
           );
         }
         if (markerData) {
