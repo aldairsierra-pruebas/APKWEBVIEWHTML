@@ -330,6 +330,75 @@
       };
     }
 
+    function parseInspectionDate(raw) {
+      if (!raw) return null;
+      const text = String(raw).trim();
+      const direct = new Date(text);
+      if (!isNaN(direct.getTime())) return direct;
+      const m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      if (m) {
+        const day = Number(m[1]);
+        const month = Number(m[2]) - 1;
+        const year = Number(m[3].length === 2 ? `20${m[3]}` : m[3]);
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return null;
+    }
+
+    window.fetchVisitedMapFromFirebase = async function fetchVisitedMapFromFirebase() {
+      const map = {};
+      try {
+        const snapshot = await getDocs(collection(db, 'VisitasPolizas'));
+        snapshot.forEach(d => {
+          const row = d.data() || {};
+          const poliza = (row.poliza || '').toString().trim();
+          if (poliza) map[poliza] = !!row.visited;
+        });
+      } catch (err) {
+        console.warn('No se pudo leer VisitasPolizas', err?.code || err);
+      }
+      return map;
+    };
+
+    window.syncVisitedStatusToFirebase = async function syncVisitedStatusToFirebase(poliza, visited) {
+      const key = (poliza || '').toString().trim();
+      if (!key) return;
+      try {
+        await setDoc(doc(db, 'VisitasPolizas', normalizePolizaDocId(key)), {
+          poliza: key,
+          visited: !!visited,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('No se pudo guardar visita en Firebase', err?.code || err);
+      }
+    };
+
+    window.fetchRecentInspectionMap = async function fetchRecentInspectionMap() {
+      const map = {};
+      try {
+        const snapshot = await getDocs(collection(db, 'Inspecciones'));
+        const threshold = new Date();
+        threshold.setMonth(threshold.getMonth() - 3);
+
+        snapshot.forEach(d => {
+          const row = d.data() || {};
+          const poliza = (row?.cliente?.poliza || '').toString().trim();
+          if (!poliza) return;
+          const dt = parseInspectionDate(row?.inspeccion?.fecha || row?.createdAt || row?.created_at);
+          if (!dt || dt < threshold) return;
+
+          const prev = map[poliza] ? parseInspectionDate(map[poliza]) : null;
+          if (!prev || dt > prev) map[poliza] = dt.toISOString();
+        });
+      } catch (err) {
+        console.warn('No se pudo consultar inspecciones recientes', err?.code || err);
+      }
+      return map;
+    };
+
+
     async function readFirstAvailableCollection(collectionNames = []) {
       for (const name of collectionNames) {
         try {
@@ -633,10 +702,28 @@
         const ready = await waitForFirebaseBridge();
         if (!ready) throw new Error('Firebase no listo');
 
-        const rows = await window.fetchBaseRowsFromFirebase(mode);
+        let rows = await window.fetchBaseRowsFromFirebase(mode);
         if (!rows.length) {
           setImportStatus('No se encontraron registros en las colecciones permitidas de Firebase.');
         }
+
+        const [visitedRemote, recentInspectionMap] = await Promise.all([
+          (typeof window.fetchVisitedMapFromFirebase === 'function') ? window.fetchVisitedMapFromFirebase() : Promise.resolve({}),
+          (typeof window.fetchRecentInspectionMap === 'function') ? window.fetchRecentInspectionMap() : Promise.resolve({})
+        ]);
+
+        visitedMap = { ...visitedMap, ...visitedRemote };
+        localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+
+        rows = rows.map(r => {
+          const pol = (r['Póliza'] || '').toString().trim();
+          const recentDate = recentInspectionMap[pol] || '';
+          return {
+            ...r,
+            _recentInspection: !!recentDate,
+            _recentInspectionDate: recentDate
+          };
+        });
 
         currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
         window.currentData = currentData;
@@ -686,7 +773,7 @@
         let marker = AppState.markersByKey.get(rowKey);
         if (!marker) {
           const popupHtml = `
-            <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
+            <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; padding-bottom:46px; box-sizing:border-box;">
               <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
                 <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🚗 Google</button>
                 <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🧭 Waze</button>
@@ -700,9 +787,10 @@
                 <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
                 <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
                 <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
+              ${row._recentInspection ? `<strong style="color:#dc3545;">⚠️ Inspección ya realizada (últimos 3 meses)</strong><br/>` : ''}
               </div>
 
-              <div style="padding:8px;">
+              <div style="padding:8px; margin-bottom:8px;">
                 <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
                   <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
                 </label>
@@ -755,6 +843,7 @@
           e.stopPropagation();
           const checked = checkbox.checked;
           setVisited(polizaVal, checked);
+          if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(polizaVal, checked);
           tr.style.opacity = checked ? '0.45' : '1';
           if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
 
@@ -1294,36 +1383,48 @@
       }
 
       // Acta button
-const actaBtn = popupEl.querySelector('.acta-btn');
-  if (actaBtn) {
-    actaBtn.onclick = (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-  
-      const row = marker._rowData;
-      if (!row) {
-        alert("No se encontraron datos de la póliza");
-        return;
+      const actaBtn = popupEl.querySelector('.acta-btn');
+      if (actaBtn) {
+        const row = marker._rowData || {};
+        if (row._recentInspection) {
+          actaBtn.disabled = true;
+          actaBtn.textContent = 'Inspección reciente';
+          actaBtn.style.background = '#6c757d';
+          actaBtn.style.cursor = 'not-allowed';
+          actaBtn.title = 'Esta póliza ya tiene inspección registrada en los últimos 3 meses';
+          actaBtn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
+          };
+        } else {
+          actaBtn.disabled = false;
+          actaBtn.textContent = 'Inspeccion';
+          actaBtn.style.background = '#0d6efd';
+          actaBtn.style.cursor = 'pointer';
+          actaBtn.title = '';
+
+          actaBtn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const rowData = marker._rowData;
+            if (!rowData) {
+              alert('No se encontraron datos de la póliza');
+              return;
+            }
+
+            const url = new URL('https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html');
+            url.searchParams.set('poliza', rowData['Póliza'] || '');
+            url.searchParams.set('nombre', rowData['Nombre Contratante'] || '');
+            url.searchParams.set('direccion', `${rowData['calle'] || ''} ${rowData['Número finca'] || ''}`);
+            url.searchParams.set('lat', rowData.lat || '');
+            url.searchParams.set('lng', rowData.lng || '');
+
+            window.open(url.toString(), '_blank');
+          };
+        }
       }
-  
-      const url = new URL(
-        "https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html"
-      );
-  
-      url.searchParams.set("poliza", row["Póliza"] || "");
-      url.searchParams.set("nombre", row["Nombre Contratante"] || "");
-      url.searchParams.set(
-        "direccion",
-        `${row["calle"] || ""} ${row["Número finca"] || ""}`
-      );
-      url.searchParams.set("lat", row.lat || "");
-      url.searchParams.set("lng", row.lng || "");
-  
-      window.open(url.toString(), "_blank");
-    };
-  }
-
-
 
       // Next button (NO marca automáticamente)
       const nextBtn = popupEl.querySelector('.popup-next-btn');
@@ -1372,6 +1473,7 @@ const actaBtn = popupEl.querySelector('.acta-btn');
         popupCb._handler = (ev) => {
           const checked = popupCb.checked;
           setVisited(poliza, checked);
+          if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(poliza, checked);
 
           // update marker appearance
           if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
