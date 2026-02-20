@@ -413,22 +413,8 @@
       return [];
     }
 
-    window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
-      let rows = [];
-      if (mode === 'global') {
-        try {
-          const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
-          snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: 'importaciones' }));
-        } catch (err) {
-          console.warn('collectionGroup(importaciones) no disponible, usando fallback', err?.code || err);
-          rows = await readFirstAvailableCollection(['BasePolizasGlobal', 'BasePolizas']);
-        }
-      } else {
-        rows = await readFirstAvailableCollection(['BasePolizasUltimaActualizacion', 'BasePolizas']);
-      }
-
-      rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
-      return rows.map(r => ({
+    function normalizeBaseRow(r = {}) {
+      return {
         'Póliza': r.poliza || '',
         'calle': r.calle || '',
         'Número finca': r.numeroFinca || r.numero_finca || '',
@@ -441,7 +427,55 @@
         lat: r.lat || '',
         lng: r.lng || '',
         importadoEn: r.importadoEn || ''
-      }));
+      };
+    }
+
+    function pickLatestImportBatch(rows = []) {
+      if (!rows.length) return [];
+      const sorted = rows.slice().sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+      const latestStamp = sorted[0]?.importadoEn || '';
+      if (!latestStamp) return sorted;
+      return sorted.filter(r => (r.importadoEn || '') === latestStamp);
+    }
+
+    async function readGlobalImportacionesRows() {
+      try {
+        const rows = [];
+        const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
+        snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: 'importaciones' }));
+        return rows;
+      } catch (err) {
+        console.warn('No se pudo leer collectionGroup(importaciones)', err?.code || err);
+        return [];
+      }
+    }
+
+    window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
+      let rows = [];
+
+      if (mode === 'global') {
+        rows = await readGlobalImportacionesRows();
+        if (!rows.length) {
+          rows = await readFirstAvailableCollection(['BasePolizas', 'BasePolizasUltimaActualizacion']);
+        }
+      } else {
+        // 1) Preferir snapshot de última actualización
+        rows = await readFirstAvailableCollection(['BasePolizasUltimaActualizacion']);
+
+        // 2) Fallback crítico: reconstruir "última importación" desde global/importaciones
+        if (!rows.length) {
+          const globalRows = await readGlobalImportacionesRows();
+          rows = pickLatestImportBatch(globalRows);
+        }
+
+        // 3) Último fallback legacy
+        if (!rows.length) {
+          rows = await readFirstAvailableCollection(['BasePolizas']);
+        }
+      }
+
+      rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+      return rows.map(normalizeBaseRow);
     };
 
     window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
@@ -704,7 +738,7 @@
 
         let rows = await window.fetchBaseRowsFromFirebase(mode);
         if (!rows.length) {
-          setImportStatus('No se encontraron registros en las colecciones permitidas de Firebase.');
+          setImportStatus('No se encontraron registros. Verifica reglas de lectura para BasePolizasUltimaActualizacion/BasePolizasGlobal/importaciones/BasePolizas.');
         }
 
         const [visitedRemote, recentInspectionMap] = await Promise.all([
