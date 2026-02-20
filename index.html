@@ -137,6 +137,13 @@
     #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
     #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
 
+    #importModal .modal { margin: 4% auto; width: 96%; max-width: 1200px; max-height: 88%; }
+    #importExcelTable { width:100%; border-collapse: collapse; font-size: 13px; }
+    #importExcelTable th, #importExcelTable td { border:1px solid #ddd; padding:6px; text-align:left; min-width:120px; }
+    #importExcelTable th { background:#f8f9fa; position: sticky; top: 0; z-index: 2; }
+    #importExcelTable td[contenteditable="true"] { background: #fffef2; }
+    #importStatus { font-size:12px; color:#555; }
+
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
   </style>
@@ -165,6 +172,17 @@
     <div id="controls">
       <button id="filterBtn">📍 Filtrar calle</button>
       <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
+      <select id="viewModeSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="latest" selected>Última carga</option>
+        <option value="global">Global histórico</option>
+      </select>
+      <select id="filterColoniaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="">Colonia: todas</option>
+      </select>
+      <select id="filterFechaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="">Fecha importación: todas</option>
+      </select>
+      <button id="reloadFirebaseBtn">⟳ Ver datos</button>
       <button id="hideBtn">⬇️ Ocultar</button>
       <div id="legend" style="flex:1;"></div>
     </div>
@@ -225,10 +243,56 @@
       </div>
     </div>
   </div>
+  <div id="importModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h3 style="margin:0;">Importar base (pegar desde Excel)</h3>
+        <button id="closeImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <p style="margin:8px 0 6px; font-size:13px; color:#555;">Copia desde Excel y pega en la primera celda amarilla. El orden es: Póliza, calle, Número finca, Colonia, Municipio, Nombre Contratante, Empresa, Inspector, Adicional.</p>
+      <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
+        <button id="addImportRowBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">+ Fila</button>
+        <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
+        <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
+      </div>
+      <div style="display:grid; gap:6px; margin-bottom:8px;">
+        <label style="font-size:12px; color:#444;">URL Web App (Apps Script Maps.newGeocoder) - opcional y recomendado
+          <input id="appsScriptGeocoderUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%; margin-top:4px; padding:6px 8px; border:1px solid #ddd; border-radius:6px;">
+        </label>
+        <small style="color:#666;">Si defines esta URL, se usa primero (más preciso para número exterior). Si falla, usa respaldo automático.</small>
+      </div>
+      <div id="importStatus">Listo para pegar datos.</div>
+      <div style="margin-top:8px;">
+        <div style="height:8px;background:#e9ecef;border-radius:999px;overflow:hidden;">
+          <div id="importProgressBar" style="height:100%;width:0%;background:#0d6efd;transition:width 0.2s;"></div>
+        </div>
+        <div id="importProgressText" style="font-size:12px;color:#666;margin-top:4px;">0%</div>
+      </div>
+      <div style="overflow:auto; margin-top:10px; max-height:58vh;">
+        <table id="importExcelTable">
+          <thead>
+            <tr>
+              <th>Póliza</th>
+              <th>calle</th>
+              <th>Número finca</th>
+              <th>Colonia</th>
+              <th>Municipio</th>
+              <th>Nombre Contratante</th>
+              <th>Empresa</th>
+              <th>Inspector</th>
+              <th>Adicional</th>
+            </tr>
+          </thead>
+          <tbody id="importExcelTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -242,33 +306,100 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    function normalizePolizaDocId(poliza) {
+      const raw = (poliza || '').toString().trim();
+      if (!raw) return 'SIN_POLIZA';
+      return raw.replace(/\//g, '_');
+    }
+
+    function mapToPayload(row, importedAt) {
+      return {
+        poliza: row['Póliza'] || '',
+        calle: row['calle'] || '',
+        numeroFinca: row['Número finca'] || '',
+        colonia: row['Colonia'] || '',
+        municipio: row['Municipio'] || '',
+        nombreContratante: row['Nombre Contratante'] || '',
+        empresa: row['Empresa'] || '',
+        inspector: row['Inspector'] || '',
+        adicional: row['Adicional'] || '',
+        lat: row.lat || '',
+        lng: row.lng || '',
+        importadoEn: importedAt
+      };
+    }
+
+    window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
+      const rows = [];
+      if (mode === 'global') {
+        const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
+        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      } else {
+        const snapshot = await getDocs(collection(db, 'BasePolizasUltimaActualizacion'));
+        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      }
+
+      rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+      return rows.map(r => ({
+        'Póliza': r.poliza || '',
+        'calle': r.calle || '',
+        'Número finca': r.numeroFinca || '',
+        'Colonia': r.colonia || '',
+        'Municipio': r.municipio || '',
+        'Nombre Contratante': r.nombreContratante || '',
+        'Empresa': r.empresa || '',
+        'Inspector': r.inspector || '',
+        'Adicional': r.adicional || '',
+        lat: r.lat || '',
+        lng: r.lng || '',
+        importadoEn: r.importadoEn || ''
+      }));
+    };
+
     window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
-      const data = Array.isArray(window.currentData) ? window.currentData : [];
+      const source = Array.isArray(window.pendingImportData) && window.pendingImportData.length ? window.pendingImportData : window.currentData;
+      const data = Array.isArray(source) ? source : [];
       if (!data.length) { alert('No hay datos cargados para importar.'); return; }
       if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
 
+      const importedAt = new Date().toISOString();
+      const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
+
       let ok = 0;
       let fail = 0;
+
+      // Limpiar tabla de última actualización
+      const latestSnapshot = await getDocs(latestCollection);
+      for (const d of latestSnapshot.docs) {
+        await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+      }
+
       for (const row of data) {
+        const payload = mapToPayload(row, importedAt);
+
         try {
-          await addDoc(collection(db, 'BasePolizas'), {
-            poliza: row['Póliza'] || '',
-            nombre: row['Nombre Contratante'] || '',
-            calle: row['calle'] || '',
-            numeroFinca: row['Número finca'] || '',
-            colonia: row['Colonia'] || '',
-            inspector: row['Inspector'] || '',
-            adicional: row['Adicional'] || '',
-            lat: row.lat || '',
-            lng: row.lng || '',
-            importadoEn: new Date().toISOString()
-          });
+          const polizaDocId = normalizePolizaDocId(payload.poliza);
+          const polizaDocRef = doc(db, 'BasePolizasGlobal', polizaDocId);
+
+          await setDoc(polizaDocRef, {
+            poliza: payload.poliza,
+            actualizadoEn: importedAt,
+            ultimaImportacion: payload.importadoEn
+          }, { merge: true });
+
+          // Registro consecutivo por fecha dentro de cada póliza (permite misma póliza en distintos meses/años)
+          await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
+
+          // Snapshot de última actualización para vista por defecto
+          await addDoc(latestCollection, payload);
           ok++;
         } catch (err) {
           console.error('Error importando registro', row, err);
           fail++;
         }
       }
+
+      window.pendingImportData = null;
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
 
@@ -310,7 +441,8 @@
     // ---------- ESTADO ----------
     const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
     const streetColors = {};
-    let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, userMarker = null;
+    let currentData = [], filteredStreet = null, filteredAdicional = null, filteredColonia = '', filteredFecha = '', userMarker = null;
+    const AppState = { markersByKey: new Map(), markers: [] };
     window.currentData = currentData;
     let currentSort = { column: null, asc: true };
 
@@ -335,6 +467,23 @@
 
     function escapeHtml(text) {
       return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
+    }
+
+    function getRowKey(row, index = 0) {
+      const poliza = (row['Póliza'] || '').toString().trim();
+      const calle = (row['calle'] || '').toString().trim();
+      const numero = (row['Número finca'] || '').toString().trim();
+      const colonia = (row['Colonia'] || '').toString().trim();
+      const fecha = (row.importadoEn || '').toString().trim();
+      return `${poliza}|${calle}|${numero}|${colonia}|${fecha}|${index}`;
+    }
+
+    function resetMarkerStore() {
+      AppState.markers.forEach(m => {
+        if (map.hasLayer(m)) map.removeLayer(m);
+      });
+      AppState.markersByKey.clear();
+      AppState.markers = [];
     }
 
     function createIcon(number, color) {
@@ -401,97 +550,132 @@
     }
 
     // ---------- CARGAR DATOS ----------
-    function loadData() {
+    function formatImportDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function populateFirebaseFilters(rows) {
+      const coloniaSelect = document.getElementById('filterColoniaSelect');
+      const fechaSelect = document.getElementById('filterFechaSelect');
+
+      const colonias = Array.from(new Set(rows.map(r => (r['Colonia'] || '').toString().trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+      const fechas = Array.from(new Set(rows.map(r => formatImportDate(r.importadoEn)).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+
+      coloniaSelect.innerHTML = '<option value="">Colonia: todas</option>' + colonias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      fechaSelect.innerHTML = '<option value="">Fecha importación: todas</option>' + fechas.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+
+      coloniaSelect.value = filteredColonia;
+      fechaSelect.value = filteredFecha;
+    }
+
+    async function loadData() {
       document.getElementById('dataTableBody').innerHTML = '';
       document.getElementById('legend').innerHTML = '';
       for (const k in streetColors) delete streetColors[k];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
+      resetMarkerStore();
       currentData = [];
 
-      Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNllSnU8y3ZHSS7QNCpSSxO50Yk_Ugnf7Cc88Q6XX2zn_6gAeTrkMBlX_SmeallPV6UgPEzt-aXvma/pub?gid=0&single=true&output=csv", {
-        download: true, header: true,
-        complete: function(results) {
-          results.data.forEach(r => {
-            if (!r || (!r.lat && !r.lng)) return;
-            const lat = parseFloat(r.lat), lng = parseFloat(r.lng);
-            if (isNaN(lat) || isNaN(lng)) return;
-            currentData.push(r);
-          });
-          window.currentData = currentData;
-          filteredStreet = null; filteredAdicional = null;
-          if (currentSort.column !== null) applySort();
-          renderAll();
-          showTable();
-        }
-      });
+      const mode = document.getElementById('viewModeSelect')?.value || 'latest';
+      try {
+        if (typeof window.fetchBaseRowsFromFirebase !== 'function') throw new Error('Firebase no listo');
+        const rows = await window.fetchBaseRowsFromFirebase(mode);
+        currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        window.currentData = currentData;
+        filteredStreet = null;
+        filteredAdicional = null;
+        populateFirebaseFilters(rows);
+        if (currentSort.column !== null) applySort();
+        renderAll();
+        showTable();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudieron cargar datos desde Firebase.');
+      }
     }
 
     // ---------- RENDER LISTA / MARCADORES ----------
     function renderAll() {
       const tbody = document.getElementById('dataTableBody');
       tbody.innerHTML = '';
-      markers.forEach(m => map.removeLayer(m)); markers = [];
 
       const list = currentData.filter(r => {
         if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
         if (filteredAdicional && ( (r["Adicional"]||'').toString() !== filteredAdicional )) return false;
+        if (filteredColonia && ((r['Colonia'] || '').toString() !== filteredColonia)) return false;
+        if (filteredFecha && formatImportDate(r.importadoEn) !== filteredFecha) return false;
         return true;
       });
 
+      const visibleKeys = new Set();
       list.forEach((row, i) => {
+        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const rowKey = row._rowKey || getRowKey(row, i);
+        row._rowKey = rowKey;
+        visibleKeys.add(rowKey);
+
         const street = row["calle"] || 'Sin calle';
         const color = ensureColor(street);
         const icon = createIcon(i+1, color);
-        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
 
-        const marker = L.marker([lat, lng], { icon }).addTo(map);
-        marker._rowData = row;
-        marker._poliza = (row["Póliza"]||'').toString();
-        markers.push(marker);
+        let marker = AppState.markersByKey.get(rowKey);
+        if (!marker) {
+          const popupHtml = `
+            <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
+              <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
+                <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🚗 Google</button>
+                <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🧭 Waze</button>
+                <button class="voice-btn" title="Reproducir/Pausar voz" style="flex:1; background:#28a745; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🔈</button>
+              </div>
 
-        if (isVisited(marker._poliza)) marker.setOpacity(0.4);
+              <div style="padding:6px 8px;">
+                <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
+                <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
+                <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
+                <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
+                <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
+                <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
+              </div>
 
-        // popup (botones arriba, checkbox visitado dentro del popup)
-        const popupHtml = `
-          <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; box-sizing:border-box;">
-            <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
-              <button class="gmaps-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🚗 Google</button>
-              <button class="waze-btn" style="flex:1; background:#ff6600; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🧭 Waze</button>
-              <button class="voice-btn" title="Reproducir/Pausar voz" style="flex:1; background:#28a745; color:#fff; border:none; border-radius:6px; padding:6px; font-size:12px;">🔈</button>
-            </div>
+              <div style="padding:8px;">
+                <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
+                  <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
+                </label>
+              </div>
 
-            <div style="padding:6px 8px;">
-              <strong>Colonia:</strong> ${escapeHtml(row["Colonia"]||'')}<br/>
-              <strong>Póliza:</strong> ${escapeHtml(row["Póliza"]||'')}<br/>
-              <strong>Dirección:</strong> ${escapeHtml(row["calle"]||'')} ${escapeHtml(row["Número finca"]||'')}<br/>
-              <strong>Contratante:</strong> ${escapeHtml(row["Nombre Contratante"]||'')}<br/>
-              <strong>Inspector:</strong> ${escapeHtml(row["Inspector"]||'')}<br/>
-              <strong>Adicional:</strong> ${escapeHtml(row["Adicional"]||'')}<br/>
-            </div>
+              <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
+              <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
+            </div>`;
 
-            <!-- Checkbox de marcado (solo aquí y en la lista) -->
-            <div style="padding:8px;">
-              <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
-                <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
-              </label>
-            </div>
+          marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
+          marker._rowData = row;
+          marker._poliza = (row["Póliza"]||'').toString();
+          marker._rowKey = rowKey;
+          AppState.markersByKey.set(rowKey, marker);
+          AppState.markers.push(marker);
+        } else {
+          marker._rowData = row;
+          marker._poliza = (row["Póliza"]||'').toString();
+          marker.setIcon(icon);
+          marker.setLatLng([lat, lng]);
+        }
 
-            <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion
-</button>
-
-            <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
-          </div>`;
-
-        marker.bindPopup(popupHtml);
+        if (!map.hasLayer(marker)) marker.addTo(map);
+        marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
 
         const distanciaText = (row._distance && isFinite(row._distance))
           ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
           : '';
 
-        // fila en la tabla con checkbox (esta es una de las dos formas válidas para marcar)
         const polizaVal = (row["Póliza"]||'').toString();
         const visited = isVisited(polizaVal);
-
         const tr = document.createElement('tr');
         tr.style.background = color + '22';
         if (visited) tr.style.opacity = '0.45';
@@ -509,19 +693,14 @@
           <td>${escapeHtml(row["Adicional"]||'')}</td>`;
 
         const checkbox = tr.querySelector('input.list-visited-checkbox');
-
-        // cuando se marca desde la lista, sincronizamos (marker + localStorage + popup si está abierto)
         checkbox.addEventListener('click', (e) => {
-          e.stopPropagation(); // evitar que abra popup por el clic en la fila
+          e.stopPropagation();
           const checked = checkbox.checked;
           setVisited(polizaVal, checked);
           tr.style.opacity = checked ? '0.45' : '1';
-          // ajustar marcador correspondiente
-          const m = markers.find(x => x._poliza === polizaVal);
-          if (m && m.setOpacity) m.setOpacity(checked ? 0.4 : 1);
+          if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
 
-          // si el popup de ese marcador está abierto, también reflejar checkbox dentro del popup
-          markers.forEach(mk => {
+          AppState.markers.forEach(mk => {
             if (mk._poliza === polizaVal && mk.getPopup && mk.getPopup().isOpen && mk.getPopup().isOpen()) {
               const popupEl = mk.getPopup().getElement();
               if (popupEl) {
@@ -532,7 +711,6 @@
           });
         });
 
-        // Al hacer click en la fila: abrir popup y centrar (pero NO marcar)
         tr.addEventListener('click', () => {
           marker.openPopup();
           map.setView([lat, lng], 17);
@@ -540,6 +718,10 @@
         });
 
         tbody.appendChild(tr);
+      });
+
+      AppState.markers.forEach(marker => {
+        if (!visibleKeys.has(marker._rowKey) && map.hasLayer(marker)) map.removeLayer(marker);
       });
     }
 
@@ -621,6 +803,12 @@
         userMarker = L.marker([originLat, originLng]).addTo(map).bindPopup('📍 Inicio de ruta').openPopup();
         map.setView([originLat, originLng], 16);
 
+        const MAX_ROUTE_RECORDS = 500;
+        if (currentData.length > MAX_ROUTE_RECORDS) {
+          alert(`La base tiene ${currentData.length} registros. El modo ruta está limitado a ${MAX_ROUTE_RECORDS} para mantener rendimiento.`);
+          return;
+        }
+
         let pendientes = currentData.slice();
         let rutaOrdenada = [];
 
@@ -675,9 +863,249 @@
     document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
     document.getElementById('hideBtn').addEventListener('click', hideTable);
 
-    document.getElementById('importFirebaseBtn').addEventListener('click', () => {
-      if (typeof window.importDatabaseToFirebase === 'function') window.importDatabaseToFirebase();
-      else alert('Firebase aún no está listo.');
+    const importModal = document.getElementById('importModal');
+    const importExcelTbody = document.getElementById('importExcelTbody');
+    const importStatus = document.getElementById('importStatus');
+    const importProgressBar = document.getElementById('importProgressBar');
+    const importProgressText = document.getElementById('importProgressText');
+    const processImportBtn = document.getElementById('processImportBtn');
+    const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
+
+    function setImportStatus(text) {
+      importStatus.textContent = text;
+    }
+
+    function setImportProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      importProgressBar.style.width = `${pct}%`;
+      importProgressText.textContent = `${pct}%`;
+    }
+
+    function createImportRow(cells = []) {
+      const tr = document.createElement('tr');
+      importColumns.forEach((_, idx) => {
+        const td = document.createElement('td');
+        td.contentEditable = 'true';
+        td.textContent = cells[idx] || '';
+        tr.appendChild(td);
+      });
+      importExcelTbody.appendChild(tr);
+      return tr;
+    }
+
+    function ensureImportRows(min = 12) {
+      while (importExcelTbody.children.length < min) createImportRow();
+    }
+
+    function clearImportTable() {
+      importExcelTbody.innerHTML = '';
+      ensureImportRows();
+      setImportStatus('Tabla limpia. Lista para pegar datos.');
+      setImportProgress(0, 1);
+    }
+
+    function openImportModal() {
+      importModal.style.display = 'block';
+      importModal.setAttribute('aria-hidden', 'false');
+      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+      const saved = localStorage.getItem(GEO_LOCAL_STORAGE_KEY) || '';
+      if (geocoderInput && saved && !geocoderInput.value) geocoderInput.value = saved;
+      if (!importExcelTbody.children.length) ensureImportRows();
+    }
+
+    function closeImportModal() {
+      importModal.style.display = 'none';
+      importModal.setAttribute('aria-hidden', 'true');
+    }
+
+    const RATE_DELAY_MS = 300;
+    const GEOCODE_RETRIES = 3;
+    const GEO_LOCAL_STORAGE_KEY = 'apps_script_geocoder_url_v1';
+
+    function buildAddress(row) {
+      const calle = (row['calle'] || '').toString().trim();
+      const num = (row['Número finca'] || '').toString().trim();
+      const colonia = (row['Colonia'] || '').toString().trim();
+      const municipio = (row['Municipio'] || '').toString().trim();
+      const parts = [];
+      if (calle) parts.push(calle + (num ? ` ${num}` : ''));
+      if (colonia) parts.push(colonia);
+      if (municipio) parts.push(municipio);
+      parts.push('Nuevo León, México');
+      return parts.join(', ');
+    }
+
+    function getAppsScriptGeocoderUrl() {
+      const input = document.getElementById('appsScriptGeocoderUrl');
+      const value = (input?.value || '').trim();
+      return value;
+    }
+
+    async function geocodeByAppScript(address) {
+      const baseUrl = getAppsScriptGeocoderUrl();
+      if (!baseUrl) return null;
+      const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}address=${encodeURIComponent(address)}`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const lat = data?.lat ?? data?.location?.lat ?? data?.result?.lat;
+      const lng = data?.lng ?? data?.lon ?? data?.location?.lng ?? data?.result?.lng;
+      if (lat === undefined || lng === undefined) return null;
+      return { lat: String(lat), lng: String(lng), provider: 'apps-script' };
+    }
+
+    async function geocodeByNominatim(address) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(address)}`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) return null;
+      const list = await response.json();
+      if (!Array.isArray(list) || !list.length) return null;
+      return { lat: String(list[0].lat || ''), lng: String(list[0].lon || ''), provider: 'nominatim' };
+    }
+
+    async function geocodeAddress(row) {
+      const address = buildAddress(row);
+      if (!address) return { lat: '', lng: '', provider: 'none' };
+
+      for (let i = 0; i < GEOCODE_RETRIES; i++) {
+        try {
+          const appScript = await geocodeByAppScript(address);
+          if (appScript?.lat && appScript?.lng) return appScript;
+        } catch (_) {}
+
+        try {
+          const nominatim = await geocodeByNominatim(address);
+          if (nominatim?.lat && nominatim?.lng) return nominatim;
+        } catch (_) {}
+
+        await delay(RATE_DELAY_MS);
+      }
+
+      return { lat: '', lng: '', provider: 'none' };
+    }
+
+    async function processPastedImport() {
+      const rows = Array.from(importExcelTbody.querySelectorAll('tr'));
+      const parsed = rows.map(tr => {
+        const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
+        const obj = {};
+        importColumns.forEach((name, i) => { obj[name] = cells[i] || ''; });
+        return obj;
+      }).filter(r => importColumns.some(c => r[c]));
+
+      if (!parsed.length) {
+        alert('No hay datos para procesar.');
+        return;
+      }
+
+      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+      if (geocoderInput) localStorage.setItem(GEO_LOCAL_STORAGE_KEY, geocoderInput.value.trim());
+
+      processImportBtn.disabled = true;
+      processImportBtn.style.opacity = '0.7';
+      try {
+        setImportProgress(0, parsed.length);
+        setImportStatus(`Procesando ${parsed.length} filas...`);
+        const geocoded = [];
+        let found = 0;
+        for (let i = 0; i < parsed.length; i++) {
+          const row = parsed[i];
+          setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
+          const geo = await geocodeAddress(row);
+          if (geo.lat && geo.lng) found++;
+          geocoded.push({ ...row, lat: geo.lat, lng: geo.lng, geoProvider: geo.provider || 'none' });
+          setImportProgress(i + 1, parsed.length);
+          await delay(250);
+        }
+
+        window.pendingImportData = geocoded;
+        currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        window.currentData = currentData;
+        filteredStreet = null;
+        filteredAdicional = null;
+        if (currentSort.column !== null) applySort();
+        renderAll();
+        showTable();
+
+        const byProvider = geocoded.reduce((acc, r) => {
+          const key = r.geoProvider || 'none';
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {});
+        const withoutCoords = parsed.length - found;
+        setImportStatus(`Geocoding completado. Coordenadas: ${found}/${parsed.length}. Sin coordenadas: ${withoutCoords}. Proveedor: ${JSON.stringify(byProvider)}. Guardando en Firebase...`);
+
+        if (typeof window.importDatabaseToFirebase === 'function') {
+          await window.importDatabaseToFirebase();
+        } else {
+          alert('Firebase aún no está listo.');
+        }
+
+        setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}. Sin coordenadas: ${parsed.length - found}.`);
+        document.getElementById('viewModeSelect').value = 'latest';
+        await loadData();
+      } finally {
+        processImportBtn.disabled = false;
+        processImportBtn.style.opacity = '1';
+      }
+    }
+
+    importExcelTbody.addEventListener('paste', (event) => {
+      const text = event.clipboardData?.getData('text/plain') || '';
+      if (!text) return;
+      event.preventDefault();
+
+      const rowChunks = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+      const matrix = rowChunks.map(r => r.split('\t'));
+      if (!matrix.length) return;
+
+      const activeCell = document.activeElement;
+      let startRow = 0;
+      let startCol = 0;
+
+      if (activeCell && activeCell.tagName === 'TD' && activeCell.parentElement?.parentElement === importExcelTbody) {
+        const tr = activeCell.parentElement;
+        startRow = Array.from(importExcelTbody.children).indexOf(tr);
+        startCol = Array.from(tr.children).indexOf(activeCell);
+      }
+
+      while (importExcelTbody.children.length < startRow + matrix.length) createImportRow();
+
+      matrix.forEach((cells, rIdx) => {
+        const tr = importExcelTbody.children[startRow + rIdx];
+        cells.forEach((value, cIdx) => {
+          const col = startCol + cIdx;
+          if (col >= importColumns.length) return;
+          const td = tr.children[col];
+          if (td) td.textContent = value.trim();
+        });
+      });
+
+      setImportStatus(`Pegado completado: ${matrix.length} fila(s).`);
+    });
+
+    document.getElementById('importFirebaseBtn').addEventListener('click', openImportModal);
+    document.getElementById('closeImportModalBtn').addEventListener('click', closeImportModal);
+    document.getElementById('addImportRowBtn').addEventListener('click', () => createImportRow());
+    document.getElementById('clearImportTableBtn').addEventListener('click', clearImportTable);
+    document.getElementById('processImportBtn').addEventListener('click', processPastedImport);
+    importModal.addEventListener('click', (e) => {
+      if (e.target === importModal) closeImportModal();
+    });
+
+    document.getElementById('reloadFirebaseBtn').addEventListener('click', () => loadData());
+    document.getElementById('viewModeSelect').addEventListener('change', () => {
+      filteredColonia = '';
+      filteredFecha = '';
+      loadData();
+    });
+    document.getElementById('filterColoniaSelect').addEventListener('change', (e) => {
+      filteredColonia = e.target.value || '';
+      renderAll();
+    });
+    document.getElementById('filterFechaSelect').addEventListener('change', (e) => {
+      filteredFecha = e.target.value || '';
+      renderAll();
     });
 
     const inspectionsModal = document.getElementById('inspectionsModal');
@@ -759,14 +1187,14 @@
       autoModeActive = true;
       document.getElementById('autoNarrarBtn').textContent = '⏹';
 
-      const visibles = markers.filter(m => map.hasLayer(m));
+      const visibles = AppState.markers.filter(m => map.hasLayer(m));
       for (let i = 0; i < visibles.length && autoModeActive; i++) {
         const marker = visibles[i];
         let row = marker._rowData;
         if (!row) {
           const lat = marker.getLatLng().lat;
           const lng = marker.getLatLng().lng;
-          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-6 && Math.abs(parseFloat(r.lng) - lng) < 1e-6);
+          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-5 && Math.abs(parseFloat(r.lng) - lng) < 1e-5);
         }
         if (!row) continue;
         map.setView(marker.getLatLng(), 17);
@@ -808,8 +1236,6 @@
       }
 
       // Acta button
-      // Acta button
-      // Acta button
 const actaBtn = popupEl.querySelector('.acta-btn');
   if (actaBtn) {
     actaBtn.onclick = (ev) => {
@@ -846,7 +1272,7 @@ const actaBtn = popupEl.querySelector('.acta-btn');
       if (nextBtn) {
         nextBtn.onclick = (ev) => {
           ev.preventDefault();
-          const visibles = markers.filter(m => map.hasLayer(m));
+          const visibles = AppState.markers.filter(m => map.hasLayer(m));
           if (visibles.length === 0) return;
           let idx = visibles.findIndex(m => m === marker);
           if (idx < 0) return;
@@ -863,8 +1289,8 @@ const actaBtn = popupEl.querySelector('.acta-btn');
         let markerData = marker && marker._rowData;
         if (!markerData) {
           markerData = currentData.find(r =>
-            Math.abs(parseFloat(r.lat) - markerLat) < 1e-6 &&
-            Math.abs(parseFloat(r.lng) - markerLng) < 1e-6
+            Math.abs(parseFloat(r.lat) - markerLat) < 1e-5 &&
+            Math.abs(parseFloat(r.lng) - markerLng) < 1e-5
           );
         }
         if (markerData) {
