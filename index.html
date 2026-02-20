@@ -236,6 +236,7 @@
               <th>Dirección</th>
               <th>Inspector</th>
               <th>Fecha</th>
+              <th>Preview</th>
             </tr>
           </thead>
           <tbody id="inspectionsTableBody"></tbody>
@@ -243,6 +244,22 @@
       </div>
     </div>
   </div>
+
+  <div id="inspectionPreviewModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" style="margin: 4% auto; width:95%; max-width:1000px; max-height:86%;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <h3 style="margin:0;">Preview inspección</h3>
+        <button id="closeInspectionPreviewBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <div id="inspectionPreviewMeta" style="font-size:13px; color:#444; margin:8px 0;"></div>
+      <div id="inspectionPreviewImages" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;"></div>
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer; font-size:13px; color:#0d6efd;">Ver JSON completo</summary>
+        <pre id="inspectionPreviewJson" style="font-size:11px; white-space:pre-wrap; background:#f8f9fa; border:1px solid #eee; padding:8px; border-radius:6px; max-height:30vh; overflow:auto;"></pre>
+      </details>
+    </div>
+  </div>
+
   <div id="importModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -292,7 +309,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -375,27 +392,47 @@
       }
     };
 
+    function extractInspectionSummary(raw = {}) {
+      const poliza = (raw?.cliente?.poliza || raw?.cuestionario?.datosCliente?.poliza || raw?.datosCliente?.poliza || raw?.poliza || '').toString().trim();
+      const nombre = (raw?.cliente?.nombre || raw?.cuestionario?.datosCliente?.nombre || raw?.datosCliente?.nombre || '').toString();
+      const calle = (raw?.cliente?.calle || raw?.cuestionario?.datosCliente?.calle || '').toString();
+      const numero = (raw?.cliente?.numeroFinca || raw?.cliente?.numero || raw?.cuestionario?.datosCliente?.numeroFinca || '').toString();
+      const direccion = (raw?.cliente?.direccion || raw?.cuestionario?.datosCliente?.direccion || `${calle} ${numero}`.trim()).toString();
+      const inspector = (raw?.tecnico?.nombre || raw?.inspeccion?.inspector || raw?.inspector || '').toString();
+      const fechaRaw = raw?.inspeccion?.fecha || raw?.cuestionario?.datosMedidor?.fechaInspeccion || raw?.createdAt || raw?.created_at || '';
+      const dt = parseInspectionDate(fechaRaw);
+      const fechaIso = dt ? dt.toISOString() : '';
+      const fotos = [
+        ...(Array.isArray(raw?.cuestionario?.datosMedidor?.fotografiasMedidor) ? raw.cuestionario.datosMedidor.fotografiasMedidor : []),
+        ...(Array.isArray(raw?.fotosMedidor) ? raw.fotosMedidor : []),
+        ...(Array.isArray(raw?.imagenes) ? raw.imagenes : [])
+      ].filter(v => typeof v === 'string' && v.trim());
+
+      return { poliza, nombre, direccion, inspector, fecha: fechaRaw ? String(fechaRaw) : '', fechaIso, fotos };
+    }
+
     window.fetchRecentInspectionMap = async function fetchRecentInspectionMap() {
-      const map = {};
+      const recentMap = {};
+      const anyMap = {};
       try {
         const snapshot = await getDocs(collection(db, 'Inspecciones'));
         const threshold = new Date();
         threshold.setMonth(threshold.getMonth() - 3);
 
         snapshot.forEach(d => {
-          const row = d.data() || {};
-          const poliza = (row?.cliente?.poliza || '').toString().trim();
-          if (!poliza) return;
-          const dt = parseInspectionDate(row?.inspeccion?.fecha || row?.createdAt || row?.created_at);
-          if (!dt || dt < threshold) return;
+          const summary = extractInspectionSummary(d.data() || {});
+          if (!summary.poliza) return;
 
-          const prev = map[poliza] ? parseInspectionDate(map[poliza]) : null;
-          if (!prev || dt > prev) map[poliza] = dt.toISOString();
+          anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+          const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
+          if (!dt || dt < threshold) return;
+          const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
+          if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
         });
       } catch (err) {
         console.warn('No se pudo consultar inspecciones recientes', err?.code || err);
       }
-      return map;
+      return { recentMap, anyMap };
     };
 
 
@@ -415,18 +452,18 @@
 
     function normalizeBaseRow(r = {}) {
       return {
-        'Póliza': r.poliza || '',
-        'calle': r.calle || '',
-        'Número finca': r.numeroFinca || r.numero_finca || '',
-        'Colonia': r.colonia || '',
-        'Municipio': r.municipio || '',
-        'Nombre Contratante': r.nombreContratante || r.nombre || '',
-        'Empresa': r.empresa || '',
-        'Inspector': r.inspector || '',
-        'Adicional': r.adicional || '',
-        lat: r.lat || '',
-        lng: r.lng || '',
-        importadoEn: r.importadoEn || ''
+        'Póliza': r.poliza || r['Póliza'] || '',
+        'calle': r.calle || r['calle'] || '',
+        'Número finca': r.numeroFinca || r.numero_finca || r['Número finca'] || '',
+        'Colonia': r.colonia || r['Colonia'] || '',
+        'Municipio': r.municipio || r['Municipio'] || '',
+        'Nombre Contratante': r.nombreContratante || r.nombre || r['Nombre Contratante'] || '',
+        'Empresa': r.empresa || r['Empresa'] || '',
+        'Inspector': r.inspector || r['Inspector'] || '',
+        'Adicional': r.adicional || r['Adicional'] || '',
+        lat: r.lat || r.latitude || r['Latitud'] || '',
+        lng: r.lng || r.longitude || r['Longitud'] || '',
+        importadoEn: r.importadoEn || r.updatedAt || r.ultimaImportacion || ''
       };
     }
 
@@ -542,34 +579,86 @@
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
 
+    let unsubVisitedRealtime = null;
+    let unsubInspectionsRealtime = null;
+
+    function attachRealtimeSync() {
+      if (!unsubVisitedRealtime) {
+        try {
+          unsubVisitedRealtime = onSnapshot(collection(db, 'VisitasPolizas'), (snapshot) => {
+            const map = {};
+            snapshot.forEach(d => {
+              const row = d.data() || {};
+              const poliza = (row.poliza || '').toString().trim();
+              if (poliza) map[poliza] = !!row.visited;
+            });
+            window.visitedRealtimeMap = map;
+            if (typeof window.onVisitedRealtimeUpdate === 'function') window.onVisitedRealtimeUpdate(map);
+          }, (err) => console.warn('Realtime VisitasPolizas no disponible', err?.code || err));
+        } catch (err) {
+          console.warn('No se pudo suscribir VisitasPolizas realtime', err?.code || err);
+        }
+      }
+
+      if (!unsubInspectionsRealtime) {
+        try {
+          unsubInspectionsRealtime = onSnapshot(collection(db, 'Inspecciones'), (snapshot) => {
+            const recentMap = {};
+            const anyMap = {};
+            const threshold = new Date();
+            threshold.setMonth(threshold.getMonth() - 3);
+            snapshot.forEach(d => {
+              const summary = extractInspectionSummary(d.data() || {});
+              if (!summary.poliza) return;
+              anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+              const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
+              if (!dt || dt < threshold) return;
+              const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
+              if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
+            });
+            window.recentInspectionRealtimeMap = recentMap;
+            window.anyInspectionRealtimeMap = anyMap;
+            if (typeof window.onRecentInspectionRealtimeUpdate === 'function') window.onRecentInspectionRealtimeUpdate({ recentMap, anyMap });
+          }, (err) => console.warn('Realtime Inspecciones no disponible', err?.code || err));
+        } catch (err) {
+          console.warn('No se pudo suscribir Inspecciones realtime', err?.code || err);
+        }
+      }
+    }
+
+    attachRealtimeSync();
     window.firebaseBaseReady = true;
 
+    window.inspectionsCache = [];
     window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
       const tbody = document.getElementById('inspectionsTableBody');
-      tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>';
       try {
         const snapshot = await getDocs(collection(db, 'Inspecciones'));
         const rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        rows.sort((a, b) => String(b?.inspeccion?.fecha || '').localeCompare(String(a?.inspeccion?.fecha || '')));
+        const normalized = rows.map(r => ({ id: r.id, raw: r, summary: extractInspectionSummary(r) }));
+        normalized.sort((a, b) => String(b.summary.fechaIso || '').localeCompare(String(a.summary.fechaIso || '')));
+        window.inspectionsCache = normalized;
 
-        if (!rows.length) {
-          tbody.innerHTML = '<tr><td colspan="6">No hay inspecciones registradas.</td></tr>';
+        if (!normalized.length) {
+          tbody.innerHTML = '<tr><td colspan="7">No hay inspecciones registradas.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = rows.map((r, i) => `
+        tbody.innerHTML = normalized.map((item, i) => `
           <tr>
             <td>${i + 1}</td>
-            <td>${(r?.cliente?.poliza || '').toString()}</td>
-            <td>${(r?.cliente?.nombre || '').toString()}</td>
-            <td>${(r?.cliente?.direccion || '').toString()}</td>
-            <td>${(r?.tecnico?.nombre || '').toString()}</td>
-            <td>${(r?.inspeccion?.fecha || '').toString()}</td>
+            <td>${(item.summary.poliza || '').toString()}</td>
+            <td>${(item.summary.nombre || '').toString()}</td>
+            <td>${(item.summary.direccion || '').toString()}</td>
+            <td>${(item.summary.inspector || '').toString()}</td>
+            <td>${(item.summary.fecha || '').toString()}</td>
+            <td><button class="inspection-preview-btn" data-idx="${i}" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Preview</button></td>
           </tr>
         `).join('');
       } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="6">Error consultando Firebase.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7">Error consultando Firebase.</td></tr>';
       }
     };
   </script>
@@ -590,6 +679,27 @@
     // ---------- VISITADOS (localStorage) ----------
     const VISITED_KEY = 'visited_polizas_v1';
     let visitedMap = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
+
+    window.onVisitedRealtimeUpdate = function onVisitedRealtimeUpdate(remoteMap = {}) {
+      visitedMap = { ...visitedMap, ...remoteMap };
+      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+      renderAll();
+    };
+
+    window.onRecentInspectionRealtimeUpdate = function onRecentInspectionRealtimeUpdate(payload = {}) {
+      const recentMap = payload.recentMap || {};
+      const anyMap = payload.anyMap || {};
+      currentData = currentData.map(r => {
+        const pol = (r['Póliza'] || '').toString().trim();
+        const recentDate = recentMap[pol] || '';
+        const anyDate = anyMap[pol] || '';
+        if (anyDate) visitedMap[pol] = true;
+        return { ...r, _recentInspection: !!recentDate, _recentInspectionDate: recentDate, _hasInspection: !!anyDate };
+      });
+      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+      window.currentData = currentData;
+      renderAll();
+    };
 
     function isVisited(poliza) { return !!visitedMap[poliza]; }
     function setVisited(poliza, value) {
@@ -741,25 +851,32 @@
           setImportStatus('No se encontraron registros. Verifica reglas de lectura para BasePolizasUltimaActualizacion/BasePolizasGlobal/importaciones/BasePolizas.');
         }
 
-        const [visitedRemote, recentInspectionMap] = await Promise.all([
+        const [visitedRemote, inspectionStatus] = await Promise.all([
           (typeof window.fetchVisitedMapFromFirebase === 'function') ? window.fetchVisitedMapFromFirebase() : Promise.resolve({}),
-          (typeof window.fetchRecentInspectionMap === 'function') ? window.fetchRecentInspectionMap() : Promise.resolve({})
+          (typeof window.fetchRecentInspectionMap === 'function') ? window.fetchRecentInspectionMap() : Promise.resolve({ recentMap: {}, anyMap: {} })
         ]);
 
+        const recentInspectionMap = inspectionStatus.recentMap || {};
+        const anyInspectionMap = inspectionStatus.anyMap || {};
+
         visitedMap = { ...visitedMap, ...visitedRemote };
-        localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
 
         rows = rows.map(r => {
           const pol = (r['Póliza'] || '').toString().trim();
           const recentDate = recentInspectionMap[pol] || '';
+          const anyDate = anyInspectionMap[pol] || '';
+          if (anyDate) visitedMap[pol] = true;
           return {
             ...r,
             _recentInspection: !!recentDate,
-            _recentInspectionDate: recentDate
+            _recentInspectionDate: recentDate,
+            _hasInspection: !!anyDate
           };
         });
 
-        currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+
+        currentData = rows;
         window.currentData = currentData;
         filteredStreet = null;
         filteredAdicional = null;
@@ -794,7 +911,7 @@
       const visibleKeys = new Set();
       list.forEach((row, i) => {
         const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
+        const hasCoords = !isNaN(lat) && !isNaN(lng);
 
         const rowKey = row._rowKey || getRowKey(row, i);
         row._rowKey = rowKey;
@@ -802,10 +919,11 @@
 
         const street = row["calle"] || 'Sin calle';
         const color = ensureColor(street);
-        const icon = createIcon(i+1, color);
+        const statusColor = row._recentInspection ? '#dc3545' : (isVisited((row["Póliza"]||'').toString()) ? '#6c757d' : color);
+        const icon = createIcon(i+1, statusColor);
 
         let marker = AppState.markersByKey.get(rowKey);
-        if (!marker) {
+        if (hasCoords && !marker) {
           const popupHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; padding-bottom:46px; box-sizing:border-box;">
               <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
@@ -824,14 +942,15 @@
               ${row._recentInspection ? `<strong style="color:#dc3545;">⚠️ Inspección ya realizada (últimos 3 meses)</strong><br/>` : ''}
               </div>
 
-              <div style="padding:8px; margin-bottom:8px;">
-                <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
-                  <input type="checkbox" class="popup-visited-checkbox"> <span>Visitado</span>
-                </label>
+              <div style="position:absolute; bottom:6px; left:6px; right:6px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <button class="acta-btn" style="padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
+                  <label style="display:inline-flex; align-items:center; gap:4px; font-size:11px; background:#f8f9fa; border:1px solid #ddd; border-radius:999px; padding:2px 6px;">
+                    <input type="checkbox" class="popup-visited-checkbox" style="width:12px; height:12px; margin:0;"> <span>Visitado</span>
+                  </label>
+                </div>
+                <button class="popup-next-btn" style="padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
               </div>
-
-              <button class="acta-btn" style="position:absolute; bottom:6px; left:6px; padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
-              <button class="popup-next-btn" style="position:absolute; bottom:6px; right:6px; padding:6px 8px; font-size:12px; background:#28a745; color:#fff; border:none; border-radius:6px; cursor:pointer;">Next</button>
             </div>`;
 
           marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
@@ -840,15 +959,15 @@
           marker._rowKey = rowKey;
           AppState.markersByKey.set(rowKey, marker);
           AppState.markers.push(marker);
-        } else {
+        } else if (hasCoords && marker) {
           marker._rowData = row;
           marker._poliza = (row["Póliza"]||'').toString();
           marker.setIcon(icon);
           marker.setLatLng([lat, lng]);
         }
 
-        if (!map.hasLayer(marker)) marker.addTo(map);
-        marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
+        if (hasCoords && marker && !map.hasLayer(marker)) marker.addTo(map);
+        if (hasCoords && marker) marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
 
         const distanciaText = (row._distance && isFinite(row._distance))
           ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
@@ -857,7 +976,7 @@
         const polizaVal = (row["Póliza"]||'').toString();
         const visited = isVisited(polizaVal);
         const tr = document.createElement('tr');
-        tr.style.background = color + '22';
+        tr.style.background = (row._recentInspection ? '#dc354533' : (isVisited(polizaVal) ? '#6c757d33' : color + '22'));
         if (visited) tr.style.opacity = '0.45';
 
         tr.innerHTML = `
@@ -893,6 +1012,10 @@
         });
 
         tr.addEventListener('click', () => {
+          if (!hasCoords || !marker) {
+            alert('Esta póliza no tiene coordenadas válidas para mostrar en mapa.');
+            return;
+          }
           marker.openPopup();
           map.setView([lat, lng], 17);
           hideTable();
@@ -1290,6 +1413,8 @@
     });
 
     const inspectionsModal = document.getElementById('inspectionsModal');
+    const inspectionPreviewModal = document.getElementById('inspectionPreviewModal');
+
     function openInspectionsModal() {
       inspectionsModal.style.display = 'block';
       inspectionsModal.setAttribute('aria-hidden', 'false');
@@ -1299,14 +1424,56 @@
       inspectionsModal.setAttribute('aria-hidden', 'true');
     }
 
+    function openInspectionPreview(item) {
+      if (!item) return;
+      const meta = document.getElementById('inspectionPreviewMeta');
+      const imagesWrap = document.getElementById('inspectionPreviewImages');
+      const jsonPre = document.getElementById('inspectionPreviewJson');
+
+      meta.innerHTML = `
+        <strong>Póliza:</strong> ${escapeHtml(item.summary.poliza || '')} &nbsp;|&nbsp;
+        <strong>Nombre:</strong> ${escapeHtml(item.summary.nombre || '')} &nbsp;|&nbsp;
+        <strong>Fecha:</strong> ${escapeHtml(item.summary.fecha || '')}
+      `;
+
+      const fotos = Array.isArray(item.summary.fotos) ? item.summary.fotos : [];
+      imagesWrap.innerHTML = fotos.length
+        ? fotos.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('')
+        : '<div style="font-size:12px;color:#666;">No hay imágenes en esta inspección.</div>';
+
+      jsonPre.textContent = JSON.stringify(item.raw, null, 2);
+
+      inspectionPreviewModal.style.display = 'block';
+      inspectionPreviewModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeInspectionPreview() {
+      inspectionPreviewModal.style.display = 'none';
+      inspectionPreviewModal.setAttribute('aria-hidden', 'true');
+    }
+
     document.getElementById('viewInspectionsBtn').addEventListener('click', async () => {
       openInspectionsModal();
       if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
     });
 
+    document.getElementById('inspectionsTableBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.inspection-preview-btn');
+      if (!btn) return;
+      const idx = Number(btn.getAttribute('data-idx') || '-1');
+      const item = Array.isArray(window.inspectionsCache) ? window.inspectionsCache[idx] : null;
+      if (item) openInspectionPreview(item);
+    });
+
     document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
+    document.getElementById('closeInspectionPreviewBtn').addEventListener('click', closeInspectionPreview);
+
     inspectionsModal.addEventListener('click', (e) => {
       if (e.target === inspectionsModal) closeInspectionsModal();
+    });
+
+    inspectionPreviewModal.addEventListener('click', (e) => {
+      if (e.target === inspectionPreviewModal) closeInspectionPreview();
     });
 
     // ---------- VOZ ----------
@@ -1438,13 +1605,26 @@
           actaBtn.style.cursor = 'pointer';
           actaBtn.title = '';
 
-          actaBtn.onclick = (ev) => {
+          actaBtn.onclick = async (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
 
             const rowData = marker._rowData;
             if (!rowData) {
               alert('No se encontraron datos de la póliza');
+              return;
+            }
+
+            const pol = (rowData['Póliza'] || '').toString().trim();
+            const latestMap = (typeof window.fetchRecentInspectionMap === 'function') ? await window.fetchRecentInspectionMap() : {};
+            if (latestMap[pol]) {
+              rowData._recentInspection = true;
+              rowData._recentInspectionDate = latestMap[pol];
+              actaBtn.disabled = true;
+              actaBtn.textContent = 'Inspección reciente';
+              actaBtn.style.background = '#6c757d';
+              actaBtn.style.cursor = 'not-allowed';
+              alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
               return;
             }
 
