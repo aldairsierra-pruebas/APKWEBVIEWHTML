@@ -255,6 +255,12 @@
         <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
         <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
       </div>
+      <div style="display:grid; gap:6px; margin-bottom:8px;">
+        <label style="font-size:12px; color:#444;">URL Web App (Apps Script Maps.newGeocoder) - opcional y recomendado
+          <input id="appsScriptGeocoderUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%; margin-top:4px; padding:6px 8px; border:1px solid #ddd; border-radius:6px;">
+        </label>
+        <small style="color:#666;">Si defines esta URL, se usa primero (más preciso para número exterior). Si falla, usa respaldo automático.</small>
+      </div>
       <div id="importStatus">Listo para pegar datos.</div>
       <div style="overflow:auto; margin-top:10px; max-height:58vh;">
         <table id="importExcelTable">
@@ -854,6 +860,9 @@
     function openImportModal() {
       importModal.style.display = 'block';
       importModal.setAttribute('aria-hidden', 'false');
+      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+      const saved = localStorage.getItem(GEO_LOCAL_STORAGE_KEY) || '';
+      if (geocoderInput && saved && !geocoderInput.value) geocoderInput.value = saved;
       if (!importExcelTbody.children.length) ensureImportRows();
     }
 
@@ -862,27 +871,70 @@
       importModal.setAttribute('aria-hidden', 'true');
     }
 
-    async function geocodeAddress(row) {
-      const parts = [row['calle'], row['Número finca'], row['Colonia'], row['Municipio'], 'México']
-        .map(v => (v || '').toString().trim())
-        .filter(Boolean);
-      const q = parts.join(', ');
-      if (!q) return { lat: '', lng: '' };
+    const RATE_DELAY_MS = 300;
+    const GEOCODE_RETRIES = 3;
+    const GEO_LOCAL_STORAGE_KEY = 'apps_script_geocoder_url_v1';
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=${encodeURIComponent(q)}`;
-      try {
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
-        if (!response.ok) return { lat: '', lng: '' };
-        const list = await response.json();
-        if (!Array.isArray(list) || !list.length) return { lat: '', lng: '' };
-        return { lat: String(list[0].lat || ''), lng: String(list[0].lon || '') };
-      } catch (_) {
-        return { lat: '', lng: '' };
+    function buildAddress(row) {
+      const calle = (row['calle'] || '').toString().trim();
+      const num = (row['Número finca'] || '').toString().trim();
+      const colonia = (row['Colonia'] || '').toString().trim();
+      const municipio = (row['Municipio'] || '').toString().trim();
+      const parts = [];
+      if (calle) parts.push(calle + (num ? ` ${num}` : ''));
+      if (colonia) parts.push(colonia);
+      if (municipio) parts.push(municipio);
+      parts.push('Nuevo León, México');
+      return parts.join(', ');
+    }
+
+    function getAppsScriptGeocoderUrl() {
+      const input = document.getElementById('appsScriptGeocoderUrl');
+      const value = (input?.value || '').trim();
+      return value;
+    }
+
+    async function geocodeByAppScript(address) {
+      const baseUrl = getAppsScriptGeocoderUrl();
+      if (!baseUrl) return null;
+      const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}address=${encodeURIComponent(address)}`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const lat = data?.lat ?? data?.location?.lat ?? data?.result?.lat;
+      const lng = data?.lng ?? data?.lon ?? data?.location?.lng ?? data?.result?.lng;
+      if (lat === undefined || lng === undefined) return null;
+      return { lat: String(lat), lng: String(lng), provider: 'apps-script' };
+    }
+
+    async function geocodeByNominatim(address) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(address)}`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) return null;
+      const list = await response.json();
+      if (!Array.isArray(list) || !list.length) return null;
+      return { lat: String(list[0].lat || ''), lng: String(list[0].lon || ''), provider: 'nominatim' };
+    }
+
+    async function geocodeAddress(row) {
+      const address = buildAddress(row);
+      if (!address) return { lat: '', lng: '', provider: 'none' };
+
+      for (let i = 0; i < GEOCODE_RETRIES; i++) {
+        try {
+          const appScript = await geocodeByAppScript(address);
+          if (appScript?.lat && appScript?.lng) return appScript;
+        } catch (_) {}
+
+        try {
+          const nominatim = await geocodeByNominatim(address);
+          if (nominatim?.lat && nominatim?.lng) return nominatim;
+        } catch (_) {}
+
+        await delay(RATE_DELAY_MS);
       }
+
+      return { lat: '', lng: '', provider: 'none' };
     }
 
     async function processPastedImport() {
@@ -899,6 +951,9 @@
         return;
       }
 
+      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+      if (geocoderInput) localStorage.setItem(GEO_LOCAL_STORAGE_KEY, geocoderInput.value.trim());
+
       setImportStatus(`Procesando ${parsed.length} filas...`);
       const geocoded = [];
       let found = 0;
@@ -907,7 +962,7 @@
         setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
         const geo = await geocodeAddress(row);
         if (geo.lat && geo.lng) found++;
-        geocoded.push({ ...row, lat: geo.lat, lng: geo.lng });
+        geocoded.push({ ...row, lat: geo.lat, lng: geo.lng, geoProvider: geo.provider || 'none' });
         await delay(250);
       }
 
