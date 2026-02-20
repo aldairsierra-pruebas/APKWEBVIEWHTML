@@ -137,6 +137,13 @@
     #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
     #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
 
+    #importModal .modal { margin: 4% auto; width: 96%; max-width: 1200px; max-height: 88%; }
+    #importExcelTable { width:100%; border-collapse: collapse; font-size: 13px; }
+    #importExcelTable th, #importExcelTable td { border:1px solid #ddd; padding:6px; text-align:left; min-width:120px; }
+    #importExcelTable th { background:#f8f9fa; position: sticky; top: 0; z-index: 2; }
+    #importExcelTable td[contenteditable="true"] { background: #fffef2; }
+    #importStatus { font-size:12px; color:#555; }
+
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
   </style>
@@ -165,6 +172,17 @@
     <div id="controls">
       <button id="filterBtn">📍 Filtrar calle</button>
       <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
+      <select id="viewModeSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="latest" selected>Última carga</option>
+        <option value="global">Global histórico</option>
+      </select>
+      <select id="filterColoniaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="">Colonia: todas</option>
+      </select>
+      <select id="filterFechaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+        <option value="">Fecha importación: todas</option>
+      </select>
+      <button id="reloadFirebaseBtn">⟳ Ver datos</button>
       <button id="hideBtn">⬇️ Ocultar</button>
       <div id="legend" style="flex:1;"></div>
     </div>
@@ -225,10 +243,44 @@
       </div>
     </div>
   </div>
+  <div id="importModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h3 style="margin:0;">Importar base (pegar desde Excel)</h3>
+        <button id="closeImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+      </div>
+      <p style="margin:8px 0 6px; font-size:13px; color:#555;">Copia desde Excel y pega en la primera celda amarilla. El orden es: Póliza, calle, Número finca, Colonia, Municipio, Nombre Contratante, Empresa, Inspector, Adicional.</p>
+      <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
+        <button id="addImportRowBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">+ Fila</button>
+        <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
+        <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
+      </div>
+      <div id="importStatus">Listo para pegar datos.</div>
+      <div style="overflow:auto; margin-top:10px; max-height:58vh;">
+        <table id="importExcelTable">
+          <thead>
+            <tr>
+              <th>Póliza</th>
+              <th>calle</th>
+              <th>Número finca</th>
+              <th>Colonia</th>
+              <th>Municipio</th>
+              <th>Nombre Contratante</th>
+              <th>Empresa</th>
+              <th>Inspector</th>
+              <th>Adicional</th>
+            </tr>
+          </thead>
+          <tbody id="importExcelTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -242,33 +294,100 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    function normalizePolizaDocId(poliza) {
+      const raw = (poliza || '').toString().trim();
+      if (!raw) return 'SIN_POLIZA';
+      return raw.replace(/\//g, '_');
+    }
+
+    function mapToPayload(row, importedAt) {
+      return {
+        poliza: row['Póliza'] || '',
+        calle: row['calle'] || '',
+        numeroFinca: row['Número finca'] || '',
+        colonia: row['Colonia'] || '',
+        municipio: row['Municipio'] || '',
+        nombreContratante: row['Nombre Contratante'] || '',
+        empresa: row['Empresa'] || '',
+        inspector: row['Inspector'] || '',
+        adicional: row['Adicional'] || '',
+        lat: row.lat || '',
+        lng: row.lng || '',
+        importadoEn: importedAt
+      };
+    }
+
+    window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
+      const rows = [];
+      if (mode === 'global') {
+        const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
+        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      } else {
+        const snapshot = await getDocs(collection(db, 'BasePolizasUltimaActualizacion'));
+        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      }
+
+      rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+      return rows.map(r => ({
+        'Póliza': r.poliza || '',
+        'calle': r.calle || '',
+        'Número finca': r.numeroFinca || '',
+        'Colonia': r.colonia || '',
+        'Municipio': r.municipio || '',
+        'Nombre Contratante': r.nombreContratante || '',
+        'Empresa': r.empresa || '',
+        'Inspector': r.inspector || '',
+        'Adicional': r.adicional || '',
+        lat: r.lat || '',
+        lng: r.lng || '',
+        importadoEn: r.importadoEn || ''
+      }));
+    };
+
     window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
-      const data = Array.isArray(window.currentData) ? window.currentData : [];
+      const source = Array.isArray(window.pendingImportData) && window.pendingImportData.length ? window.pendingImportData : window.currentData;
+      const data = Array.isArray(source) ? source : [];
       if (!data.length) { alert('No hay datos cargados para importar.'); return; }
       if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
 
+      const importedAt = new Date().toISOString();
+      const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
+
       let ok = 0;
       let fail = 0;
+
+      // Limpiar tabla de última actualización
+      const latestSnapshot = await getDocs(latestCollection);
+      for (const d of latestSnapshot.docs) {
+        await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+      }
+
       for (const row of data) {
+        const payload = mapToPayload(row, importedAt);
+
         try {
-          await addDoc(collection(db, 'BasePolizas'), {
-            poliza: row['Póliza'] || '',
-            nombre: row['Nombre Contratante'] || '',
-            calle: row['calle'] || '',
-            numeroFinca: row['Número finca'] || '',
-            colonia: row['Colonia'] || '',
-            inspector: row['Inspector'] || '',
-            adicional: row['Adicional'] || '',
-            lat: row.lat || '',
-            lng: row.lng || '',
-            importadoEn: new Date().toISOString()
-          });
+          const polizaDocId = normalizePolizaDocId(payload.poliza);
+          const polizaDocRef = doc(db, 'BasePolizasGlobal', polizaDocId);
+
+          await setDoc(polizaDocRef, {
+            poliza: payload.poliza,
+            actualizadoEn: importedAt,
+            ultimaImportacion: payload.importadoEn
+          }, { merge: true });
+
+          // Registro consecutivo por fecha dentro de cada póliza (permite misma póliza en distintos meses/años)
+          await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
+
+          // Snapshot de última actualización para vista por defecto
+          await addDoc(latestCollection, payload);
           ok++;
         } catch (err) {
           console.error('Error importando registro', row, err);
           fail++;
         }
       }
+
+      window.pendingImportData = null;
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
 
@@ -310,7 +429,7 @@
     // ---------- ESTADO ----------
     const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
     const streetColors = {};
-    let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, userMarker = null;
+    let currentData = [], markers = [], filteredStreet = null, filteredAdicional = null, filteredColonia = '', filteredFecha = '', userMarker = null;
     window.currentData = currentData;
     let currentSort = { column: null, asc: true };
 
@@ -401,29 +520,53 @@
     }
 
     // ---------- CARGAR DATOS ----------
-    function loadData() {
+    function formatImportDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function populateFirebaseFilters(rows) {
+      const coloniaSelect = document.getElementById('filterColoniaSelect');
+      const fechaSelect = document.getElementById('filterFechaSelect');
+
+      const colonias = Array.from(new Set(rows.map(r => (r['Colonia'] || '').toString().trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+      const fechas = Array.from(new Set(rows.map(r => formatImportDate(r.importadoEn)).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+
+      coloniaSelect.innerHTML = '<option value="">Colonia: todas</option>' + colonias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      fechaSelect.innerHTML = '<option value="">Fecha importación: todas</option>' + fechas.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+
+      coloniaSelect.value = filteredColonia;
+      fechaSelect.value = filteredFecha;
+    }
+
+    async function loadData() {
       document.getElementById('dataTableBody').innerHTML = '';
       document.getElementById('legend').innerHTML = '';
       for (const k in streetColors) delete streetColors[k];
       markers.forEach(m => map.removeLayer(m)); markers = [];
       currentData = [];
 
-      Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNllSnU8y3ZHSS7QNCpSSxO50Yk_Ugnf7Cc88Q6XX2zn_6gAeTrkMBlX_SmeallPV6UgPEzt-aXvma/pub?gid=0&single=true&output=csv", {
-        download: true, header: true,
-        complete: function(results) {
-          results.data.forEach(r => {
-            if (!r || (!r.lat && !r.lng)) return;
-            const lat = parseFloat(r.lat), lng = parseFloat(r.lng);
-            if (isNaN(lat) || isNaN(lng)) return;
-            currentData.push(r);
-          });
-          window.currentData = currentData;
-          filteredStreet = null; filteredAdicional = null;
-          if (currentSort.column !== null) applySort();
-          renderAll();
-          showTable();
-        }
-      });
+      const mode = document.getElementById('viewModeSelect')?.value || 'latest';
+      try {
+        if (typeof window.fetchBaseRowsFromFirebase !== 'function') throw new Error('Firebase no listo');
+        const rows = await window.fetchBaseRowsFromFirebase(mode);
+        currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        window.currentData = currentData;
+        filteredStreet = null;
+        filteredAdicional = null;
+        populateFirebaseFilters(rows);
+        if (currentSort.column !== null) applySort();
+        renderAll();
+        showTable();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudieron cargar datos desde Firebase.');
+      }
     }
 
     // ---------- RENDER LISTA / MARCADORES ----------
@@ -435,6 +578,8 @@
       const list = currentData.filter(r => {
         if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
         if (filteredAdicional && ( (r["Adicional"]||'').toString() !== filteredAdicional )) return false;
+        if (filteredColonia && ((r['Colonia'] || '').toString() !== filteredColonia)) return false;
+        if (filteredFecha && formatImportDate(r.importadoEn) !== filteredFecha) return false;
         return true;
       });
 
@@ -675,9 +820,175 @@
     document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
     document.getElementById('hideBtn').addEventListener('click', hideTable);
 
-    document.getElementById('importFirebaseBtn').addEventListener('click', () => {
-      if (typeof window.importDatabaseToFirebase === 'function') window.importDatabaseToFirebase();
-      else alert('Firebase aún no está listo.');
+    const importModal = document.getElementById('importModal');
+    const importExcelTbody = document.getElementById('importExcelTbody');
+    const importStatus = document.getElementById('importStatus');
+    const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
+
+    function setImportStatus(text) {
+      importStatus.textContent = text;
+    }
+
+    function createImportRow(cells = []) {
+      const tr = document.createElement('tr');
+      importColumns.forEach((_, idx) => {
+        const td = document.createElement('td');
+        td.contentEditable = 'true';
+        td.textContent = cells[idx] || '';
+        tr.appendChild(td);
+      });
+      importExcelTbody.appendChild(tr);
+      return tr;
+    }
+
+    function ensureImportRows(min = 12) {
+      while (importExcelTbody.children.length < min) createImportRow();
+    }
+
+    function clearImportTable() {
+      importExcelTbody.innerHTML = '';
+      ensureImportRows();
+      setImportStatus('Tabla limpia. Lista para pegar datos.');
+    }
+
+    function openImportModal() {
+      importModal.style.display = 'block';
+      importModal.setAttribute('aria-hidden', 'false');
+      if (!importExcelTbody.children.length) ensureImportRows();
+    }
+
+    function closeImportModal() {
+      importModal.style.display = 'none';
+      importModal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function geocodeAddress(row) {
+      const parts = [row['calle'], row['Número finca'], row['Colonia'], row['Municipio'], 'México']
+        .map(v => (v || '').toString().trim())
+        .filter(Boolean);
+      const q = parts.join(', ');
+      if (!q) return { lat: '', lng: '' };
+
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=${encodeURIComponent(q)}`;
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        if (!response.ok) return { lat: '', lng: '' };
+        const list = await response.json();
+        if (!Array.isArray(list) || !list.length) return { lat: '', lng: '' };
+        return { lat: String(list[0].lat || ''), lng: String(list[0].lon || '') };
+      } catch (_) {
+        return { lat: '', lng: '' };
+      }
+    }
+
+    async function processPastedImport() {
+      const rows = Array.from(importExcelTbody.querySelectorAll('tr'));
+      const parsed = rows.map(tr => {
+        const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
+        const obj = {};
+        importColumns.forEach((name, i) => { obj[name] = cells[i] || ''; });
+        return obj;
+      }).filter(r => importColumns.some(c => r[c]));
+
+      if (!parsed.length) {
+        alert('No hay datos para procesar.');
+        return;
+      }
+
+      setImportStatus(`Procesando ${parsed.length} filas...`);
+      const geocoded = [];
+      let found = 0;
+      for (let i = 0; i < parsed.length; i++) {
+        const row = parsed[i];
+        setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
+        const geo = await geocodeAddress(row);
+        if (geo.lat && geo.lng) found++;
+        geocoded.push({ ...row, lat: geo.lat, lng: geo.lng });
+        await delay(250);
+      }
+
+      window.pendingImportData = geocoded;
+      currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+      window.currentData = currentData;
+      filteredStreet = null;
+      filteredAdicional = null;
+      if (currentSort.column !== null) applySort();
+      renderAll();
+      showTable();
+
+      setImportStatus(`Geocoding completado. Coordenadas encontradas: ${found}/${parsed.length}. Guardando en Firebase...`);
+
+      if (typeof window.importDatabaseToFirebase === 'function') {
+        await window.importDatabaseToFirebase();
+      } else {
+        alert('Firebase aún no está listo.');
+      }
+
+      setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}.`);
+      document.getElementById('viewModeSelect').value = 'latest';
+      await loadData();
+    }
+
+    importExcelTbody.addEventListener('paste', (event) => {
+      const text = event.clipboardData?.getData('text/plain') || '';
+      if (!text) return;
+      event.preventDefault();
+
+      const rowChunks = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+      const matrix = rowChunks.map(r => r.split('\t'));
+      if (!matrix.length) return;
+
+      const activeCell = document.activeElement;
+      let startRow = 0;
+      let startCol = 0;
+
+      if (activeCell && activeCell.tagName === 'TD' && activeCell.parentElement?.parentElement === importExcelTbody) {
+        const tr = activeCell.parentElement;
+        startRow = Array.from(importExcelTbody.children).indexOf(tr);
+        startCol = Array.from(tr.children).indexOf(activeCell);
+      }
+
+      while (importExcelTbody.children.length < startRow + matrix.length) createImportRow();
+
+      matrix.forEach((cells, rIdx) => {
+        const tr = importExcelTbody.children[startRow + rIdx];
+        cells.forEach((value, cIdx) => {
+          const col = startCol + cIdx;
+          if (col >= importColumns.length) return;
+          const td = tr.children[col];
+          if (td) td.textContent = value.trim();
+        });
+      });
+
+      setImportStatus(`Pegado completado: ${matrix.length} fila(s).`);
+    });
+
+    document.getElementById('importFirebaseBtn').addEventListener('click', openImportModal);
+    document.getElementById('closeImportModalBtn').addEventListener('click', closeImportModal);
+    document.getElementById('addImportRowBtn').addEventListener('click', () => createImportRow());
+    document.getElementById('clearImportTableBtn').addEventListener('click', clearImportTable);
+    document.getElementById('processImportBtn').addEventListener('click', processPastedImport);
+    importModal.addEventListener('click', (e) => {
+      if (e.target === importModal) closeImportModal();
+    });
+
+    document.getElementById('reloadFirebaseBtn').addEventListener('click', () => loadData());
+    document.getElementById('viewModeSelect').addEventListener('change', () => {
+      filteredColonia = '';
+      filteredFecha = '';
+      loadData();
+    });
+    document.getElementById('filterColoniaSelect').addEventListener('change', (e) => {
+      filteredColonia = e.target.value || '';
+      renderAll();
+    });
+    document.getElementById('filterFechaSelect').addEventListener('change', (e) => {
+      filteredFecha = e.target.value || '';
+      renderAll();
     });
 
     const inspectionsModal = document.getElementById('inspectionsModal');
