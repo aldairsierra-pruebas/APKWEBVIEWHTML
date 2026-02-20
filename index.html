@@ -292,7 +292,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -415,18 +415,18 @@
 
     function normalizeBaseRow(r = {}) {
       return {
-        'Póliza': r.poliza || '',
-        'calle': r.calle || '',
-        'Número finca': r.numeroFinca || r.numero_finca || '',
-        'Colonia': r.colonia || '',
-        'Municipio': r.municipio || '',
-        'Nombre Contratante': r.nombreContratante || r.nombre || '',
-        'Empresa': r.empresa || '',
-        'Inspector': r.inspector || '',
-        'Adicional': r.adicional || '',
-        lat: r.lat || '',
-        lng: r.lng || '',
-        importadoEn: r.importadoEn || ''
+        'Póliza': r.poliza || r['Póliza'] || '',
+        'calle': r.calle || r['calle'] || '',
+        'Número finca': r.numeroFinca || r.numero_finca || r['Número finca'] || '',
+        'Colonia': r.colonia || r['Colonia'] || '',
+        'Municipio': r.municipio || r['Municipio'] || '',
+        'Nombre Contratante': r.nombreContratante || r.nombre || r['Nombre Contratante'] || '',
+        'Empresa': r.empresa || r['Empresa'] || '',
+        'Inspector': r.inspector || r['Inspector'] || '',
+        'Adicional': r.adicional || r['Adicional'] || '',
+        lat: r.lat || r.latitude || r['Latitud'] || '',
+        lng: r.lng || r.longitude || r['Longitud'] || '',
+        importadoEn: r.importadoEn || r.updatedAt || r.ultimaImportacion || ''
       };
     }
 
@@ -542,6 +542,52 @@
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
 
+    let unsubVisitedRealtime = null;
+    let unsubInspectionsRealtime = null;
+
+    function attachRealtimeSync() {
+      if (!unsubVisitedRealtime) {
+        try {
+          unsubVisitedRealtime = onSnapshot(collection(db, 'VisitasPolizas'), (snapshot) => {
+            const map = {};
+            snapshot.forEach(d => {
+              const row = d.data() || {};
+              const poliza = (row.poliza || '').toString().trim();
+              if (poliza) map[poliza] = !!row.visited;
+            });
+            window.visitedRealtimeMap = map;
+            if (typeof window.onVisitedRealtimeUpdate === 'function') window.onVisitedRealtimeUpdate(map);
+          }, (err) => console.warn('Realtime VisitasPolizas no disponible', err?.code || err));
+        } catch (err) {
+          console.warn('No se pudo suscribir VisitasPolizas realtime', err?.code || err);
+        }
+      }
+
+      if (!unsubInspectionsRealtime) {
+        try {
+          unsubInspectionsRealtime = onSnapshot(collection(db, 'Inspecciones'), (snapshot) => {
+            const map = {};
+            const threshold = new Date();
+            threshold.setMonth(threshold.getMonth() - 3);
+            snapshot.forEach(d => {
+              const row = d.data() || {};
+              const poliza = (row?.cliente?.poliza || '').toString().trim();
+              if (!poliza) return;
+              const dt = parseInspectionDate(row?.inspeccion?.fecha || row?.createdAt || row?.created_at);
+              if (!dt || dt < threshold) return;
+              const prev = map[poliza] ? parseInspectionDate(map[poliza]) : null;
+              if (!prev || dt > prev) map[poliza] = dt.toISOString();
+            });
+            window.recentInspectionRealtimeMap = map;
+            if (typeof window.onRecentInspectionRealtimeUpdate === 'function') window.onRecentInspectionRealtimeUpdate(map);
+          }, (err) => console.warn('Realtime Inspecciones no disponible', err?.code || err));
+        } catch (err) {
+          console.warn('No se pudo suscribir Inspecciones realtime', err?.code || err);
+        }
+      }
+    }
+
+    attachRealtimeSync();
     window.firebaseBaseReady = true;
 
     window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
@@ -590,6 +636,22 @@
     // ---------- VISITADOS (localStorage) ----------
     const VISITED_KEY = 'visited_polizas_v1';
     let visitedMap = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
+
+    window.onVisitedRealtimeUpdate = function onVisitedRealtimeUpdate(remoteMap = {}) {
+      visitedMap = { ...visitedMap, ...remoteMap };
+      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+      renderAll();
+    };
+
+    window.onRecentInspectionRealtimeUpdate = function onRecentInspectionRealtimeUpdate(map = {}) {
+      currentData = currentData.map(r => {
+        const pol = (r['Póliza'] || '').toString().trim();
+        const recentDate = map[pol] || '';
+        return { ...r, _recentInspection: !!recentDate, _recentInspectionDate: recentDate };
+      });
+      window.currentData = currentData;
+      renderAll();
+    };
 
     function isVisited(poliza) { return !!visitedMap[poliza]; }
     function setVisited(poliza, value) {
@@ -759,7 +821,7 @@
           };
         });
 
-        currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+        currentData = rows;
         window.currentData = currentData;
         filteredStreet = null;
         filteredAdicional = null;
@@ -794,7 +856,7 @@
       const visibleKeys = new Set();
       list.forEach((row, i) => {
         const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
+        const hasCoords = !isNaN(lat) && !isNaN(lng);
 
         const rowKey = row._rowKey || getRowKey(row, i);
         row._rowKey = rowKey;
@@ -805,7 +867,7 @@
         const icon = createIcon(i+1, color);
 
         let marker = AppState.markersByKey.get(rowKey);
-        if (!marker) {
+        if (hasCoords && !marker) {
           const popupHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; padding-bottom:46px; box-sizing:border-box;">
               <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
@@ -840,15 +902,15 @@
           marker._rowKey = rowKey;
           AppState.markersByKey.set(rowKey, marker);
           AppState.markers.push(marker);
-        } else {
+        } else if (hasCoords && marker) {
           marker._rowData = row;
           marker._poliza = (row["Póliza"]||'').toString();
           marker.setIcon(icon);
           marker.setLatLng([lat, lng]);
         }
 
-        if (!map.hasLayer(marker)) marker.addTo(map);
-        marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
+        if (hasCoords && marker && !map.hasLayer(marker)) marker.addTo(map);
+        if (hasCoords && marker) marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
 
         const distanciaText = (row._distance && isFinite(row._distance))
           ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
@@ -893,6 +955,10 @@
         });
 
         tr.addEventListener('click', () => {
+          if (!hasCoords || !marker) {
+            alert('Esta póliza no tiene coordenadas válidas para mostrar en mapa.');
+            return;
+          }
           marker.openPopup();
           map.setView([lat, lng], 17);
           hideTable();
@@ -1438,13 +1504,26 @@
           actaBtn.style.cursor = 'pointer';
           actaBtn.title = '';
 
-          actaBtn.onclick = (ev) => {
+          actaBtn.onclick = async (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
 
             const rowData = marker._rowData;
             if (!rowData) {
               alert('No se encontraron datos de la póliza');
+              return;
+            }
+
+            const pol = (rowData['Póliza'] || '').toString().trim();
+            const latestMap = (typeof window.fetchRecentInspectionMap === 'function') ? await window.fetchRecentInspectionMap() : {};
+            if (latestMap[pol]) {
+              rowData._recentInspection = true;
+              rowData._recentInspectionDate = latestMap[pol];
+              actaBtn.disabled = true;
+              actaBtn.textContent = 'Inspección reciente';
+              actaBtn.style.background = '#6c757d';
+              actaBtn.style.cursor = 'not-allowed';
+              alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
               return;
             }
 
