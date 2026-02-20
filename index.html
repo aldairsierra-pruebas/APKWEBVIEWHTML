@@ -305,6 +305,7 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    window.firebaseBaseReady = false;
 
     function normalizePolizaDocId(poliza) {
       const raw = (poliza || '').toString().trim();
@@ -329,24 +330,42 @@
       };
     }
 
+    async function readFirstAvailableCollection(collectionNames = []) {
+      for (const name of collectionNames) {
+        try {
+          const snapshot = await getDocs(collection(db, name));
+          const rows = [];
+          snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: name }));
+          return rows;
+        } catch (err) {
+          console.warn(`No se pudo leer colección ${name}`, err?.code || err);
+        }
+      }
+      return [];
+    }
+
     window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
-      const rows = [];
+      let rows = [];
       if (mode === 'global') {
-        const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
-        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        try {
+          const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
+          snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: 'importaciones' }));
+        } catch (err) {
+          console.warn('collectionGroup(importaciones) no disponible, usando fallback', err?.code || err);
+          rows = await readFirstAvailableCollection(['BasePolizasGlobal', 'BasePolizas']);
+        }
       } else {
-        const snapshot = await getDocs(collection(db, 'BasePolizasUltimaActualizacion'));
-        snapshot.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        rows = await readFirstAvailableCollection(['BasePolizasUltimaActualizacion', 'BasePolizas']);
       }
 
       rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
       return rows.map(r => ({
         'Póliza': r.poliza || '',
         'calle': r.calle || '',
-        'Número finca': r.numeroFinca || '',
+        'Número finca': r.numeroFinca || r.numero_finca || '',
         'Colonia': r.colonia || '',
         'Municipio': r.municipio || '',
-        'Nombre Contratante': r.nombreContratante || '',
+        'Nombre Contratante': r.nombreContratante || r.nombre || '',
         'Empresa': r.empresa || '',
         'Inspector': r.inspector || '',
         'Adicional': r.adicional || '',
@@ -364,14 +383,19 @@
 
       const importedAt = new Date().toISOString();
       const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
+      const legacyCollection = collection(db, 'BasePolizas');
 
       let ok = 0;
       let fail = 0;
 
-      // Limpiar tabla de última actualización
-      const latestSnapshot = await getDocs(latestCollection);
-      for (const d of latestSnapshot.docs) {
-        await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+      // Limpiar tabla de última actualización (si hay permisos)
+      try {
+        const latestSnapshot = await getDocs(latestCollection);
+        for (const d of latestSnapshot.docs) {
+          await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+        }
+      } catch (err) {
+        console.warn('No se pudo limpiar BasePolizasUltimaActualizacion', err?.code || err);
       }
 
       for (const row of data) {
@@ -391,7 +415,19 @@
           await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
 
           // Snapshot de última actualización para vista por defecto
-          await addDoc(latestCollection, payload);
+          try {
+            await addDoc(latestCollection, payload);
+          } catch (err) {
+            console.warn('No se pudo escribir BasePolizasUltimaActualizacion', err?.code || err);
+          }
+
+          // Compatibilidad con reglas antiguas
+          try {
+            await addDoc(legacyCollection, payload);
+          } catch (err) {
+            console.warn('No se pudo escribir BasePolizas', err?.code || err);
+          }
+
           ok++;
         } catch (err) {
           console.error('Error importando registro', row, err);
@@ -402,6 +438,8 @@
       window.pendingImportData = null;
       alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
     };
+
+    window.firebaseBaseReady = true;
 
     window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
       const tbody = document.getElementById('inspectionsTableBody');
@@ -574,6 +612,15 @@
       fechaSelect.value = filteredFecha;
     }
 
+    async function waitForFirebaseBridge(timeoutMs = 5000) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (window.firebaseBaseReady && typeof window.fetchBaseRowsFromFirebase === 'function') return true;
+        await delay(120);
+      }
+      return false;
+    }
+
     async function loadData() {
       document.getElementById('dataTableBody').innerHTML = '';
       document.getElementById('legend').innerHTML = '';
@@ -583,8 +630,14 @@
 
       const mode = document.getElementById('viewModeSelect')?.value || 'latest';
       try {
-        if (typeof window.fetchBaseRowsFromFirebase !== 'function') throw new Error('Firebase no listo');
+        const ready = await waitForFirebaseBridge();
+        if (!ready) throw new Error('Firebase no listo');
+
         const rows = await window.fetchBaseRowsFromFirebase(mode);
+        if (!rows.length) {
+          setImportStatus('No se encontraron registros en las colecciones permitidas de Firebase.');
+        }
+
         currentData = rows.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
         window.currentData = currentData;
         filteredStreet = null;
@@ -595,7 +648,12 @@
         showTable();
       } catch (err) {
         console.error(err);
-        alert('No se pudieron cargar datos desde Firebase.');
+        const code = err?.code || '';
+        if (code.includes('permission-denied')) {
+          alert('Firebase respondió "Missing or insufficient permissions". Debes habilitar reglas para BasePolizas/BasePolizasUltimaActualizacion/BasePolizasGlobal.');
+        } else {
+          alert('Firebase no listo o sin acceso. Verifica conexión y permisos de colecciones.');
+        }
       }
     }
 
