@@ -905,17 +905,21 @@
     }
 
     // ---------- RENDER LISTA / MARCADORES ----------
-    function renderAll() {
-      const tbody = document.getElementById('dataTableBody');
-      tbody.innerHTML = '';
-
-      const list = currentData.filter(r => {
+    function getFilteredRows() {
+      return currentData.filter(r => {
         if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
         if (filteredAdicional && ( (r["Adicional"]||'').toString() !== filteredAdicional )) return false;
         if (filteredColonia && ((r['Colonia'] || '').toString() !== filteredColonia)) return false;
         if (filteredFecha && formatImportDate(r.importadoEn) !== filteredFecha) return false;
         return true;
       });
+    }
+
+    function renderAll() {
+      const tbody = document.getElementById('dataTableBody');
+      tbody.innerHTML = '';
+
+      const list = getFilteredRows();
 
       const visibleKeys = new Set();
       list.forEach((row, i) => {
@@ -1654,11 +1658,14 @@
       if (nextBtn) {
         nextBtn.onclick = (ev) => {
           ev.preventDefault();
-          const visibles = AppState.markers.filter(m => map.hasLayer(m));
-          if (visibles.length === 0) return;
-          let idx = visibles.findIndex(m => m === marker);
+          const visiblesOrdenados = getFilteredRows().map((row, i) => {
+            const rowKey = row._rowKey || getRowKey(row, i);
+            return AppState.markersByKey.get(rowKey);
+          }).filter(m => m && map.hasLayer(m));
+          if (visiblesOrdenados.length === 0) return;
+          let idx = visiblesOrdenados.findIndex(m => m === marker);
           if (idx < 0) return;
-          const nextMarker = visibles[(idx + 1) % visibles.length];
+          const nextMarker = visiblesOrdenados[(idx + 1) % visiblesOrdenados.length];
           map.setView(nextMarker.getLatLng(), 17);
           nextMarker.openPopup();
         };
