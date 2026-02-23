@@ -155,6 +155,11 @@
 
     /* small responsive tweak for popup */
     .leaflet-popup-content-wrapper { box-sizing: border-box; }
+
+    #meterPhotoViewer { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:100000; padding:12px; }
+    #meterPhotoViewerContent { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    #meterPhotoViewer img { max-width:96vw; max-height:82vh; border-radius:10px; border:2px solid #fff; object-fit:contain; }
+    #replaceMeterPhotoBtn { padding:8px 12px; border:1px solid #ddd; border-radius:8px; background:#6f42c1; color:#fff; cursor:pointer; font-weight:700; }
   </style>
 </head>
 <body>
@@ -172,7 +177,10 @@
     <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista">📋</button>
     <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase">☁️</button>
     <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase">🗂️</button>
+    <button id="quickMeterPhotoBtn" class="quick-btn" title="Subir foto rápida de medidor" style="background:#6f42c1;">📸</button>
   </div>
+  <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
+  <div id="meterPhotoViewer" aria-hidden="true"><div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div></div>
 
   <!-- PANEL LISTA -->
   <div id="listPanel" aria-hidden="true">
@@ -319,6 +327,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -331,7 +340,41 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const storage = getStorage(app);
+    const quickMeterPhotosMap = {};
     window.firebaseBaseReady = false;
+
+    async function refreshQuickMeterPhotosMap() {
+      try {
+        const snap = await getDocs(collection(db, 'FotosMedidorRapidas'));
+        Object.keys(quickMeterPhotosMap).forEach(k => delete quickMeterPhotosMap[k]);
+        snap.forEach(d => {
+          const row = d.data() || {};
+          const pol = (row.poliza || d.id || '').toString().trim();
+          if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = row.ultimaFotoUrl;
+        });
+      } catch (err) {
+        console.warn('No se pudo cargar FotosMedidorRapidas', err);
+      }
+    }
+
+    async function uploadQuickMeterPhoto(poliza, file) {
+      const cleanPoliza = (poliza || '').toString().trim();
+      if (!cleanPoliza) throw new Error('Poliza requerida');
+      if (!file || !file.type?.startsWith('image/')) throw new Error('Archivo inválido');
+      const cleanName = (file.name || 'foto-medidor').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `medidor-rapido/${cleanPoliza}/${Date.now()}_${cleanName}`;
+      const fileRef = ref(storage, path);
+      const snap = await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(snap.ref);
+      await setDoc(doc(db, 'FotosMedidorRapidas', cleanPoliza), {
+        poliza: cleanPoliza,
+        ultimaFotoUrl: url,
+        ultimaActualizacion: new Date().toISOString()
+      }, { merge: true });
+      quickMeterPhotosMap[cleanPoliza] = url;
+      return url;
+    }
 
     function normalizePolizaDocId(poliza) {
       const raw = (poliza || '').toString().trim();
@@ -637,6 +680,7 @@
 
     attachRealtimeSync();
     window.firebaseBaseReady = true;
+    refreshQuickMeterPhotosMap();
 
     window.inspectionsCache = [];
     window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
@@ -746,11 +790,16 @@
       AppState.markers = [];
     }
 
-    function createIcon(number, color) {
+    function createIcon(number, color, hasMeterPhoto = false) {
+      const photoBadge = hasMeterPhoto
+        ? `<circle cx="38" cy="10" r="8" fill="#6f42c1" stroke="#fff" stroke-width="2"/>
+           <text x="38" y="13" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">📷</text>`
+        : '';
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="46" height="62" viewBox="0 0 46 62">
           <path d="M23 62s-18-22-18-34A18 18 0 1 1 41 28c0 12-18 34-18 34z"
             fill="${color}" stroke="#222" stroke-width="2"/>
+          ${photoBadge}
           <text x="23" y="30" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">${number}</text>
         </svg>`;
       return L.icon({
@@ -928,8 +977,10 @@
 
         const street = row["calle"] || 'Sin calle';
         const color = ensureColor(street);
-        const statusColor = row._recentInspection ? '#dc3545' : (isVisited((row["Póliza"]||'').toString()) ? '#6c757d' : color);
-        const icon = createIcon(i+1, statusColor);
+        const polizaVal = (row["Póliza"]||'').toString();
+        const hasMeterPhoto = !!quickMeterPhotosMap[polizaVal.trim()];
+        const statusColor = row._recentInspection ? '#dc3545' : (isVisited(polizaVal) ? '#6c757d' : color);
+        const icon = createIcon(i+1, statusColor, hasMeterPhoto);
 
         let marker = AppState.markersByKey.get(rowKey);
         if (hasCoords && !marker) {
@@ -954,6 +1005,7 @@
               <div style="position:absolute; bottom:6px; left:6px; right:6px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
                 <div style="display:flex; align-items:center; gap:6px;">
                   <button class="acta-btn" style="padding:6px 8px; font-size:12px; background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;">Inspeccion</button>
+                  <button class="meter-photo-main-btn" style="padding:6px 8px; font-size:12px; background:#6f42c1; color:#fff; border:none; border-radius:6px; cursor:pointer;">${quickMeterPhotosMap[(row["Póliza"]||"").toString().trim()] ? "Ver foto medidor" : "Subir foto medidor"}</button>
                   <label style="display:inline-flex; align-items:center; gap:4px; font-size:11px; background:#f8f9fa; border:1px solid #ddd; border-radius:999px; padding:2px 6px;">
                     <input type="checkbox" class="popup-visited-checkbox" style="width:12px; height:12px; margin:0;"> <span>Visitado</span>
                   </label>
@@ -982,7 +1034,6 @@
           ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
           : '';
 
-        const polizaVal = (row["Póliza"]||'').toString();
         const visited = isVisited(polizaVal);
         const tr = document.createElement('tr');
         tr.style.background = (row._recentInspection ? '#dc354533' : (isVisited(polizaVal) ? '#6c757d33' : color + '22'));
@@ -992,7 +1043,7 @@
           <td style="width:34px; text-align:center;">
             <input type="checkbox" class="list-visited-checkbox" ${visited ? 'checked' : ''} aria-label="Visitado">
           </td>
-          <td>${escapeHtml(polizaVal)}</td>
+          <td>${escapeHtml(polizaVal)} ${hasMeterPhoto ? "<span title=\"Foto rápida disponible\">📷</span>" : ""}</td>
           <td>${escapeHtml(row["Nombre Contratante"]||'')}</td>
           <td>
             ${escapeHtml((row["calle"]||'') + ' ' + (row["Número finca"]||''))}
@@ -1406,6 +1457,70 @@
       if (e.target === importModal) closeImportModal();
     });
 
+    const quickMeterPhotoBtn = document.getElementById('quickMeterPhotoBtn');
+    const quickMeterPhotoInput = document.getElementById('quickMeterPhotoInput');
+    const meterPhotoViewer = document.getElementById('meterPhotoViewer');
+    const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
+    const meterPhotoViewerImg = document.getElementById('meterPhotoViewerImg');
+    const replaceMeterPhotoBtn = document.getElementById('replaceMeterPhotoBtn');
+
+    function openMeterPhotoViewer(poliza) {
+      const cleanPoliza = (poliza || '').toString().trim();
+      const url = quickMeterPhotosMap[cleanPoliza];
+      if (!cleanPoliza || !url || !meterPhotoViewer || !meterPhotoViewerImg) {
+        alert('Esta póliza aún no tiene foto rápida.');
+        return;
+      }
+      window.__quickPhotoPoliza = cleanPoliza;
+      meterPhotoViewerImg.src = url;
+      meterPhotoViewer.style.display = 'flex';
+      meterPhotoViewer.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeMeterPhotoViewer() {
+      if (!meterPhotoViewer) return;
+      meterPhotoViewer.style.display = 'none';
+      meterPhotoViewer.setAttribute('aria-hidden', 'true');
+    }
+
+    quickMeterPhotoBtn?.addEventListener('click', () => {
+      const poliza = prompt('Ingrese la póliza para gestionar la foto del medidor:', (window.__quickPhotoPoliza || '').toString());
+      if (!poliza) return;
+      const cleanPoliza = poliza.trim();
+      window.__quickPhotoPoliza = cleanPoliza;
+      if (quickMeterPhotosMap[cleanPoliza]) {
+        openMeterPhotoViewer(cleanPoliza);
+      } else {
+        quickMeterPhotoInput?.click();
+      }
+    });
+
+    quickMeterPhotoInput?.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      const poliza = (window.__quickPhotoPoliza || '').toString().trim();
+      if (!file || !poliza) { e.target.value = ''; return; }
+      try {
+        await uploadQuickMeterPhoto(poliza, file);
+        alert('Foto rápida de medidor guardada correctamente.');
+        renderAll();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudo guardar la foto rápida del medidor.');
+      } finally {
+        e.target.value = '';
+      }
+    });
+
+    meterPhotoViewer?.addEventListener('click', closeMeterPhotoViewer);
+    meterPhotoViewerContent?.addEventListener('click', (e) => e.stopPropagation());
+    replaceMeterPhotoBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!window.__quickPhotoPoliza) return;
+      closeMeterPhotoViewer();
+      quickMeterPhotoInput?.click();
+    });
+
     document.getElementById('reloadFirebaseBtn').addEventListener('click', () => loadData());
     document.getElementById('viewModeSelect').addEventListener('change', () => {
       filteredColonia = '';
@@ -1647,6 +1762,20 @@
             window.open(url.toString(), '_blank');
           };
         }
+      }
+
+      const meterPhotoMainBtn = popupEl.querySelector('.meter-photo-main-btn');
+      if (meterPhotoMainBtn) {
+        meterPhotoMainBtn.onclick = (ev) => {
+          ev.preventDefault();
+          window.__quickPhotoPoliza = poliza;
+          if (quickMeterPhotosMap[poliza]) {
+            openMeterPhotoViewer(poliza);
+          } else {
+            const quickInput = document.getElementById('quickMeterPhotoInput');
+            if (quickInput) quickInput.click();
+          }
+        };
       }
 
       // Next button (NO marca automáticamente)
