@@ -177,7 +177,6 @@
     <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista">📋</button>
     <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase">☁️</button>
     <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase">🗂️</button>
-    <button id="quickMeterPhotoBtn" class="quick-btn" title="Subir foto rápida de medidor" style="background:#6f42c1;">📸</button>
   </div>
   <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
   <div id="meterPhotoViewer" aria-hidden="true"><div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div></div>
@@ -328,12 +327,13 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
       authDomain: "asl-apk.firebaseapp.com",
       projectId: "asl-apk",
-      storageBucket: "asl-apk.firebasestorage.app",
+      storageBucket: "asl-apk.appspot.com",
       messagingSenderId: "803053462437",
       appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
     };
@@ -341,8 +341,28 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const storage = getStorage(app);
+    const auth = getAuth(app);
     const quickMeterPhotosMap = {};
+    window.quickMeterPhotosMap = quickMeterPhotosMap;
     window.firebaseBaseReady = false;
+    window.__firebaseAccessNoticeShown = false;
+
+    async function ensureFirebaseAuth() {
+      if (auth.currentUser) return auth.currentUser;
+      try {
+        const cred = await signInAnonymously(auth);
+        return cred.user;
+      } catch (err) {
+        console.warn('No se pudo autenticar en Firebase (anónimo)', err?.code || err);
+        if (!window.__firebaseAccessNoticeShown && (err?.code === 'auth/configuration-not-found' || err?.code === 'permission-denied')) {
+          window.__firebaseAccessNoticeShown = true;
+          alert('Firebase bloqueó el acceso. Habilita Authentication > Sign-in method > Anonymous y/o ajusta reglas de Firestore/Storage para permitir lectura y escritura.');
+        }
+        return null;
+      }
+    }
+
+    window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
 
     async function refreshQuickMeterPhotosMap() {
       try {
@@ -678,6 +698,7 @@
       }
     }
 
+    await ensureFirebaseAuth();
     attachRealtimeSync();
     window.firebaseBaseReady = true;
     refreshQuickMeterPhotosMap();
@@ -717,6 +738,8 @@
   </script>
 
   <script>
+    const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
+
     // ---------- MAPA ----------
     const map = L.map('map').setView([25.6866, -100.3161], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
@@ -1457,7 +1480,6 @@
       if (e.target === importModal) closeImportModal();
     });
 
-    const quickMeterPhotoBtn = document.getElementById('quickMeterPhotoBtn');
     const quickMeterPhotoInput = document.getElementById('quickMeterPhotoInput');
     const meterPhotoViewer = document.getElementById('meterPhotoViewer');
     const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
@@ -1483,24 +1505,13 @@
       meterPhotoViewer.setAttribute('aria-hidden', 'true');
     }
 
-    quickMeterPhotoBtn?.addEventListener('click', () => {
-      const poliza = prompt('Ingrese la póliza para gestionar la foto del medidor:', (window.__quickPhotoPoliza || '').toString());
-      if (!poliza) return;
-      const cleanPoliza = poliza.trim();
-      window.__quickPhotoPoliza = cleanPoliza;
-      if (quickMeterPhotosMap[cleanPoliza]) {
-        openMeterPhotoViewer(cleanPoliza);
-      } else {
-        quickMeterPhotoInput?.click();
-      }
-    });
 
     quickMeterPhotoInput?.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       const poliza = (window.__quickPhotoPoliza || '').toString().trim();
       if (!file || !poliza) { e.target.value = ''; return; }
       try {
-        await uploadQuickMeterPhoto(poliza, file);
+        await (window.uploadQuickMeterPhoto ? window.uploadQuickMeterPhoto(poliza, file) : uploadQuickMeterPhoto(poliza, file));
         alert('Foto rápida de medidor guardada correctamente.');
         renderAll();
       } catch (err) {

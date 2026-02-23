@@ -695,12 +695,16 @@
             uploadBytes,
             getDownloadURL
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
+        import {
+            getAuth,
+            signInAnonymously
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
             authDomain: "asl-apk.firebaseapp.com",
             projectId: "asl-apk",
-            storageBucket: "asl-apk.firebasestorage.app",
+            storageBucket: "asl-apk.appspot.com",
             messagingSenderId: "803053462437",
             appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
         };
@@ -708,6 +712,23 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
+        const auth = getAuth(app);
+        window.__firebaseAccessNoticeShown = false;
+
+        async function ensureFirebaseAuth() {
+            if (auth.currentUser) return auth.currentUser;
+            try {
+                const cred = await signInAnonymously(auth);
+                return cred.user;
+            } catch (err) {
+                console.warn('No se pudo autenticar en Firebase (anónimo)', err?.code || err);
+                if (!window.__firebaseAccessNoticeShown && (err?.code === 'auth/configuration-not-found' || err?.code === 'permission-denied')) {
+                    window.__firebaseAccessNoticeShown = true;
+                    alert('Firebase bloqueó el acceso. Habilita Authentication > Sign-in method > Anonymous y/o ajusta reglas de Firestore/Storage para permitir lectura y escritura.');
+                }
+                return null;
+            }
+        }
 
         // ==========================================
         // CONSTANTES Y ESTADO (Restaurado de anterior.txt)
@@ -1404,6 +1425,8 @@
                 ev.preventDefault();
 
                 if (!validateBusinessRules()) return;
+
+                await ensureFirebaseAuth();
 
                 // A. Recopilar datos planos (para fallbacks)
                 const flat = gatherFormFields(form);
