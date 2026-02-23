@@ -318,7 +318,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
@@ -337,6 +337,16 @@
       const raw = (poliza || '').toString().trim();
       if (!raw) return 'SIN_POLIZA';
       return raw.replace(/\//g, '_');
+    }
+
+
+    function buildImportDocId(poliza, importedAt) {
+      const pol = normalizePolizaDocId(poliza);
+      const dt = new Date(importedAt || Date.now());
+      const stamp = isNaN(dt.getTime())
+        ? String(importedAt || 'SIN_FECHA').replace(/[^a-zA-Z0-9_-]/g, '_')
+        : `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}_${String(dt.getHours()).padStart(2, '0')}${String(dt.getMinutes()).padStart(2, '0')}${String(dt.getSeconds()).padStart(2, '0')}`;
+      return `${pol}_${stamp}`;
     }
 
     function mapToPayload(row, importedAt) {
@@ -561,18 +571,19 @@
           }, { merge: true });
 
           // Registro consecutivo por fecha dentro de cada póliza (permite misma póliza en distintos meses/años)
-          await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
+          const importDocId = buildImportDocId(payload.poliza, payload.importadoEn);
+          await setDoc(doc(db, 'BasePolizasGlobal', polizaDocId, 'importaciones', importDocId), payload, { merge: true });
 
           // Snapshot de última actualización para vista por defecto
           try {
-            await addDoc(latestCollection, payload);
+            await setDoc(doc(db, 'BasePolizasUltimaActualizacion', importDocId), payload, { merge: true });
           } catch (err) {
             console.warn('No se pudo escribir BasePolizasUltimaActualizacion', err?.code || err);
           }
 
           // Compatibilidad con reglas antiguas
           try {
-            await addDoc(legacyCollection, payload);
+            await setDoc(doc(db, 'BasePolizas', importDocId), payload, { merge: true });
           } catch (err) {
             console.warn('No se pudo escribir BasePolizas', err?.code || err);
           }
