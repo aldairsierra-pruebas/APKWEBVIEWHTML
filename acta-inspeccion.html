@@ -620,7 +620,8 @@
         import {
             getFirestore,
             collection,
-            addDoc
+            doc,
+            setDoc
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
         import {
             getStorage,
@@ -700,6 +701,39 @@
         // HELPERS
         // ==========================================
         const trimOrNull = v => (v === undefined || v === null) ? null : (String(v).trim() === "" ? null : String(v).trim());
+
+        const sanitizeIdPart = (v, fallback = 'NA') => {
+            const raw = trimOrNull(v);
+            if (!raw) return fallback;
+            return raw
+                .replace(/\s+/g, '_')
+                .replace(/[^a-zA-Z0-9_-]/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_+|_+$/g, '') || fallback;
+        };
+
+        function buildInspectionDocId(poliza, fechaInspeccion) {
+            const safePoliza = sanitizeIdPart(poliza, 'SIN_POLIZA');
+            const date = new Date(fechaInspeccion || Date.now());
+            const safeDate = isNaN(date.getTime()) ? sanitizeIdPart(fechaInspeccion, 'SIN_FECHA') :
+                `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}_${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}${String(date.getSeconds()).padStart(2,'0')}`;
+            return `${safePoliza}_${safeDate}`;
+        }
+
+        function collectCheckboxMetadata(form) {
+            const all = Array.from(form.querySelectorAll('input[type="checkbox"]'));
+            return all.map((el, idx) => {
+                const generatedId = `chk_${sanitizeIdPart(el.name || 'sin_nombre')}_${sanitizeIdPart(el.value || String(idx), 'sin_valor')}`;
+                const checkboxId = el.id || generatedId;
+                if (!el.id) el.id = checkboxId;
+                return {
+                    id: checkboxId,
+                    name: el.name || null,
+                    value: trimOrNull(el.value),
+                    checked: !!el.checked
+                };
+            });
+        }
 
         function gatherFormFields(form) {
             const out = {};
@@ -1296,6 +1330,18 @@
                 const ccauVisible = !document.getElementById('sectionDatosExtras')?.classList.contains('hidden');
 
                 const registro = {
+                    idRegistro: {
+                        poliza: flat.poliza,
+                        fechaInspeccion: flat.fechaInspeccion,
+                        documentId: buildInspectionDocId(flat.poliza, flat.fechaInspeccion)
+                    },
+                    resumen: {
+                        poliza: flat.poliza,
+                        nombre: flat.nombre,
+                        telefono: flat.telefono,
+                        celular: flat.celular,
+                        checkboxes: collectCheckboxMetadata(form)
+                    },
                     createdAt: new Date().toISOString(),
                     cuestionario: {
                         datosCliente: {
@@ -1356,7 +1402,9 @@
                 };
 
                 try {
-                    await addDoc(collection(db, "Inspecciones"), registro);
+                    await setDoc(doc(collection(db, "Inspecciones"), registro.idRegistro.documentId), registro, {
+                        merge: true
+                    });
                     alert("✅ Inspección guardada correctamente.");
                     if (confirm("¿Desea limpiar el formulario?")) {
                         location.reload();
