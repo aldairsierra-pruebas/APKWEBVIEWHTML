@@ -172,6 +172,19 @@
             margin-top: 4px;
         }
 
+        .calc-label {
+            margin-top: 3px;
+            min-height: 32px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            font-weight: 700;
+            color: #0b3356;
+        }
+
         /* ESTILOS DE EQUIPOS (P2.2) RESTAURADOS */
         .eq-box {
             font-size: 12px;
@@ -407,6 +420,44 @@
             opacity: 0;
             pointer-events: none
         }
+
+        .cliente-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .cliente-grid .check-columns {
+            grid-template-columns: repeat(4, minmax(0, max-content));
+            justify-content: start;
+            column-gap: 16px;
+        }
+
+        .cliente-grid .binary-group {
+            gap: 12px;
+        }
+
+        .foto-medidor-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .foto-medidor-lista {
+            margin-top: 6px;
+            padding-left: 16px;
+            color: #4b5563;
+            font-size: 12px;
+        }
+
+        @media(max-width:980px) {
+            .cliente-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .cliente-grid .check-columns {
+                grid-template-columns: repeat(2, minmax(0, max-content));
+            }
+        }
     </style>
 </head>
 
@@ -419,7 +470,7 @@
 
         <div class="section collapsible">
             <h2>Datos del Cliente</h2>
-            <div class="section-content">
+            <div class="section-content cliente-grid">
                 <div class="field"><label>Póliza</label><input type="text" maxlength="12" inputmode="numeric" name="poliza" required></div>
                 <div class="field"><label>Nombre</label><input type="text" name="nombre" required></div>
                 <div class="field"><label>Teléfono</label><input type="text" maxlength="10" inputmode="numeric" name="telefono"></div>
@@ -459,7 +510,7 @@
                 <div class="field"><label>Fecha y hora de inspección</label><input type="text" name="fechaInspeccion" id="fechaInspeccion" readonly></div>
                 <div class="field"><label>Latitud / Longitud</label><input type="text" name="latlng" readonly></div>
 
-                <div class="field" style="grid-column:1/-1;">
+                <div class="field">
                     <label>Presente tambor litraje</label>
                     <div class="binary-group" data-exclusive-group="tamborLitraje">
                         <label><input type="checkbox" name="tamborLitraje" value="si" required> Sí</label>
@@ -467,7 +518,7 @@
                     </div>
                 </div>
 
-                <div class="field" style="grid-column:1/-1;">
+                <div class="field">
                     <label>Registro litraje</label>
                     <div class="binary-group" data-exclusive-group="registroLitraje">
                         <label><input type="checkbox" name="registroLitraje" value="si" required> Sí</label>
@@ -475,7 +526,7 @@
                     </div>
                 </div>
 
-                <div class="field" style="grid-column:1/-1;">
+                <div class="field">
                     <label>Nivel de accesibilidad</label>
                     <div class="binary-group" id="accesibilidadGroup">
                         <label><input type="checkbox" name="nivelAccesibilidad" value="G1" required> G1</label>
@@ -484,7 +535,7 @@
                     </div>
                 </div>
 
-                <div class="field" style="grid-column:1/-1;">
+                <div class="field">
                     <label>¿Se realiza prueba de litraje?</label>
                     <div class="binary-group" data-exclusive-group="pruebaLitraje" id="pruebaLitrajeGroup">
                         <label><input type="checkbox" name="pruebaLitraje" value="si" required> Sí</label>
@@ -499,8 +550,14 @@
 
                 <div class="field" style="grid-column:1/-1;">
                     <label>Fotografías del medidor</label>
-                    <input type="file" id="fotosMedidor" name="fotosMedidor" accept="image/*" multiple>
-                    <div class="small">Puede cargar varias fotos del medidor (JPG/PNG/WEBP).</div>
+                    <div class="foto-medidor-actions">
+                        <button type="button" class="btn secondary" id="btnTomarFotoMedidor">📷 Tomar foto</button>
+                        <button type="button" class="btn secondary" id="btnSubirFotoMedidor">🖼️ Subir fotografía</button>
+                    </div>
+                    <input type="file" id="fotosMedidorCamara" name="fotosMedidorCamara" accept="image/*" capture="environment" multiple class="hidden">
+                    <input type="file" id="fotosMedidorArchivo" name="fotosMedidorArchivo" accept="image/*" multiple class="hidden">
+                    <div class="small">Puede tomar o cargar varias fotos del medidor (JPG/PNG/WEBP).</div>
+                    <ul class="foto-medidor-lista" id="fotosMedidorLista"></ul>
                 </div>
             </div>
         </div>
@@ -509,8 +566,18 @@
             <h2>P1. Prueba de litraje inicial</h2>
             <div class="section-content">
                 <div class="field"><label>Lectura inicial</label><input type="number" maxlength="8" id="p1Ini" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)"></div>
-                <div class="field"><label>Lectura final</label><input type="number" maxlength="8" id="p1Fin" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)"></div>
-                <div class="field"><label>Diferencia</label><input type="number" id="p1Diff" readonly></div>
+                <div class="field"><label>Lectura final</label><input type="number" maxlength="8" id="p1Fin" min="0" max="99999999" oninput="if(this.value.length>8)this.value=this.value.slice(0,8)"></div>
+                <div class="field">
+                    <label>Diferencia</label>
+                    <div class="calc-label" id="p1DiffLabel">0.00</div>
+                    <input type="hidden" id="p1Diff" name="p1Diff" value="0">
+                </div>
+                <div class="field"><label>Duración (minutos)</label><input type="number" id="p1Duracion" min="1" step="1" inputmode="numeric"></div>
+                <div class="field">
+                    <label>Flujo (litros/hora)</label>
+                    <div class="calc-label" id="p1FlujoLabel">0.00</div>
+                    <input type="hidden" id="p1Flujo" name="p1Flujo" value="0">
+                </div>
             </div>
         </div>
 
@@ -620,8 +687,7 @@
         import {
             getFirestore,
             collection,
-            doc,
-            setDoc
+            addDoc
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
         import {
             getStorage,
@@ -696,44 +762,12 @@
 
         let defectosPorEquipo = {};
         let equipoActivo = null;
+        let fotosMedidorSeleccionadas = [];
 
         // ==========================================
         // HELPERS
         // ==========================================
         const trimOrNull = v => (v === undefined || v === null) ? null : (String(v).trim() === "" ? null : String(v).trim());
-
-        const sanitizeIdPart = (v, fallback = 'NA') => {
-            const raw = trimOrNull(v);
-            if (!raw) return fallback;
-            return raw
-                .replace(/\s+/g, '_')
-                .replace(/[^a-zA-Z0-9_-]/g, '_')
-                .replace(/_+/g, '_')
-                .replace(/^_+|_+$/g, '') || fallback;
-        };
-
-        function buildInspectionDocId(poliza, fechaInspeccion) {
-            const safePoliza = sanitizeIdPart(poliza, 'SIN_POLIZA');
-            const date = new Date(fechaInspeccion || Date.now());
-            const safeDate = isNaN(date.getTime()) ? sanitizeIdPart(fechaInspeccion, 'SIN_FECHA') :
-                `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}_${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}${String(date.getSeconds()).padStart(2,'0')}`;
-            return `${safePoliza}_${safeDate}`;
-        }
-
-        function collectCheckboxMetadata(form) {
-            const all = Array.from(form.querySelectorAll('input[type="checkbox"]'));
-            return all.map((el, idx) => {
-                const generatedId = `chk_${sanitizeIdPart(el.name || 'sin_nombre')}_${sanitizeIdPart(el.value || String(idx), 'sin_valor')}`;
-                const checkboxId = el.id || generatedId;
-                if (!el.id) el.id = checkboxId;
-                return {
-                    id: checkboxId,
-                    name: el.name || null,
-                    value: trimOrNull(el.value),
-                    checked: !!el.checked
-                };
-            });
-        }
 
         function gatherFormFields(form) {
             const out = {};
@@ -931,8 +965,9 @@
             const sectionP22 = document.getElementById('sectionP22');
             const p1Ini = document.getElementById('p1Ini');
             const p1Fin = document.getElementById('p1Fin');
+            const p1Duracion = document.getElementById('p1Duracion');
 
-            if (!pruebaNo || !fieldLecturaActual || !lecturaActual || !sectionP1 || !sectionP22 || !p1Ini || !p1Fin) return;
+            if (!pruebaNo || !fieldLecturaActual || !lecturaActual || !sectionP1 || !sectionP22 || !p1Ini || !p1Fin || !p1Duracion) return;
 
             const noPrueba = pruebaNo.checked;
             if (noPrueba) {
@@ -942,6 +977,16 @@
                 sectionP22.classList.add('hidden');
                 p1Ini.required = false;
                 p1Fin.required = false;
+                p1Duracion.required = false;
+                p1Duracion.value = '';
+                const p1Diff = document.getElementById('p1Diff');
+                const p1Flujo = document.getElementById('p1Flujo');
+                const p1DiffLabel = document.getElementById('p1DiffLabel');
+                const p1FlujoLabel = document.getElementById('p1FlujoLabel');
+                if (p1Diff) p1Diff.value = '0';
+                if (p1Flujo) p1Flujo.value = '0';
+                if (p1DiffLabel) p1DiffLabel.textContent = '0.00';
+                if (p1FlujoLabel) p1FlujoLabel.textContent = '0.00';
 
                 document.querySelectorAll('.qty').forEach(inp => {
                     inp.value = 0;
@@ -955,7 +1000,27 @@
                 sectionP22.classList.remove('hidden');
                 p1Ini.required = true;
                 p1Fin.required = true;
+                p1Duracion.required = true;
             }
+        }
+
+        function renderFotosMedidorLista() {
+            const lista = document.getElementById('fotosMedidorLista');
+            if (!lista) return;
+            if (!fotosMedidorSeleccionadas.length) {
+                lista.innerHTML = '<li>Sin fotografías seleccionadas.</li>';
+                return;
+            }
+            lista.innerHTML = fotosMedidorSeleccionadas
+                .map(file => `<li>${file.name} (${Math.round(file.size / 1024)} KB)</li>`)
+                .join('');
+        }
+
+        function addFotosMedidor(files) {
+            const nuevas = Array.from(files || []).filter(file => file?.type?.startsWith('image/'));
+            if (!nuevas.length) return;
+            fotosMedidorSeleccionadas = [...fotosMedidorSeleccionadas, ...nuevas].slice(0, 10);
+            renderFotosMedidorLista();
         }
 
         function validateBusinessRules() {
@@ -1007,8 +1072,31 @@
                 return false;
             }
 
-            const fotosMedidorInput = document.getElementById('fotosMedidor');
-            const fotos = fotosMedidorInput?.files ? Array.from(fotosMedidorInput.files) : [];
+            const sectionP1 = document.getElementById('sectionP1');
+            const p1Visible = sectionP1 && !sectionP1.classList.contains('hidden');
+            if (p1Visible) {
+                const p1Ini = document.getElementById('p1Ini');
+                const p1Fin = document.getElementById('p1Fin');
+                const iniVal = Number(p1Ini?.value || 0);
+                const finVal = Number(p1Fin?.value || 0);
+
+                if (finVal < iniVal) {
+                    alert('La lectura final no puede ser menor que la lectura inicial.');
+                    p1Fin?.focus();
+                    return false;
+                }
+
+                const diferencia = finVal - iniVal;
+                if (diferencia > 30) {
+                    const confirmar = confirm(`La diferencia calculada es ${diferencia.toFixed(2)}. ¿Confirma que es correcta?`);
+                    if (!confirmar) {
+                        p1Fin?.focus();
+                        return false;
+                    }
+                }
+            }
+
+            const fotos = Array.from(fotosMedidorSeleccionadas || []);
             if (fotos.length > 10) {
                 alert('Máximo 10 fotos del medidor por inspección.');
                 return false;
@@ -1225,6 +1313,7 @@
             renderEquipos();
             document.getElementById('p1Ini') && (document.getElementById('p1Ini').required = true);
             document.getElementById('p1Fin') && (document.getElementById('p1Fin').required = true);
+            document.getElementById('p1Duracion') && (document.getElementById('p1Duracion').required = true);
             syncDatosExtras(false);
 
             // 2. Listeners para Inputs/Botones de Cantidad (mostrar CO y botón defectos)
@@ -1270,6 +1359,23 @@
                 if (e.target.matches('input[name="nivelAccesibilidad"]')) syncExclusiveGroup('nivelAccesibilidad', e.target);
             });
 
+            const btnTomarFotoMedidor = document.getElementById('btnTomarFotoMedidor');
+            const btnSubirFotoMedidor = document.getElementById('btnSubirFotoMedidor');
+            const fotosMedidorCamara = document.getElementById('fotosMedidorCamara');
+            const fotosMedidorArchivo = document.getElementById('fotosMedidorArchivo');
+
+            btnTomarFotoMedidor?.addEventListener('click', () => fotosMedidorCamara?.click());
+            btnSubirFotoMedidor?.addEventListener('click', () => fotosMedidorArchivo?.click());
+            fotosMedidorCamara?.addEventListener('change', (e) => {
+                addFotosMedidor(e.target.files);
+                e.target.value = '';
+            });
+            fotosMedidorArchivo?.addEventListener('change', (e) => {
+                addFotosMedidor(e.target.files);
+                e.target.value = '';
+            });
+
+            renderFotosMedidorLista();
             updateTitularParentesco();
             updatePruebaLitrajeUI();
 
@@ -1312,13 +1418,14 @@
                     lecturaInicial: trimOrNull(document.getElementById('p1Ini')?.value),
                     lecturaFinal: trimOrNull(document.getElementById('p1Fin')?.value),
                     diferencia: trimOrNull(document.getElementById('p1Diff')?.value),
+                    duracionMinutos: trimOrNull(document.getElementById('p1Duracion')?.value),
+                    flujoLitrosHora: trimOrNull(document.getElementById('p1Flujo')?.value),
                     horaSalida: trimOrNull(document.getElementById('horaSalida')?.value)
                 };
 
-                const fotosMedidorInput = document.getElementById('fotosMedidor');
                 let fotosMedidor = [];
                 try {
-                    fotosMedidor = await uploadFotosMedidor(fotosMedidorInput?.files, flat.poliza);
+                    fotosMedidor = await uploadFotosMedidor(fotosMedidorSeleccionadas, flat.poliza);
                 } catch (err) {
                     console.error(err);
                     alert("❌ Error al subir fotografías del medidor.");
@@ -1330,18 +1437,6 @@
                 const ccauVisible = !document.getElementById('sectionDatosExtras')?.classList.contains('hidden');
 
                 const registro = {
-                    idRegistro: {
-                        poliza: flat.poliza,
-                        fechaInspeccion: flat.fechaInspeccion,
-                        documentId: buildInspectionDocId(flat.poliza, flat.fechaInspeccion)
-                    },
-                    resumen: {
-                        poliza: flat.poliza,
-                        nombre: flat.nombre,
-                        telefono: flat.telefono,
-                        celular: flat.celular,
-                        checkboxes: collectCheckboxMetadata(form)
-                    },
                     createdAt: new Date().toISOString(),
                     cuestionario: {
                         datosCliente: {
@@ -1374,7 +1469,9 @@
                             visible: !pruebaLitrajeNo,
                             lecturaInicial: computed.lecturaInicial,
                             lecturaFinal: computed.lecturaFinal,
-                            diferencia: computed.diferencia
+                            diferencia: computed.diferencia,
+                            duracionMinutos: computed.duracionMinutos,
+                            flujoLitrosHora: computed.flujoLitrosHora
                         },
                         p2SeguimientoIDA: {
                             visible: !pruebaLitrajeNo,
@@ -1402,9 +1499,7 @@
                 };
 
                 try {
-                    await setDoc(doc(collection(db, "Inspecciones"), registro.idRegistro.documentId), registro, {
-                        merge: true
-                    });
+                    await addDoc(collection(db, "Inspecciones"), registro);
                     alert("✅ Inspección guardada correctamente.");
                     if (confirm("¿Desea limpiar el formulario?")) {
                         location.reload();
@@ -1423,13 +1518,57 @@
             /* DIFERENCIA P1 */
             const ini = document.getElementById('p1Ini');
             const fin = document.getElementById('p1Fin');
+            const duracion = document.getElementById('p1Duracion');
             const diff = document.getElementById('p1Diff');
+            const diffLabel = document.getElementById('p1DiffLabel');
+            const flujo = document.getElementById('p1Flujo');
+            const flujoLabel = document.getElementById('p1FlujoLabel');
+            let finEditadoManualmente = false;
 
             function calc() {
-                if (diff) diff.value = (Number(fin?.value || 0) - Number(ini?.value || 0))
+                const iniVal = Number(ini?.value || 0);
+                const finVal = Number(fin?.value || 0);
+                const diferencia = finVal - iniVal;
+                const minutos = Number(duracion?.value || 0);
+                const flujoHora = minutos > 0 ? (60 / minutos) * diferencia : 0;
+
+                if (diff) diff.value = String(diferencia);
+                if (flujo) flujo.value = String(flujoHora);
+                if (diffLabel) diffLabel.textContent = Number.isFinite(diferencia) ? diferencia.toFixed(2) : '0.00';
+                if (flujoLabel) flujoLabel.textContent = Number.isFinite(flujoHora) ? flujoHora.toFixed(2) : '0.00';
             }
-            ini?.addEventListener('input', calc);
-            fin?.addEventListener('input', calc);
+
+            function syncLitrajeFinalDesdeInicial() {
+                if (!ini || !fin) return;
+                fin.min = ini.value || '0';
+                if (!finEditadoManualmente || !fin.value) {
+                    fin.value = ini.value || '';
+                }
+                if (fin.value && Number(fin.value) < Number(ini.value || 0)) {
+                    fin.value = ini.value || '';
+                }
+            }
+
+            ini?.addEventListener('input', () => {
+                syncLitrajeFinalDesdeInicial();
+                calc();
+            });
+
+            fin?.addEventListener('input', () => {
+                finEditadoManualmente = true;
+                if (fin.value && Number(fin.value) < Number(ini?.value || 0)) {
+                    fin.value = ini?.value || '';
+                }
+                calc();
+            });
+
+            fin?.addEventListener('blur', () => {
+                if (!fin.value) finEditadoManualmente = false;
+            });
+
+            duracion?.addEventListener('input', calc);
+            syncLitrajeFinalDesdeInicial();
+            calc();
 
             /* CALCULO FECHAS */
             function formatearFechaDDMMYYYY(date) {
