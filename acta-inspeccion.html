@@ -619,8 +619,8 @@
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
         import {
             getFirestore,
-            collection,
-            addDoc
+            doc,
+            setDoc
         } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
         import {
             getStorage,
@@ -700,6 +700,37 @@
         // HELPERS
         // ==========================================
         const trimOrNull = v => (v === undefined || v === null) ? null : (String(v).trim() === "" ? null : String(v).trim());
+
+        function normalizeDocSegment(value, fallback = 'SIN_DATO') {
+            const text = (value || '').toString().trim();
+            if (!text) return fallback;
+            return text.replace(/[\s/:\\]+/g, '-').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+        }
+
+        function getInspectionDateSegment(rawDate) {
+            const text = (rawDate || '').toString().trim();
+            if (!text) return 'SIN_FECHA';
+            const asIso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (asIso) return `${asIso[1]}${asIso[2]}${asIso[3]}`;
+            const asLatam = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (asLatam) {
+                const dd = asLatam[1].padStart(2, '0');
+                const mm = asLatam[2].padStart(2, '0');
+                return `${asLatam[3]}${mm}${dd}`;
+            }
+            return normalizeDocSegment(text, 'SIN_FECHA');
+        }
+
+        function getSelectedCheckboxIds(form) {
+            const names = ['identificacionCliente', 'titularServicio', 'tamborLitraje', 'registroLitraje', 'pruebaLitraje', 'nivelAccesibilidad'];
+            const out = {};
+            names.forEach(name => {
+                const selected = Array.from(form.querySelectorAll(`input[name="${name}"]:checked`))
+                    .map(el => `${name}_${normalizeDocSegment(el.value, 'VALOR')}`);
+                out[name] = selected;
+            });
+            return out;
+        }
 
         function gatherFormFields(form) {
             const out = {};
@@ -1297,6 +1328,16 @@
 
                 const registro = {
                     createdAt: new Date().toISOString(),
+                    resumen: {
+                        poliza: flat.poliza,
+                        nombre: flat.nombre,
+                        telefono: flat.telefono,
+                        celular: flat.celular,
+                        fechaInspeccion: flat.fechaInspeccion,
+                        identificacionPresentada: flat.identificacionCliente,
+                        titularServicio: flat.titularServicio,
+                        checkboxIds: getSelectedCheckboxIds(form)
+                    },
                     cuestionario: {
                         datosCliente: {
                             poliza: flat.poliza,
@@ -1355,8 +1396,12 @@
                     }
                 };
 
+                const inspectionDocId = `${normalizeDocSegment(flat.poliza, 'SIN_POLIZA')}_${getInspectionDateSegment(flat.fechaInspeccion)}`;
+
                 try {
-                    await addDoc(collection(db, "Inspecciones"), registro);
+                    await setDoc(doc(db, "Inspecciones", inspectionDocId), registro, {
+                        merge: true
+                    });
                     alert("✅ Inspección guardada correctamente.");
                     if (confirm("¿Desea limpiar el formulario?")) {
                         location.reload();
