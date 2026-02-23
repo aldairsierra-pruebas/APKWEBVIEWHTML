@@ -177,7 +177,6 @@
     <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista">📋</button>
     <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase">☁️</button>
     <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase">🗂️</button>
-    <button id="quickMeterPhotoBtn" class="quick-btn" title="Subir foto rápida de medidor" style="background:#6f42c1;">📸</button>
   </div>
   <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
   <div id="meterPhotoViewer" aria-hidden="true"><div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div></div>
@@ -333,7 +332,7 @@
       apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
       authDomain: "asl-apk.firebaseapp.com",
       projectId: "asl-apk",
-      storageBucket: "asl-apk.firebasestorage.app",
+      storageBucket: "asl-apk.appspot.com",
       messagingSenderId: "803053462437",
       appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
     };
@@ -1457,7 +1456,6 @@
       if (e.target === importModal) closeImportModal();
     });
 
-    const quickMeterPhotoBtn = document.getElementById('quickMeterPhotoBtn');
     const quickMeterPhotoInput = document.getElementById('quickMeterPhotoInput');
     const meterPhotoViewer = document.getElementById('meterPhotoViewer');
     const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
@@ -1482,18 +1480,6 @@
       meterPhotoViewer.style.display = 'none';
       meterPhotoViewer.setAttribute('aria-hidden', 'true');
     }
-
-    quickMeterPhotoBtn?.addEventListener('click', () => {
-      const poliza = prompt('Ingrese la póliza para gestionar la foto del medidor:', (window.__quickPhotoPoliza || '').toString());
-      if (!poliza) return;
-      const cleanPoliza = poliza.trim();
-      window.__quickPhotoPoliza = cleanPoliza;
-      if (quickMeterPhotosMap[cleanPoliza]) {
-        openMeterPhotoViewer(cleanPoliza);
-      } else {
-        quickMeterPhotoInput?.click();
-      }
-    });
 
     quickMeterPhotoInput?.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
