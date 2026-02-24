@@ -1,725 +1,1054 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Visitas Naturgy</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/x-icon" href="favicon_visitas_inspeccion.ico">
-  <script>
-    function compareVersions(v1, v2) {
-      const a = v1.split('.').map(Number), b = v2.split('.').map(Number);
-      for (let i = 0; i < Math.max(a.length, b.length); i++) {
-        const diff = (a[i] || 0) - (b[i] || 0);
-        if (diff) return diff > 0 ? 1 : -1;
-      }
-      return 0;
-    }
-    const currentVersion = "2.0.0";
-    function checkUpdate() {
-      fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-        .then(data => {
-          if (!data || !data.version) return;
-          if (compareVersions(data.version, currentVersion) > 0) {
-            const overlay = document.createElement('div');
-            overlay.id = 'update-overlay';
-            overlay.style.cssText = `
+    <meta charset="UTF-8">
+    <title>Visitas Naturgy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="favicon_visitas_inspeccion.ico">
+    <script>
+        function compareVersions(v1, v2) {
+            const a = v1.split('.').map(Number),
+                b = v2.split('.').map(Number);
+            for (let i = 0; i < Math.max(a.length, b.length); i++) {
+                const diff = (a[i] || 0) - (b[i] || 0);
+                if (diff) return diff > 0 ? 1 : -1;
+            }
+            return 0;
+        }
+        const currentVersion = "2.0.0";
+
+        function checkUpdate() {
+            fetch("https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/update.json?nocache=" + Date.now())
+                .then(r => {
+                    if (!r.ok) throw new Error();
+                    return r.json();
+                })
+                .then(data => {
+                    if (!data || !data.version) return;
+                    if (compareVersions(data.version, currentVersion) > 0) {
+                        const overlay = document.createElement('div');
+                        overlay.id = 'update-overlay';
+                        overlay.style.cssText = `
               position: fixed; top:0; left:0; width:100%; height:100%;
               background: rgba(0,0,0,0.8); color:#fff; display:flex;
               align-items:center; justify-content:center; flex-direction:column;
               text-align:center; padding:20px; z-index:99999; font-family: Arial;
             `;
-            overlay.innerHTML = `
+                        overlay.innerHTML = `
               <h2 style="margin-bottom:12px;">${data.message || 'Actualización disponible'}</h2>
               <p style="margin-bottom:18px;">Versión actual: ${currentVersion} — Nueva: ${data.version}</p>
               <a href="${data.url}" style="background:#28a745;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;">
                 Descargar actualización
               </a>
             `;
-            document.body.appendChild(overlay);
-          }
-        })
-        .catch(()=> console.warn('No se pudo verificar la versión'));
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkUpdate); else checkUpdate();
-  </script>
+                        document.body.appendChild(overlay);
+                    }
+                })
+                .catch(() => console.warn('No se pudo verificar la versión'));
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', checkUpdate);
+        else checkUpdate();
+    </script>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
 
-  <style>
-    body { margin:0; font-family: Arial, sans-serif; }
-    #map { height: 100vh; transition: height 0.3s ease; }
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
 
-    /* LIST PANEL (pantalla completa, deslizable) */
-    #listPanel {
-      position: fixed;
-      inset: 0;
-      background: #fff;
-      z-index: 900;
-      transform: translateY(100%);
-      transition: transform 0.3s ease;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
-    }
-    #listPanel.active { transform: translateY(0); }
+        #map {
+            height: 100vh;
+            transition: height 0.3s ease;
+        }
 
-    /* handle para deslizar */
-    #panelHandle {
-      height: 26px;
-      background: #f1f1f1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      border-bottom: 1px solid #e6e6e6;
-    }
-    #panelHandle div { width: 42px; height: 5px; background: #999; border-radius: 3px; }
+        /* LIST PANEL (pantalla completa, deslizable) */
+        #listPanel {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 900;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
+        }
 
-    /* controles (botón filtro + leyenda) */
-    #controls {
-      display:flex;
-      gap:8px;
-      align-items:center;
-      padding: 8px;
-      border-bottom: 1px solid #eee;
-      flex-wrap:wrap;
-    }
-    #controls button {
-      padding:6px 10px;
-      border-radius:6px;
-      border:1px solid #ddd;
-      background:#fff;
-      cursor:pointer;
-    }
+        #listPanel.active {
+            transform: translateY(0);
+        }
 
-    #legend { padding: 6px; font-size:13px; background:#fff; display:flex; flex-wrap:wrap; gap:6px; }
-    .legend-item { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f7f7f7; border:1px solid #ddd; border-radius:6px; cursor:pointer; }
-    .legend-item.active { outline:2px solid #007bff; }
+        /* handle para deslizar */
+        #panelHandle {
+            height: 26px;
+            background: #f1f1f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 1px solid #e6e6e6;
+        }
 
-    /* tabla */
-    #tableWrapper { flex: 1; overflow-y: auto; }
-    table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { padding:8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
-    th { background:#fafafa; position: sticky; top: 0; z-index: 10; }
-    tr:hover { background:#f7fbff; cursor:pointer; }
+        #panelHandle div {
+            width: 42px;
+            height: 5px;
+            background: #999;
+            border-radius: 3px;
+        }
 
-    .voice-btn {
-      display:inline-flex; align-items:center; justify-content:center;
-      border:none; cursor:pointer; border-radius:8px; padding:6px 10px; font-size:18px;
-      color:#fff;
-    }
+        /* controles (botón filtro + leyenda) */
+        #controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            flex-wrap: wrap;
+        }
 
-    .icon-inline { width:14px; height:14px; object-fit:contain; vertical-align:middle; }
-    .icon-inline.light { filter: brightness(0) invert(1); }
-    .popup-icon-btn {
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:4px;
-      font-weight:700;
-      font-size:13px;
-      line-height:1;
-      padding:5px 6px;
-      min-height:28px;
-    }
-    .quick-btn { background:#0d6efd;color:white;border:none;border-radius:50%;width:34px;height:34px;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3); display:inline-flex; align-items:center; justify-content:center; }
-    small.distance { display:block; margin-top:6px; color:#333; opacity:0.85; font-size:12px; }
+        #controls button {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+        }
 
-    /* modal de calles y adicional */
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 2000; }
-    .modal-backdrop .modal { background: #fff; margin: 10% auto; width: 92%; max-height: 70%; overflow-y: auto; border-radius: 10px; padding: 12px; }
-    .modal-backdrop ul { list-style: none; padding: 0; margin: 0; }
-    .modal-backdrop li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        #legend {
+            padding: 6px;
+            font-size: 13px;
+            background: #fff;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
 
-    /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
-    #locateBtn, #refreshBtn, #toggleBtn, #autoNarrarBtn, #actionMenuBtn, #importFirebaseBtn, #viewInspectionsBtn { position: static; right: auto; z-index: auto; }
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #f7f7f7;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+        }
 
-    #topActions { position:fixed; top:max(10px, env(safe-area-inset-top)); right:max(10px, env(safe-area-inset-right)); display:flex; flex-direction:column; gap:8px; z-index:9999; align-items:flex-end; }
-    #actionMenu { display:none; flex-direction:column; gap:8px; padding:8px; background:rgba(255,255,255,0.95); border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
-    #topActions .quick-btn { touch-action: manipulation; }
+        .legend-item.active {
+            outline: 2px solid #007bff;
+        }
 
-    @media (max-width: 768px) {
-      #topActions {
-        top: max(8px, env(safe-area-inset-top));
-        right: max(8px, env(safe-area-inset-right));
-      }
-    }
+        /* tabla */
+        #tableWrapper {
+            flex: 1;
+            overflow-y: auto;
+        }
 
-    #actionMenu.active { display:flex; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
 
-    .quick-btn.gray { background:#6c757d; }
-    .quick-btn.green { background:#198754; }
-    .quick-btn.dark { background:#343a40; }
-    .quick-btn.cyan { background:#0dcaf0; }
-    .quick-btn.orange { background:#fd7e14; }
+        th,
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            vertical-align: top;
+        }
 
-    #actionMenuBtn img,
-    #actionMenu .quick-btn img,
-    #toggleBtn img,
-    .voice-btn img { width:16px; height:16px; object-fit:contain; filter:brightness(0) invert(1); }
-    #autoNarrarBtn.is-active { background:#dc3545; }
+        th {
+            background: #fafafa;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
 
-    #inspectionsModal .modal { margin: 6% auto; width: 95%; max-width: 900px; max-height: 82%; }
-    #inspectionsTable { width:100%; border-collapse:collapse; font-size:13px; }
-    #inspectionsTable th, #inspectionsTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
-    #inspectionsTable th { background:#f8f9fa; position:sticky; top:0; }
+        tr:hover {
+            background: #f7fbff;
+            cursor: pointer;
+        }
 
-    #importModal .modal { margin: 4% auto; width: 96%; max-width: 1200px; max-height: 88%; }
-    #importExcelTable { width:100%; border-collapse: collapse; font-size: 13px; }
-    #importExcelTable th, #importExcelTable td { border:1px solid #ddd; padding:6px; text-align:left; min-width:120px; }
-    #importExcelTable th { background:#f8f9fa; position: sticky; top: 0; z-index: 2; }
-    #importExcelTable td[contenteditable="true"] { background: #fffef2; }
-    #importStatus { font-size:12px; color:#555; }
+        .voice-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 18px;
+            color: #fff;
+        }
 
-    /* small responsive tweak for popup */
-    .leaflet-popup-content-wrapper { box-sizing: border-box; }
+        .icon-inline {
+            width: 14px;
+            height: 14px;
+            object-fit: contain;
+            vertical-align: middle;
+        }
 
-    #meterPhotoViewer { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:100000; padding:12px; }
-    #meterPhotoViewerContent { display:flex; flex-direction:column; align-items:center; gap:10px; }
-    #meterPhotoViewer img { max-width:96vw; max-height:82vh; border-radius:10px; border:2px solid #fff; object-fit:contain; }
-    #replaceMeterPhotoBtn { padding:8px 12px; border:1px solid #ddd; border-radius:8px; background:#6f42c1; color:#fff; cursor:pointer; font-weight:700; }
-  </style>
+        .icon-inline.light {
+            filter: brightness(0) invert(1);
+        }
+
+        .popup-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-weight: 700;
+            font-size: 13px;
+            line-height: 1;
+            padding: 5px 6px;
+            min-height: 28px;
+        }
+
+        .quick-btn {
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        small.distance {
+            display: block;
+            margin-top: 6px;
+            color: #333;
+            opacity: 0.85;
+            font-size: 12px;
+        }
+
+        /* modal de calles y adicional */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 2000;
+        }
+
+        .modal-backdrop .modal {
+            background: #fff;
+            margin: 10% auto;
+            width: 92%;
+            max-height: 70%;
+            overflow-y: auto;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .modal-backdrop ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .modal-backdrop li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        /* CORRECCIÓN: evitar que reglas globales fuerzen posición absoluta de botones (provocaba encimamiento) */
+        #locateBtn,
+        #refreshBtn,
+        #toggleBtn,
+        #autoNarrarBtn,
+        #actionMenuBtn,
+        #importFirebaseBtn,
+        #viewInspectionsBtn {
+            position: static;
+            right: auto;
+            z-index: auto;
+        }
+
+        #topActions {
+            position: fixed;
+            top: max(10px, env(safe-area-inset-top));
+            right: max(10px, env(safe-area-inset-right));
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 9999;
+            align-items: flex-end;
+        }
+
+        #actionMenu {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+        }
+
+        #topActions .quick-btn {
+            touch-action: manipulation;
+        }
+
+        @media (max-width: 768px) {
+            #topActions {
+                top: max(8px, env(safe-area-inset-top));
+                right: max(8px, env(safe-area-inset-right));
+            }
+        }
+
+        #actionMenu.active {
+            display: flex;
+        }
+
+        .quick-btn.gray {
+            background: #6c757d;
+        }
+
+        .quick-btn.green {
+            background: #198754;
+        }
+
+        .quick-btn.dark {
+            background: #343a40;
+        }
+
+        .quick-btn.cyan {
+            background: #0dcaf0;
+        }
+
+        .quick-btn.orange {
+            background: #fd7e14;
+        }
+
+        #actionMenuBtn img,
+        #actionMenu .quick-btn img,
+        #toggleBtn img,
+        .voice-btn img {
+            width: 16px;
+            height: 16px;
+            object-fit: contain;
+            filter: brightness(0) invert(1);
+        }
+
+        #autoNarrarBtn.is-active {
+            background: #dc3545;
+        }
+
+        #inspectionsModal .modal {
+            margin: 6% auto;
+            width: 95%;
+            max-width: 900px;
+            max-height: 82%;
+        }
+
+        #inspectionsTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        #inspectionsTable th,
+        #inspectionsTable td {
+            border-bottom: 1px solid #eee;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #inspectionsTable th {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+        }
+
+        #importModal .modal {
+            margin: 4% auto;
+            width: 96%;
+            max-width: 1200px;
+            max-height: 88%;
+        }
+
+        #importExcelTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        #importExcelTable th,
+        #importExcelTable td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+            min-width: 120px;
+        }
+
+        #importExcelTable th {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        #importExcelTable td[contenteditable="true"] {
+            background: #fffef2;
+        }
+
+        #importStatus {
+            font-size: 12px;
+            color: #555;
+        }
+
+        /* small responsive tweak for popup */
+        .leaflet-popup-content-wrapper {
+            box-sizing: border-box;
+        }
+
+        #meterPhotoViewer {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+            padding: 12px;
+        }
+
+        #meterPhotoViewerContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #meterPhotoViewer img {
+            max-width: 96vw;
+            max-height: 82vh;
+            border-radius: 10px;
+            border: 2px solid #fff;
+            object-fit: contain;
+        }
+
+        #replaceMeterPhotoBtn {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #6f42c1;
+            color: #fff;
+            cursor: pointer;
+            font-weight: 700;
+        }
+    </style>
 </head>
+
 <body>
-  <!-- map -->
-  <div id="map"></div>
+    <!-- map -->
+    <div id="map"></div>
 
-  <!-- Controles superiores -->
-  <div id="topActions">
-    <button id="actionMenuBtn" class="quick-btn dark" title="Mostrar / ocultar funciones"><img src="https://img.icons8.com/?size=100&id=8113&format=png&color=FFFFFF" alt="Menú"></button>
-    <div id="actionMenu" aria-hidden="true">
-      <button id="locateBtn" class="quick-btn" title="Ordenar por cercanía"><img src="https://img.icons8.com/?size=100&id=13800&format=png&color=FFFFFF" alt="Cercanía"></button>
-      <button id="refreshBtn" class="quick-btn gray" title="Recargar base"><img src="https://img.icons8.com/?size=100&id=59872&format=png&color=FFFFFF" alt="Recargar"></button>
-      <button id="autoNarrarBtn" class="quick-btn green" title="Narrador automático"><img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador"></button>
-      <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista"><img src="https://img.icons8.com/?size=100&id=8319&format=png&color=FFFFFF" alt="Lista"></button>
-      <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase"><img src="https://img.icons8.com/?size=100&id=11759&format=png&color=FFFFFF" alt="Importar"></button>
-      <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase"><img src="https://img.icons8.com/?size=100&id=11167&format=png&color=FFFFFF" alt="Inspecciones"></button>
-    </div>
-  </div>
-  <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
-  <div id="meterPhotoViewer" aria-hidden="true"><div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div></div>
-
-  <!-- PANEL LISTA -->
-  <div id="listPanel" aria-hidden="true">
-    <div id="panelHandle"><div></div></div>
-
-    <div id="controls">
-      <button id="filterBtn">📍 Filtrar calle</button>
-      <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
-      <select id="viewModeSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
-        <option value="latest" selected>Última carga</option>
-        <option value="global">Global histórico</option>
-      </select>
-      <select id="filterColoniaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
-        <option value="">Colonia: todas</option>
-      </select>
-      <select id="filterFechaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
-        <option value="">Fecha importación: todas</option>
-      </select>
-      <button id="reloadFirebaseBtn">⟳ Ver datos</button>
-      <button id="hideBtn">⬇️ Ocultar</button>
-      <div id="legend" style="flex:1;"></div>
-    </div>
-
-    <div id="tableWrapper">
-      <table>
-        <thead>
-          <tr>
-            <th data-label="✔">✔</th>
-            <th data-label="Póliza">Póliza</th>
-            <th data-label="Nombre">Nombre</th>
-            <th data-label="Dirección">Dirección</th>
-            <th data-label="Adicional">Adicional</th>
-          </tr>
-        </thead>
-        <tbody id="dataTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Modales -->
-  <div id="streetModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal">
-      <h3 style="margin-top:0">Selecciona calle</h3>
-      <ul id="streetList"></ul>
-    </div>
-  </div>
-
-  <div id="adicionalModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal">
-      <h3 style="margin-top:0">Selecciona valor de Adicional</h3>
-      <ul id="adicionalList"></ul>
-    </div>
-  </div>
-
-
-
-  <div id="inspectionsModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <h3 style="margin:0;">Inspecciones realizadas (Firebase)</h3>
-        <button id="closeInspectionsModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
-      </div>
-      <div style="overflow:auto; margin-top:10px; max-height:65vh;">
-        <table id="inspectionsTable">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Póliza</th>
-              <th>Nombre</th>
-              <th>Dirección</th>
-              <th>Inspector</th>
-              <th>Fecha</th>
-              <th>Preview</th>
-            </tr>
-          </thead>
-          <tbody id="inspectionsTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="inspectionPreviewModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal" style="margin: 4% auto; width:95%; max-width:1000px; max-height:86%;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <h3 style="margin:0;">Preview inspección</h3>
-        <button id="closeInspectionPreviewBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
-      </div>
-      <div id="inspectionPreviewMeta" style="font-size:13px; color:#444; margin:8px 0;"></div>
-      <div id="inspectionPreviewImages" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;"></div>
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer; font-size:13px; color:#0d6efd;">Ver JSON completo</summary>
-        <pre id="inspectionPreviewJson" style="font-size:11px; white-space:pre-wrap; background:#f8f9fa; border:1px solid #eee; padding:8px; border-radius:6px; max-height:30vh; overflow:auto;"></pre>
-      </details>
-    </div>
-  </div>
-
-  <div id="importModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-        <h3 style="margin:0;">Importar base (pegar desde Excel)</h3>
-        <button id="closeImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
-      </div>
-      <p style="margin:8px 0 6px; font-size:13px; color:#555;">Copia desde Excel y pega en la primera celda amarilla. El orden es: Póliza, calle, Número finca, Colonia, Municipio, Nombre Contratante, Empresa, Inspector, Adicional.</p>
-      <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
-        <button id="addImportRowBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">+ Fila</button>
-        <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
-        <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
-      </div>
-      <div style="display:grid; gap:6px; margin-bottom:8px;">
-        <label style="font-size:12px; color:#444;">URL Web App (Apps Script Maps.newGeocoder) - opcional y recomendado
-          <input id="appsScriptGeocoderUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%; margin-top:4px; padding:6px 8px; border:1px solid #ddd; border-radius:6px;">
-        </label>
-        <small style="color:#666;">Si defines esta URL, se usa primero (más preciso para número exterior). Si falla, usa respaldo automático.</small>
-      </div>
-      <div id="importStatus">Listo para pegar datos.</div>
-      <div style="margin-top:8px;">
-        <div style="height:8px;background:#e9ecef;border-radius:999px;overflow:hidden;">
-          <div id="importProgressBar" style="height:100%;width:0%;background:#0d6efd;transition:width 0.2s;"></div>
+    <!-- Controles superiores -->
+    <div id="topActions">
+        <button id="actionMenuBtn" class="quick-btn dark" title="Mostrar / ocultar funciones"><img src="https://img.icons8.com/?size=100&id=8113&format=png&color=FFFFFF" alt="Menú"></button>
+        <div id="actionMenu" aria-hidden="true">
+            <button id="locateBtn" class="quick-btn" title="Ordenar por cercanía"><img src="https://img.icons8.com/?size=100&id=13800&format=png&color=FFFFFF" alt="Cercanía"></button>
+            <button id="refreshBtn" class="quick-btn gray" title="Recargar base"><img src="https://img.icons8.com/?size=100&id=59872&format=png&color=FFFFFF" alt="Recargar"></button>
+            <button id="autoNarrarBtn" class="quick-btn green" title="Narrador automático"><img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador"></button>
+            <button id="toggleBtn" class="quick-btn dark" title="Mostrar lista"><img src="https://img.icons8.com/?size=100&id=8319&format=png&color=FFFFFF" alt="Lista"></button>
+            <button id="importFirebaseBtn" class="quick-btn cyan" title="Importar base a Firebase"><img src="https://img.icons8.com/?size=100&id=11759&format=png&color=FFFFFF" alt="Importar"></button>
+            <button id="viewInspectionsBtn" class="quick-btn orange" title="Ver inspecciones de Firebase"><img src="https://img.icons8.com/?size=100&id=11167&format=png&color=FFFFFF" alt="Inspecciones"></button>
         </div>
-        <div id="importProgressText" style="font-size:12px;color:#666;margin-top:4px;">0%</div>
-      </div>
-      <div style="overflow:auto; margin-top:10px; max-height:58vh;">
-        <table id="importExcelTable">
-          <thead>
-            <tr>
-              <th>Póliza</th>
-              <th>calle</th>
-              <th>Número finca</th>
-              <th>Colonia</th>
-              <th>Municipio</th>
-              <th>Nombre Contratante</th>
-              <th>Empresa</th>
-              <th>Inspector</th>
-              <th>Adicional</th>
-            </tr>
-          </thead>
-          <tbody id="importExcelTbody"></tbody>
-        </table>
-      </div>
     </div>
-  </div>
+    <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
+    <div id="meterPhotoViewer" aria-hidden="true">
+        <div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div>
+    </div>
+
+    <!-- PANEL LISTA -->
+    <div id="listPanel" aria-hidden="true">
+        <div id="panelHandle">
+            <div></div>
+        </div>
+
+        <div id="controls">
+            <button id="filterBtn">📍 Filtrar calle</button>
+            <button id="filterAdicionalBtn">🔎 Filtrar adicional</button>
+            <select id="viewModeSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="latest" selected>Última carga</option>
+                <option value="global">Global histórico</option>
+            </select>
+            <select id="filterColoniaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="">Colonia: todas</option>
+            </select>
+            <select id="filterFechaSelect" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="">Fecha importación: todas</option>
+            </select>
+            <button id="reloadFirebaseBtn">⟳ Ver datos</button>
+            <button id="hideBtn">⬇️ Ocultar</button>
+            <div id="legend" style="flex:1;"></div>
+        </div>
+
+        <div id="tableWrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-label="✔">✔</th>
+                        <th data-label="Póliza">Póliza</th>
+                        <th data-label="Nombre">Nombre</th>
+                        <th data-label="Dirección">Dirección</th>
+                        <th data-label="Adicional">Adicional</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="streetModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h3 style="margin-top:0">Selecciona calle</h3>
+            <ul id="streetList"></ul>
+        </div>
+    </div>
+
+    <div id="adicionalModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <h3 style="margin-top:0">Selecciona valor de Adicional</h3>
+            <ul id="adicionalList"></ul>
+        </div>
+    </div>
 
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, setDoc, collectionGroup, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
-      authDomain: "asl-apk.firebaseapp.com",
-      projectId: "asl-apk",
-      storageBucket: "asl-apk.appspot.com",
-      messagingSenderId: "803053462437",
-      appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
-    };
+    <div id="inspectionsModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <h3 style="margin:0;">Inspecciones realizadas (Firebase)</h3>
+                <button id="closeInspectionsModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+            </div>
+            <div style="overflow:auto; margin-top:10px; max-height:65vh;">
+                <table id="inspectionsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Póliza</th>
+                            <th>Nombre</th>
+                            <th>Dirección</th>
+                            <th>Inspector</th>
+                            <th>Fecha</th>
+                            <th>Preview</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inspectionsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-    const quickMeterPhotosMap = {};
-    window.quickMeterPhotosMap = quickMeterPhotosMap;
-    window.firebaseBaseReady = false;
-    window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
+    <div id="inspectionPreviewModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal" style="margin: 4% auto; width:95%; max-width:1000px; max-height:86%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <h3 style="margin:0;">Preview inspección</h3>
+                <button id="closeInspectionPreviewBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+            </div>
+            <div id="inspectionPreviewMeta" style="font-size:13px; color:#444; margin:8px 0;"></div>
+            <div id="inspectionPreviewImages" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;"></div>
+            <details style="margin-top:10px;">
+                <summary style="cursor:pointer; font-size:13px; color:#0d6efd;">Ver JSON completo</summary>
+                <pre id="inspectionPreviewJson" style="font-size:11px; white-space:pre-wrap; background:#f8f9fa; border:1px solid #eee; padding:8px; border-radius:6px; max-height:30vh; overflow:auto;"></pre>
+            </details>
+        </div>
+    </div>
 
-    async function refreshQuickMeterPhotosMap() {
-      try {
-        const snap = await getDocs(collection(db, 'FotosMedidorRapidas'));
-        Object.keys(quickMeterPhotosMap).forEach(k => delete quickMeterPhotosMap[k]);
-        snap.forEach(d => {
-          const row = d.data() || {};
-          const pol = (row.poliza || d.id || '').toString().trim();
-          if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = row.ultimaFotoUrl;
-        });
-      } catch (err) {
-        console.warn('No se pudo cargar FotosMedidorRapidas', err);
-      }
-    }
-
-    async function uploadQuickMeterPhoto(poliza, file) {
-      const cleanPoliza = (poliza || '').toString().trim();
-      if (!cleanPoliza) throw new Error('Poliza requerida');
-      if (!file || !file.type?.startsWith('image/')) throw new Error('Archivo inválido');
-      const cleanName = (file.name || 'foto-medidor').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = `medidor-rapido/${cleanPoliza}/${Date.now()}_${cleanName}`;
-      const fileRef = ref(storage, path);
-      const snap = await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(snap.ref);
-      await setDoc(doc(db, 'FotosMedidorRapidas', cleanPoliza), {
-        poliza: cleanPoliza,
-        ultimaFotoUrl: url,
-        ultimaActualizacion: new Date().toISOString()
-      }, { merge: true });
-      quickMeterPhotosMap[cleanPoliza] = url;
-      return url;
-    }
-
-    function normalizePolizaDocId(poliza) {
-      const raw = (poliza || '').toString().trim();
-      if (!raw) return 'SIN_POLIZA';
-      return raw.replace(/\//g, '_');
-    }
-
-    function mapToPayload(row, importedAt) {
-      return {
-        poliza: row['Póliza'] || '',
-        calle: row['calle'] || '',
-        numeroFinca: row['Número finca'] || '',
-        colonia: row['Colonia'] || '',
-        municipio: row['Municipio'] || '',
-        nombreContratante: row['Nombre Contratante'] || '',
-        empresa: row['Empresa'] || '',
-        inspector: row['Inspector'] || '',
-        adicional: row['Adicional'] || '',
-        lat: row.lat || '',
-        lng: row.lng || '',
-        importadoEn: importedAt
-      };
-    }
-
-    function parseInspectionDate(raw) {
-      if (!raw) return null;
-      const text = String(raw).trim();
-      const direct = new Date(text);
-      if (!isNaN(direct.getTime())) return direct;
-      const m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-      if (m) {
-        const day = Number(m[1]);
-        const month = Number(m[2]) - 1;
-        const year = Number(m[3].length === 2 ? `20${m[3]}` : m[3]);
-        const d = new Date(year, month, day);
-        if (!isNaN(d.getTime())) return d;
-      }
-      return null;
-    }
-
-    window.fetchVisitedMapFromFirebase = async function fetchVisitedMapFromFirebase() {
-      const map = {};
-      try {
-        const snapshot = await getDocs(collection(db, 'VisitasPolizas'));
-        snapshot.forEach(d => {
-          const row = d.data() || {};
-          const poliza = (row.poliza || '').toString().trim();
-          if (poliza) map[poliza] = !!row.visited;
-        });
-      } catch (err) {
-        console.warn('No se pudo leer VisitasPolizas', err?.code || err);
-      }
-      return map;
-    };
-
-    window.syncVisitedStatusToFirebase = async function syncVisitedStatusToFirebase(poliza, visited) {
-      const key = (poliza || '').toString().trim();
-      if (!key) return;
-      try {
-        await setDoc(doc(db, 'VisitasPolizas', normalizePolizaDocId(key)), {
-          poliza: key,
-          visited: !!visited,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (err) {
-        console.warn('No se pudo guardar visita en Firebase', err?.code || err);
-      }
-    };
-
-    function extractInspectionSummary(raw = {}) {
-      const poliza = (raw?.cliente?.poliza || raw?.cuestionario?.datosCliente?.poliza || raw?.datosCliente?.poliza || raw?.poliza || '').toString().trim();
-      const nombre = (raw?.cliente?.nombre || raw?.cuestionario?.datosCliente?.nombre || raw?.datosCliente?.nombre || '').toString();
-      const calle = (raw?.cliente?.calle || raw?.cuestionario?.datosCliente?.calle || '').toString();
-      const numero = (raw?.cliente?.numeroFinca || raw?.cliente?.numero || raw?.cuestionario?.datosCliente?.numeroFinca || '').toString();
-      const direccion = (raw?.cliente?.direccion || raw?.cuestionario?.datosCliente?.direccion || `${calle} ${numero}`.trim()).toString();
-      const inspector = (raw?.tecnico?.nombre || raw?.inspeccion?.inspector || raw?.inspector || '').toString();
-      const fechaRaw = raw?.inspeccion?.fecha || raw?.cuestionario?.datosMedidor?.fechaInspeccion || raw?.createdAt || raw?.created_at || '';
-      const dt = parseInspectionDate(fechaRaw);
-      const fechaIso = dt ? dt.toISOString() : '';
-      const fotos = [
-        ...(Array.isArray(raw?.cuestionario?.datosMedidor?.fotografiasMedidor) ? raw.cuestionario.datosMedidor.fotografiasMedidor : []),
-        ...(Array.isArray(raw?.fotosMedidor) ? raw.fotosMedidor : []),
-        ...(Array.isArray(raw?.imagenes) ? raw.imagenes : [])
-      ].filter(v => typeof v === 'string' && v.trim());
-
-      return { poliza, nombre, direccion, inspector, fecha: fechaRaw ? String(fechaRaw) : '', fechaIso, fotos };
-    }
-
-    window.fetchRecentInspectionMap = async function fetchRecentInspectionMap() {
-      const recentMap = {};
-      const anyMap = {};
-      try {
-        const snapshot = await getDocs(collection(db, 'Inspecciones'));
-        const threshold = new Date();
-        threshold.setMonth(threshold.getMonth() - 3);
-
-        snapshot.forEach(d => {
-          const summary = extractInspectionSummary(d.data() || {});
-          if (!summary.poliza) return;
-
-          anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
-          const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
-          if (!dt || dt < threshold) return;
-          const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
-          if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
-        });
-      } catch (err) {
-        console.warn('No se pudo consultar inspecciones recientes', err?.code || err);
-      }
-      return { recentMap, anyMap };
-    };
+    <div id="importModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h3 style="margin:0;">Importar base (pegar desde Excel)</h3>
+                <button id="closeImportModalBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Cerrar</button>
+            </div>
+            <p style="margin:8px 0 6px; font-size:13px; color:#555;">Copia desde Excel y pega en la primera celda amarilla. El orden es: Póliza, calle, Número finca, Colonia, Municipio, Nombre Contratante, Empresa, Inspector, Adicional.</p>
+            <div style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;">
+                <button id="addImportRowBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">+ Fila</button>
+                <button id="clearImportTableBtn" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Limpiar</button>
+                <button id="processImportBtn" style="padding:6px 10px;border:1px solid #0d6efd;border-radius:6px;background:#0d6efd;color:#fff;cursor:pointer;">Procesar + Geocodificar + Guardar Firebase</button>
+            </div>
+            <div style="display:grid; gap:6px; margin-bottom:8px;">
+                <label style="font-size:12px; color:#444;">URL Web App (Apps Script Maps.newGeocoder) - opcional y recomendado
+                    <input id="appsScriptGeocoderUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%; margin-top:4px; padding:6px 8px; border:1px solid #ddd; border-radius:6px;">
+                </label>
+                <small style="color:#666;">Si defines esta URL, se usa primero (más preciso para número exterior). Si falla, usa respaldo automático.</small>
+            </div>
+            <div id="importStatus">Listo para pegar datos.</div>
+            <div style="margin-top:8px;">
+                <div style="height:8px;background:#e9ecef;border-radius:999px;overflow:hidden;">
+                    <div id="importProgressBar" style="height:100%;width:0%;background:#0d6efd;transition:width 0.2s;"></div>
+                </div>
+                <div id="importProgressText" style="font-size:12px;color:#666;margin-top:4px;">0%</div>
+            </div>
+            <div style="overflow:auto; margin-top:10px; max-height:58vh;">
+                <table id="importExcelTable">
+                    <thead>
+                        <tr>
+                            <th>Póliza</th>
+                            <th>calle</th>
+                            <th>Número finca</th>
+                            <th>Colonia</th>
+                            <th>Municipio</th>
+                            <th>Nombre Contratante</th>
+                            <th>Empresa</th>
+                            <th>Inspector</th>
+                            <th>Adicional</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importExcelTbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
 
-    async function readFirstAvailableCollection(collectionNames = []) {
-      for (const name of collectionNames) {
-        try {
-          const snapshot = await getDocs(collection(db, name));
-          const rows = [];
-          snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: name }));
-          return rows;
-        } catch (err) {
-          console.warn(`No se pudo leer colección ${name}`, err?.code || err);
-        }
-      }
-      return [];
-    }
+    <script type="module">
+        import {
+            initializeApp
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            doc,
+            deleteDoc,
+            setDoc,
+            collectionGroup,
+            onSnapshot
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+        import {
+            getStorage,
+            ref,
+            uploadBytes,
+            getDownloadURL
+        } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-storage.js";
 
-    function normalizeBaseRow(r = {}) {
-      return {
-        'Póliza': r.poliza || r['Póliza'] || '',
-        'calle': r.calle || r['calle'] || '',
-        'Número finca': r.numeroFinca || r.numero_finca || r['Número finca'] || '',
-        'Colonia': r.colonia || r['Colonia'] || '',
-        'Municipio': r.municipio || r['Municipio'] || '',
-        'Nombre Contratante': r.nombreContratante || r.nombre || r['Nombre Contratante'] || '',
-        'Empresa': r.empresa || r['Empresa'] || '',
-        'Inspector': r.inspector || r['Inspector'] || '',
-        'Adicional': r.adicional || r['Adicional'] || '',
-        lat: r.lat || r.latitude || r['Latitud'] || '',
-        lng: r.lng || r.longitude || r['Longitud'] || '',
-        importadoEn: r.importadoEn || r.updatedAt || r.ultimaImportacion || ''
-      };
-    }
+        const firebaseConfig = {
+            apiKey: "AIzaSyBLqVCqW2s7piZQUH0dHODjK4JXAv74TdA",
+            authDomain: "asl-apk.firebaseapp.com",
+            projectId: "asl-apk",
+            storageBucket: "asl-apk.appspot.com",
+            messagingSenderId: "803053462437",
+            appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
+        };
 
-    function pickLatestImportBatch(rows = []) {
-      if (!rows.length) return [];
-      const sorted = rows.slice().sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
-      const latestStamp = sorted[0]?.importadoEn || '';
-      if (!latestStamp) return sorted;
-      return sorted.filter(r => (r.importadoEn || '') === latestStamp);
-    }
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const quickMeterPhotosMap = {};
+        window.quickMeterPhotosMap = quickMeterPhotosMap;
+        window.firebaseBaseReady = false;
+        window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
 
-    async function readGlobalImportacionesRows() {
-      try {
-        const rows = [];
-        const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
-        snapshot.forEach(d => rows.push({ id: d.id, ...d.data(), _sourceCollection: 'importaciones' }));
-        return rows;
-      } catch (err) {
-        console.warn('No se pudo leer collectionGroup(importaciones)', err?.code || err);
-        return [];
-      }
-    }
-
-    window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
-      let rows = [];
-
-      if (mode === 'global') {
-        rows = await readGlobalImportacionesRows();
-        if (!rows.length) {
-          rows = await readFirstAvailableCollection(['BasePolizas', 'BasePolizasUltimaActualizacion']);
-        }
-      } else {
-        // 1) Preferir snapshot de última actualización
-        rows = await readFirstAvailableCollection(['BasePolizasUltimaActualizacion']);
-
-        // 2) Fallback crítico: reconstruir "última importación" desde global/importaciones
-        if (!rows.length) {
-          const globalRows = await readGlobalImportacionesRows();
-          rows = pickLatestImportBatch(globalRows);
+        async function refreshQuickMeterPhotosMap() {
+            try {
+                const snap = await getDocs(collection(db, 'FotosMedidorRapidas'));
+                Object.keys(quickMeterPhotosMap).forEach(k => delete quickMeterPhotosMap[k]);
+                snap.forEach(d => {
+                    const row = d.data() || {};
+                    const pol = (row.poliza || d.id || '').toString().trim();
+                    if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = row.ultimaFotoUrl;
+                });
+            } catch (err) {
+                console.warn('No se pudo cargar FotosMedidorRapidas', err);
+            }
         }
 
-        // 3) Último fallback legacy
-        if (!rows.length) {
-          rows = await readFirstAvailableCollection(['BasePolizas']);
-        }
-      }
-
-      rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
-      return rows.map(normalizeBaseRow);
-    };
-
-    window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
-      const source = Array.isArray(window.pendingImportData) && window.pendingImportData.length ? window.pendingImportData : window.currentData;
-      const data = Array.isArray(source) ? source : [];
-      if (!data.length) { alert('No hay datos cargados para importar.'); return; }
-      if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
-
-      const importedAt = new Date().toISOString();
-      const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
-      const legacyCollection = collection(db, 'BasePolizas');
-
-      let ok = 0;
-      let fail = 0;
-
-      // Limpiar tabla de última actualización (si hay permisos)
-      try {
-        const latestSnapshot = await getDocs(latestCollection);
-        for (const d of latestSnapshot.docs) {
-          await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
-        }
-      } catch (err) {
-        console.warn('No se pudo limpiar BasePolizasUltimaActualizacion', err?.code || err);
-      }
-
-      for (const row of data) {
-        const payload = mapToPayload(row, importedAt);
-
-        try {
-          const polizaDocId = normalizePolizaDocId(payload.poliza);
-          const polizaDocRef = doc(db, 'BasePolizasGlobal', polizaDocId);
-
-          await setDoc(polizaDocRef, {
-            poliza: payload.poliza,
-            actualizadoEn: importedAt,
-            ultimaImportacion: payload.importadoEn
-          }, { merge: true });
-
-          // Registro consecutivo por fecha dentro de cada póliza (permite misma póliza en distintos meses/años)
-          await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
-
-          // Snapshot de última actualización para vista por defecto
-          try {
-            await addDoc(latestCollection, payload);
-          } catch (err) {
-            console.warn('No se pudo escribir BasePolizasUltimaActualizacion', err?.code || err);
-          }
-
-          // Compatibilidad con reglas antiguas
-          try {
-            await addDoc(legacyCollection, payload);
-          } catch (err) {
-            console.warn('No se pudo escribir BasePolizas', err?.code || err);
-          }
-
-          ok++;
-        } catch (err) {
-          console.error('Error importando registro', row, err);
-          fail++;
-        }
-      }
-
-      window.pendingImportData = null;
-      alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
-    };
-
-    let unsubVisitedRealtime = null;
-    let unsubInspectionsRealtime = null;
-
-    function attachRealtimeSync() {
-      if (!unsubVisitedRealtime) {
-        try {
-          unsubVisitedRealtime = onSnapshot(collection(db, 'VisitasPolizas'), (snapshot) => {
-            const map = {};
-            snapshot.forEach(d => {
-              const row = d.data() || {};
-              const poliza = (row.poliza || '').toString().trim();
-              if (poliza) map[poliza] = !!row.visited;
+        async function uploadQuickMeterPhoto(poliza, file) {
+            const cleanPoliza = (poliza || '').toString().trim();
+            if (!cleanPoliza) throw new Error('Poliza requerida');
+            if (!file || !file.type?.startsWith('image/')) throw new Error('Archivo inválido');
+            const cleanName = (file.name || 'foto-medidor').replace(/[^a-zA-Z0-9._-]/g, '_');
+            const path = `medidor-rapido/${cleanPoliza}/${Date.now()}_${cleanName}`;
+            const fileRef = ref(storage, path);
+            const snap = await uploadBytes(fileRef, file);
+            const url = await getDownloadURL(snap.ref);
+            await setDoc(doc(db, 'FotosMedidorRapidas', cleanPoliza), {
+                poliza: cleanPoliza,
+                ultimaFotoUrl: url,
+                ultimaActualizacion: new Date().toISOString()
+            }, {
+                merge: true
             });
-            window.visitedRealtimeMap = map;
-            if (typeof window.onVisitedRealtimeUpdate === 'function') window.onVisitedRealtimeUpdate(map);
-          }, (err) => console.warn('Realtime VisitasPolizas no disponible', err?.code || err));
-        } catch (err) {
-          console.warn('No se pudo suscribir VisitasPolizas realtime', err?.code || err);
+            quickMeterPhotosMap[cleanPoliza] = url;
+            return url;
         }
-      }
 
-      if (!unsubInspectionsRealtime) {
-        try {
-          unsubInspectionsRealtime = onSnapshot(collection(db, 'Inspecciones'), (snapshot) => {
+        function normalizePolizaDocId(poliza) {
+            const raw = (poliza || '').toString().trim();
+            if (!raw) return 'SIN_POLIZA';
+            return raw.replace(/\//g, '_');
+        }
+
+        function mapToPayload(row, importedAt) {
+            return {
+                poliza: row['Póliza'] || '',
+                calle: row['calle'] || '',
+                numeroFinca: row['Número finca'] || '',
+                colonia: row['Colonia'] || '',
+                municipio: row['Municipio'] || '',
+                nombreContratante: row['Nombre Contratante'] || '',
+                empresa: row['Empresa'] || '',
+                inspector: row['Inspector'] || '',
+                adicional: row['Adicional'] || '',
+                lat: row.lat || '',
+                lng: row.lng || '',
+                importadoEn: importedAt
+            };
+        }
+
+        function parseInspectionDate(raw) {
+            if (!raw) return null;
+            const text = String(raw).trim();
+            const direct = new Date(text);
+            if (!isNaN(direct.getTime())) return direct;
+            const m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+            if (m) {
+                const day = Number(m[1]);
+                const month = Number(m[2]) - 1;
+                const year = Number(m[3].length === 2 ? `20${m[3]}` : m[3]);
+                const d = new Date(year, month, day);
+                if (!isNaN(d.getTime())) return d;
+            }
+            return null;
+        }
+
+        window.fetchVisitedMapFromFirebase = async function fetchVisitedMapFromFirebase() {
+            const map = {};
+            try {
+                const snapshot = await getDocs(collection(db, 'VisitasPolizas'));
+                snapshot.forEach(d => {
+                    const row = d.data() || {};
+                    const poliza = (row.poliza || '').toString().trim();
+                    if (poliza) map[poliza] = !!row.visited;
+                });
+            } catch (err) {
+                console.warn('No se pudo leer VisitasPolizas', err?.code || err);
+            }
+            return map;
+        };
+
+        window.syncVisitedStatusToFirebase = async function syncVisitedStatusToFirebase(poliza, visited) {
+            const key = (poliza || '').toString().trim();
+            if (!key) return;
+            try {
+                await setDoc(doc(db, 'VisitasPolizas', normalizePolizaDocId(key)), {
+                    poliza: key,
+                    visited: !!visited,
+                    updatedAt: new Date().toISOString()
+                }, {
+                    merge: true
+                });
+            } catch (err) {
+                console.warn('No se pudo guardar visita en Firebase', err?.code || err);
+            }
+        };
+
+        function extractInspectionSummary(raw = {}) {
+            const poliza = (raw?.cliente?.poliza || raw?.cuestionario?.datosCliente?.poliza || raw?.datosCliente?.poliza || raw?.poliza || '').toString().trim();
+            const nombre = (raw?.cliente?.nombre || raw?.cuestionario?.datosCliente?.nombre || raw?.datosCliente?.nombre || '').toString();
+            const calle = (raw?.cliente?.calle || raw?.cuestionario?.datosCliente?.calle || '').toString();
+            const numero = (raw?.cliente?.numeroFinca || raw?.cliente?.numero || raw?.cuestionario?.datosCliente?.numeroFinca || '').toString();
+            const direccion = (raw?.cliente?.direccion || raw?.cuestionario?.datosCliente?.direccion || `${calle} ${numero}`.trim()).toString();
+            const inspector = (raw?.tecnico?.nombre || raw?.inspeccion?.inspector || raw?.inspector || '').toString();
+            const fechaRaw = raw?.inspeccion?.fecha || raw?.cuestionario?.datosMedidor?.fechaInspeccion || raw?.createdAt || raw?.created_at || '';
+            const dt = parseInspectionDate(fechaRaw);
+            const fechaIso = dt ? dt.toISOString() : '';
+            const fotos = [
+                ...(Array.isArray(raw?.cuestionario?.datosMedidor?.fotografiasMedidor) ? raw.cuestionario.datosMedidor.fotografiasMedidor : []),
+                ...(Array.isArray(raw?.fotosMedidor) ? raw.fotosMedidor : []),
+                ...(Array.isArray(raw?.imagenes) ? raw.imagenes : [])
+            ].filter(v => typeof v === 'string' && v.trim());
+
+            return {
+                poliza,
+                nombre,
+                direccion,
+                inspector,
+                fecha: fechaRaw ? String(fechaRaw) : '',
+                fechaIso,
+                fotos
+            };
+        }
+
+        window.fetchRecentInspectionMap = async function fetchRecentInspectionMap() {
             const recentMap = {};
             const anyMap = {};
-            const threshold = new Date();
-            threshold.setMonth(threshold.getMonth() - 3);
-            snapshot.forEach(d => {
-              const summary = extractInspectionSummary(d.data() || {});
-              if (!summary.poliza) return;
-              anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
-              const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
-              if (!dt || dt < threshold) return;
-              const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
-              if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
-            });
-            window.recentInspectionRealtimeMap = recentMap;
-            window.anyInspectionRealtimeMap = anyMap;
-            if (typeof window.onRecentInspectionRealtimeUpdate === 'function') window.onRecentInspectionRealtimeUpdate({ recentMap, anyMap });
-          }, (err) => console.warn('Realtime Inspecciones no disponible', err?.code || err));
-        } catch (err) {
-          console.warn('No se pudo suscribir Inspecciones realtime', err?.code || err);
+            try {
+                const snapshot = await getDocs(collection(db, 'Inspecciones'));
+                const threshold = new Date();
+                threshold.setMonth(threshold.getMonth() - 3);
+
+                snapshot.forEach(d => {
+                    const summary = extractInspectionSummary(d.data() || {});
+                    if (!summary.poliza) return;
+
+                    anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+                    const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
+                    if (!dt || dt < threshold) return;
+                    const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
+                    if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
+                });
+            } catch (err) {
+                console.warn('No se pudo consultar inspecciones recientes', err?.code || err);
+            }
+            return {
+                recentMap,
+                anyMap
+            };
+        };
+
+
+        async function readFirstAvailableCollection(collectionNames = []) {
+            for (const name of collectionNames) {
+                try {
+                    const snapshot = await getDocs(collection(db, name));
+                    const rows = [];
+                    snapshot.forEach(d => rows.push({
+                        id: d.id,
+                        ...d.data(),
+                        _sourceCollection: name
+                    }));
+                    return rows;
+                } catch (err) {
+                    console.warn(`No se pudo leer colección ${name}`, err?.code || err);
+                }
+            }
+            return [];
         }
-      }
-    }
 
-    attachRealtimeSync();
-    window.firebaseBaseReady = true;
-    refreshQuickMeterPhotosMap();
-
-    window.inspectionsCache = [];
-    window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
-      const tbody = document.getElementById('inspectionsTableBody');
-      tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>';
-      try {
-        const snapshot = await getDocs(collection(db, 'Inspecciones'));
-        const rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        const normalized = rows.map(r => ({ id: r.id, raw: r, summary: extractInspectionSummary(r) }));
-        normalized.sort((a, b) => String(b.summary.fechaIso || '').localeCompare(String(a.summary.fechaIso || '')));
-        window.inspectionsCache = normalized;
-
-        if (!normalized.length) {
-          tbody.innerHTML = '<tr><td colspan="7">No hay inspecciones registradas.</td></tr>';
-          return;
+        function normalizeBaseRow(r = {}) {
+            return {
+                'Póliza': r.poliza || r['Póliza'] || '',
+                'calle': r.calle || r['calle'] || '',
+                'Número finca': r.numeroFinca || r.numero_finca || r['Número finca'] || '',
+                'Colonia': r.colonia || r['Colonia'] || '',
+                'Municipio': r.municipio || r['Municipio'] || '',
+                'Nombre Contratante': r.nombreContratante || r.nombre || r['Nombre Contratante'] || '',
+                'Empresa': r.empresa || r['Empresa'] || '',
+                'Inspector': r.inspector || r['Inspector'] || '',
+                'Adicional': r.adicional || r['Adicional'] || '',
+                lat: r.lat || r.latitude || r['Latitud'] || '',
+                lng: r.lng || r.longitude || r['Longitud'] || '',
+                importadoEn: r.importadoEn || r.updatedAt || r.ultimaImportacion || ''
+            };
         }
 
-        tbody.innerHTML = normalized.map((item, i) => `
+        function pickLatestImportBatch(rows = []) {
+            if (!rows.length) return [];
+            const sorted = rows.slice().sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+            const latestStamp = sorted[0]?.importadoEn || '';
+            if (!latestStamp) return sorted;
+            return sorted.filter(r => (r.importadoEn || '') === latestStamp);
+        }
+
+        async function readGlobalImportacionesRows() {
+            try {
+                const rows = [];
+                const snapshot = await getDocs(collectionGroup(db, 'importaciones'));
+                snapshot.forEach(d => rows.push({
+                    id: d.id,
+                    ...d.data(),
+                    _sourceCollection: 'importaciones'
+                }));
+                return rows;
+            } catch (err) {
+                console.warn('No se pudo leer collectionGroup(importaciones)', err?.code || err);
+                return [];
+            }
+        }
+
+        window.fetchBaseRowsFromFirebase = async function fetchBaseRowsFromFirebase(mode = 'latest') {
+            let rows = [];
+
+            if (mode === 'global') {
+                rows = await readGlobalImportacionesRows();
+                if (!rows.length) {
+                    rows = await readFirstAvailableCollection(['BasePolizas', 'BasePolizasUltimaActualizacion']);
+                }
+            } else {
+                // 1) Preferir snapshot de última actualización
+                rows = await readFirstAvailableCollection(['BasePolizasUltimaActualizacion']);
+
+                // 2) Fallback crítico: reconstruir "última importación" desde global/importaciones
+                if (!rows.length) {
+                    const globalRows = await readGlobalImportacionesRows();
+                    rows = pickLatestImportBatch(globalRows);
+                }
+
+                // 3) Último fallback legacy
+                if (!rows.length) {
+                    rows = await readFirstAvailableCollection(['BasePolizas']);
+                }
+            }
+
+            rows.sort((a, b) => String(b.importadoEn || '').localeCompare(String(a.importadoEn || '')));
+            return rows.map(normalizeBaseRow);
+        };
+
+        window.importDatabaseToFirebase = async function importDatabaseToFirebase() {
+            const source = Array.isArray(window.pendingImportData) && window.pendingImportData.length ? window.pendingImportData : window.currentData;
+            const data = Array.isArray(source) ? source : [];
+            if (!data.length) {
+                alert('No hay datos cargados para importar.');
+                return;
+            }
+            if (!confirm(`¿Importar ${data.length} registros a Firebase?`)) return;
+
+            const importedAt = new Date().toISOString();
+            const latestCollection = collection(db, 'BasePolizasUltimaActualizacion');
+            const legacyCollection = collection(db, 'BasePolizas');
+
+            let ok = 0;
+            let fail = 0;
+
+            // Limpiar tabla de última actualización (si hay permisos)
+            try {
+                const latestSnapshot = await getDocs(latestCollection);
+                for (const d of latestSnapshot.docs) {
+                    await deleteDoc(doc(db, 'BasePolizasUltimaActualizacion', d.id));
+                }
+            } catch (err) {
+                console.warn('No se pudo limpiar BasePolizasUltimaActualizacion', err?.code || err);
+            }
+
+            for (const row of data) {
+                const payload = mapToPayload(row, importedAt);
+
+                try {
+                    const polizaDocId = normalizePolizaDocId(payload.poliza);
+                    const polizaDocRef = doc(db, 'BasePolizasGlobal', polizaDocId);
+
+                    await setDoc(polizaDocRef, {
+                        poliza: payload.poliza,
+                        actualizadoEn: importedAt,
+                        ultimaImportacion: payload.importadoEn
+                    }, {
+                        merge: true
+                    });
+
+                    // Registro consecutivo por fecha dentro de cada póliza (permite misma póliza en distintos meses/años)
+                    await addDoc(collection(db, 'BasePolizasGlobal', polizaDocId, 'importaciones'), payload);
+
+                    // Snapshot de última actualización para vista por defecto
+                    try {
+                        await addDoc(latestCollection, payload);
+                    } catch (err) {
+                        console.warn('No se pudo escribir BasePolizasUltimaActualizacion', err?.code || err);
+                    }
+
+                    // Compatibilidad con reglas antiguas
+                    try {
+                        await addDoc(legacyCollection, payload);
+                    } catch (err) {
+                        console.warn('No se pudo escribir BasePolizas', err?.code || err);
+                    }
+
+                    ok++;
+                } catch (err) {
+                    console.error('Error importando registro', row, err);
+                    fail++;
+                }
+            }
+
+            window.pendingImportData = null;
+            alert(`Importación finalizada. ✅ ${ok} | ❌ ${fail}`);
+        };
+
+        let unsubVisitedRealtime = null;
+        let unsubInspectionsRealtime = null;
+
+        function attachRealtimeSync() {
+            if (!unsubVisitedRealtime) {
+                try {
+                    unsubVisitedRealtime = onSnapshot(collection(db, 'VisitasPolizas'), (snapshot) => {
+                        const map = {};
+                        snapshot.forEach(d => {
+                            const row = d.data() || {};
+                            const poliza = (row.poliza || '').toString().trim();
+                            if (poliza) map[poliza] = !!row.visited;
+                        });
+                        window.visitedRealtimeMap = map;
+                        if (typeof window.onVisitedRealtimeUpdate === 'function') window.onVisitedRealtimeUpdate(map);
+                    }, (err) => console.warn('Realtime VisitasPolizas no disponible', err?.code || err));
+                } catch (err) {
+                    console.warn('No se pudo suscribir VisitasPolizas realtime', err?.code || err);
+                }
+            }
+
+            if (!unsubInspectionsRealtime) {
+                try {
+                    unsubInspectionsRealtime = onSnapshot(collection(db, 'Inspecciones'), (snapshot) => {
+                        const recentMap = {};
+                        const anyMap = {};
+                        const threshold = new Date();
+                        threshold.setMonth(threshold.getMonth() - 3);
+                        snapshot.forEach(d => {
+                            const summary = extractInspectionSummary(d.data() || {});
+                            if (!summary.poliza) return;
+                            anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+                            const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
+                            if (!dt || dt < threshold) return;
+                            const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
+                            if (!prev || dt > prev) recentMap[summary.poliza] = dt.toISOString();
+                        });
+                        window.recentInspectionRealtimeMap = recentMap;
+                        window.anyInspectionRealtimeMap = anyMap;
+                        if (typeof window.onRecentInspectionRealtimeUpdate === 'function') window.onRecentInspectionRealtimeUpdate({
+                            recentMap,
+                            anyMap
+                        });
+                    }, (err) => console.warn('Realtime Inspecciones no disponible', err?.code || err));
+                } catch (err) {
+                    console.warn('No se pudo suscribir Inspecciones realtime', err?.code || err);
+                }
+            }
+        }
+
+        attachRealtimeSync();
+        window.firebaseBaseReady = true;
+        refreshQuickMeterPhotosMap();
+
+        window.inspectionsCache = [];
+        window.loadInspectionsFromFirebase = async function loadInspectionsFromFirebase() {
+            const tbody = document.getElementById('inspectionsTableBody');
+            tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>';
+            try {
+                const snapshot = await getDocs(collection(db, 'Inspecciones'));
+                const rows = snapshot.docs.map(d => ({
+                    id: d.id,
+                    ...d.data()
+                }));
+                const normalized = rows.map(r => ({
+                    id: r.id,
+                    raw: r,
+                    summary: extractInspectionSummary(r)
+                }));
+                normalized.sort((a, b) => String(b.summary.fechaIso || '').localeCompare(String(a.summary.fechaIso || '')));
+                window.inspectionsCache = normalized;
+
+                if (!normalized.length) {
+                    tbody.innerHTML = '<tr><td colspan="7">No hay inspecciones registradas.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = normalized.map((item, i) => `
           <tr>
             <td>${i + 1}</td>
             <td>${(item.summary.poliza || '').toString()}</td>
@@ -730,284 +1059,345 @@
             <td><button class="inspection-preview-btn" data-idx="${i}" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">Preview</button></td>
           </tr>
         `).join('');
-      } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="7">Error consultando Firebase.</td></tr>';
-      }
-    };
-  </script>
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="7">Error consultando Firebase.</td></tr>';
+            }
+        };
+    </script>
 
-  <script>
-    const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
+    <script>
+        const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
 
-    // ---------- MAPA ----------
-    const map = L.map('map').setView([25.6866, -100.3161], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        // ---------- MAPA ----------
+        const map = L.map('map').setView([25.6866, -100.3161], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
 
-    // ---------- ESTADO ----------
-    const vividColors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c','#fabebe','#008080','#e6beff','#9a6324','#fffac8','#800000','#aaffc3','#808000','#ffd8b1','#000075','#808080'];
-    const streetColors = {};
-    let currentData = [], filteredStreet = null, filteredAdicional = null, filteredColonia = '', filteredFecha = '', userMarker = null;
-    const AppState = { markersByKey: new Map(), markers: [] };
-    window.currentData = currentData;
-    let currentSort = { column: null, asc: true };
+        // ---------- ESTADO ----------
+        const vividColors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'];
+        const streetColors = {};
+        let currentData = [],
+            filteredStreet = [],
+            filteredAdicional = [],
+            filteredColonia = '',
+            filteredFecha = '',
+            userMarker = null;
+        const AppState = {
+            markersByKey: new Map(),
+            markers: []
+        };
+        window.currentData = currentData;
+        let currentSort = {
+            column: null,
+            asc: true
+        };
 
-    // ---------- VISITADOS (localStorage) ----------
-    const VISITED_KEY = 'visited_polizas_v1';
-    let visitedMap = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
+        // ---------- VISITADOS (localStorage) ----------
+        const VISITED_KEY = 'visited_polizas_v1';
+        let visitedMap = JSON.parse(localStorage.getItem(VISITED_KEY) || '{}');
 
-    window.onVisitedRealtimeUpdate = function onVisitedRealtimeUpdate(remoteMap = {}) {
-      visitedMap = { ...visitedMap, ...remoteMap };
-      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
-      renderAll();
-    };
+        window.onVisitedRealtimeUpdate = function onVisitedRealtimeUpdate(remoteMap = {}) {
+            visitedMap = {
+                ...visitedMap,
+                ...remoteMap
+            };
+            localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+            renderAll();
+        };
 
-    window.onRecentInspectionRealtimeUpdate = function onRecentInspectionRealtimeUpdate(payload = {}) {
-      const recentMap = payload.recentMap || {};
-      const anyMap = payload.anyMap || {};
-      currentData = currentData.map(r => {
-        const pol = (r['Póliza'] || '').toString().trim();
-        const recentDate = recentMap[pol] || '';
-        const anyDate = anyMap[pol] || '';
-        if (anyDate) visitedMap[pol] = true;
-        return { ...r, _recentInspection: !!recentDate, _recentInspectionDate: recentDate, _hasInspection: !!anyDate };
-      });
-      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
-      window.currentData = currentData;
-      renderAll();
-    };
+        window.onRecentInspectionRealtimeUpdate = function onRecentInspectionRealtimeUpdate(payload = {}) {
+            const recentMap = payload.recentMap || {};
+            const anyMap = payload.anyMap || {};
+            currentData = currentData.map(r => {
+                const pol = (r['Póliza'] || '').toString().trim();
+                const recentDate = recentMap[pol] || '';
+                const anyDate = anyMap[pol] || '';
+                if (anyDate) visitedMap[pol] = true;
+                return {
+                    ...r,
+                    _recentInspection: !!recentDate,
+                    _recentInspectionDate: recentDate,
+                    _hasInspection: !!anyDate
+                };
+            });
+            localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+            window.currentData = currentData;
+            renderAll();
+        };
 
-    function isVisited(poliza) { return !!visitedMap[poliza]; }
-    function setVisited(poliza, value) {
-      if (!poliza) return;
-      visitedMap[poliza] = value;
-      localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
-    }
+        function isVisited(poliza) {
+            return !!visitedMap[poliza];
+        }
 
-    // ---------- UTIL ----------
-    function ensureColor(street) {
-      if (!streetColors[street]) {
-        streetColors[street] = vividColors[Object.keys(streetColors).length % vividColors.length];
-      }
-      return streetColors[street];
-    }
+        function setVisited(poliza, value) {
+            if (!poliza) return;
+            visitedMap[poliza] = value;
+            localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+        }
 
-    function escapeHtml(text) {
-      return (text||'').toString().replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c]));
-    }
+        // ---------- UTIL ----------
+        function ensureColor(street) {
+            if (!streetColors[street]) {
+                streetColors[street] = vividColors[Object.keys(streetColors).length % vividColors.length];
+            }
+            return streetColors[street];
+        }
 
-    function getRowKey(row, index = 0) {
-      const poliza = (row['Póliza'] || '').toString().trim();
-      const calle = (row['calle'] || '').toString().trim();
-      const numero = (row['Número finca'] || '').toString().trim();
-      const colonia = (row['Colonia'] || '').toString().trim();
-      const fecha = (row.importadoEn || '').toString().trim();
-      return `${poliza}|${calle}|${numero}|${colonia}|${fecha}|${index}`;
-    }
+        function escapeHtml(text) {
+            return (text || '').toString().replace(/[&<>'"]/g, c => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '\'': '&#39;',
+                '"': '&quot;'
+            } [c]));
+        }
 
-    function resetMarkerStore() {
-      AppState.markers.forEach(m => {
-        if (map.hasLayer(m)) map.removeLayer(m);
-      });
-      AppState.markersByKey.clear();
-      AppState.markers = [];
-    }
+        function getRowKey(row, index = 0) {
+            const poliza = (row['Póliza'] || '').toString().trim();
+            const calle = (row['calle'] || '').toString().trim();
+            const numero = (row['Número finca'] || '').toString().trim();
+            const colonia = (row['Colonia'] || '').toString().trim();
+            const fecha = (row.importadoEn || '').toString().trim();
+            return `${poliza}|${calle}|${numero}|${colonia}|${fecha}|${index}`;
+        }
 
-    function createIcon(number, color, hasMeterPhoto = false) {
-      const photoBadge = hasMeterPhoto
-        ? `<circle cx="38" cy="10" r="8" fill="#6f42c1" stroke="#fff" stroke-width="2"/>
-           <text x="38" y="13" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">📷</text>`
-        : '';
-      const svg = `
+        function resetMarkerStore() {
+            AppState.markers.forEach(m => {
+                if (map.hasLayer(m)) map.removeLayer(m);
+            });
+            AppState.markersByKey.clear();
+            AppState.markers = [];
+        }
+
+        function createIcon(number, color, hasMeterPhoto = false) {
+            const photoBadge = hasMeterPhoto ?
+                `<circle cx="38" cy="10" r="8" fill="#6f42c1" stroke="#fff" stroke-width="2"/>
+           <text x="38" y="13" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">📷</text>` :
+                '';
+            const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="46" height="62" viewBox="0 0 46 62">
           <path d="M23 62s-18-22-18-34A18 18 0 1 1 41 28c0 12-18 34-18 34z"
             fill="${color}" stroke="#222" stroke-width="2"/>
           ${photoBadge}
           <text x="23" y="30" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">${number}</text>
         </svg>`;
-      return L.icon({
-        iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg),
-        iconSize: [24, 36],
-        iconAnchor: [12, 36],
-        popupAnchor: [0, -30]
-      });
-    }
+            return L.icon({
+                iconUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg),
+                iconSize: [24, 36],
+                iconAnchor: [12, 36],
+                popupAnchor: [0, -30]
+            });
+        }
 
-    // Haversine - distancia en metros
-    function distanceMeters(lat1, lng1, lat2, lng2) {
-      const R = 6371000; // metros
-      const toRad = x => x * Math.PI / 180;
-      const dLat = toRad(lat2 - lat1);
-      const dLng = toRad(lng2 - lng1);
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        // Haversine - distancia en metros
+        function distanceMeters(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // metros
+            const toRad = x => x * Math.PI / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLng = toRad(lng2 - lng1);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                 Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
                 Math.sin(dLng / 2) * Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    }
-
-    function clearHeaderSortMarks() {
-      document.querySelectorAll('th').forEach(h => {
-        const label = h.getAttribute('data-label');
-        if (label) h.textContent = label;
-        else h.textContent = h.textContent.replace(/[▲▼]/g,'');
-      });
-    }
-
-    function sortByDistance(userLat, userLng) {
-      currentData.forEach(r => {
-        const lat = parseFloat(r.lat);
-        const lng = parseFloat(r.lng);
-        if (isNaN(lat) || isNaN(lng)) { r._distance = Infinity; } else { r._distance = distanceMeters(userLat, userLng, lat, lng); }
-      });
-      currentData.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
-      currentSort.column = null; currentSort.asc = true; clearHeaderSortMarks();
-    }
-
-    // ---------- MAPS / WAZE HELPERS ----------
-    function getMapsLink(lat, lng) {
-      const ua = navigator.userAgent || navigator.vendor || window.opera;
-      const isAndroid = /android/i.test(ua);
-      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-      const isMobile = isAndroid || isIOS;
-      if (!isMobile) return `https://www.google.com/maps?q=${lat},${lng}`;
-      if (isAndroid) return `google.navigation:q=${lat},${lng}&mode=d`;
-      if (isIOS) return `comgooglemaps://?q=${lat},${lng}&directionsmode=driving`;
-      return `https://www.google.com/maps?q=${lat},${lng}`;
-    }
-    function getWazeLink(lat, lng) {
-      const ua = navigator.userAgent || navigator.vendor || window.opera;
-      const isMobile = /android|iPad|iPhone|iPod/i.test(ua);
-      return isMobile ? `waze://?ll=${lat},${lng}&navigate=yes` : `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-    }
-
-    // ---------- CARGAR DATOS ----------
-    function formatImportDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return iso;
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-
-    function populateFirebaseFilters(rows) {
-      const coloniaSelect = document.getElementById('filterColoniaSelect');
-      const fechaSelect = document.getElementById('filterFechaSelect');
-
-      const colonias = Array.from(new Set(rows.map(r => (r['Colonia'] || '').toString().trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
-      const fechas = Array.from(new Set(rows.map(r => formatImportDate(r.importadoEn)).filter(Boolean))).sort((a, b) => b.localeCompare(a));
-
-      coloniaSelect.innerHTML = '<option value="">Colonia: todas</option>' + colonias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-      fechaSelect.innerHTML = '<option value="">Fecha importación: todas</option>' + fechas.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
-
-      coloniaSelect.value = filteredColonia;
-      fechaSelect.value = filteredFecha;
-    }
-
-    async function waitForFirebaseBridge(timeoutMs = 5000) {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        if (window.firebaseBaseReady && typeof window.fetchBaseRowsFromFirebase === 'function') return true;
-        await delay(120);
-      }
-      return false;
-    }
-
-    async function loadData() {
-      document.getElementById('dataTableBody').innerHTML = '';
-      document.getElementById('legend').innerHTML = '';
-      for (const k in streetColors) delete streetColors[k];
-      resetMarkerStore();
-      currentData = [];
-
-      const mode = document.getElementById('viewModeSelect')?.value || 'latest';
-      try {
-        const ready = await waitForFirebaseBridge();
-        if (!ready) throw new Error('Firebase no listo');
-
-        let rows = await window.fetchBaseRowsFromFirebase(mode);
-        if (!rows.length) {
-          setImportStatus('No se encontraron registros. Verifica reglas de lectura para BasePolizasUltimaActualizacion/BasePolizasGlobal/importaciones/BasePolizas.');
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
         }
 
-        const [visitedRemote, inspectionStatus] = await Promise.all([
-          (typeof window.fetchVisitedMapFromFirebase === 'function') ? window.fetchVisitedMapFromFirebase() : Promise.resolve({}),
-          (typeof window.fetchRecentInspectionMap === 'function') ? window.fetchRecentInspectionMap() : Promise.resolve({ recentMap: {}, anyMap: {} })
-        ]);
-
-        const recentInspectionMap = inspectionStatus.recentMap || {};
-        const anyInspectionMap = inspectionStatus.anyMap || {};
-
-        visitedMap = { ...visitedMap, ...visitedRemote };
-
-        rows = rows.map(r => {
-          const pol = (r['Póliza'] || '').toString().trim();
-          const recentDate = recentInspectionMap[pol] || '';
-          const anyDate = anyInspectionMap[pol] || '';
-          if (anyDate) visitedMap[pol] = true;
-          return {
-            ...r,
-            _recentInspection: !!recentDate,
-            _recentInspectionDate: recentDate,
-            _hasInspection: !!anyDate
-          };
-        });
-
-        localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
-
-        currentData = rows;
-        window.currentData = currentData;
-        filteredStreet = null;
-        filteredAdicional = null;
-        populateFirebaseFilters(rows);
-        if (currentSort.column !== null) applySort();
-        renderAll();
-        showTable();
-      } catch (err) {
-        console.error(err);
-        const code = err?.code || '';
-        if (code.includes('permission-denied')) {
-          alert('Firebase respondió "Missing or insufficient permissions". Debes habilitar reglas para BasePolizas/BasePolizasUltimaActualizacion/BasePolizasGlobal.');
-        } else {
-          alert('Firebase no listo o sin acceso. Verifica conexión y permisos de colecciones.');
+        function clearHeaderSortMarks() {
+            document.querySelectorAll('th').forEach(h => {
+                const label = h.getAttribute('data-label');
+                if (label) h.textContent = label;
+                else h.textContent = h.textContent.replace(/[▲▼]/g, '');
+            });
         }
-      }
-    }
 
-    // ---------- RENDER LISTA / MARCADORES ----------
-    function renderAll() {
-      const tbody = document.getElementById('dataTableBody');
-      tbody.innerHTML = '';
+        function sortByDistance(userLat, userLng) {
+            currentData.forEach(r => {
+                const lat = parseFloat(r.lat);
+                const lng = parseFloat(r.lng);
+                if (isNaN(lat) || isNaN(lng)) {
+                    r._distance = Infinity;
+                } else {
+                    r._distance = distanceMeters(userLat, userLng, lat, lng);
+                }
+            });
+            currentData.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
+            currentSort.column = null;
+            currentSort.asc = true;
+            clearHeaderSortMarks();
+        }
 
-      const list = currentData.filter(r => {
-        if (filteredStreet && (r["calle"]||'Sin calle') !== filteredStreet) return false;
-        if (filteredAdicional && ( (r["Adicional"]||'').toString() !== filteredAdicional )) return false;
-        if (filteredColonia && ((r['Colonia'] || '').toString() !== filteredColonia)) return false;
-        if (filteredFecha && formatImportDate(r.importadoEn) !== filteredFecha) return false;
-        return true;
-      });
+        // ---------- MAPS / WAZE HELPERS ----------
+        function getMapsLink(lat, lng) {
+            const ua = navigator.userAgent || navigator.vendor || window.opera;
+            const isAndroid = /android/i.test(ua);
+            const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+            const isMobile = isAndroid || isIOS;
+            if (!isMobile) return `https://www.google.com/maps?q=${lat},${lng}`;
+            if (isAndroid) return `google.navigation:q=${lat},${lng}&mode=d`;
+            if (isIOS) return `comgooglemaps://?q=${lat},${lng}&directionsmode=driving`;
+            return `https://www.google.com/maps?q=${lat},${lng}`;
+        }
 
-      const visibleKeys = new Set();
-      list.forEach((row, i) => {
-        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
-        const hasCoords = !isNaN(lat) && !isNaN(lng);
+        function getWazeLink(lat, lng) {
+            const ua = navigator.userAgent || navigator.vendor || window.opera;
+            const isMobile = /android|iPad|iPhone|iPod/i.test(ua);
+            return isMobile ? `waze://?ll=${lat},${lng}&navigate=yes` : `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+        }
 
-        const rowKey = row._rowKey || getRowKey(row, i);
-        row._rowKey = rowKey;
-        visibleKeys.add(rowKey);
+        // ---------- CARGAR DATOS ----------
+        function formatImportDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
 
-        const street = row["calle"] || 'Sin calle';
-        const color = ensureColor(street);
-        const polizaVal = (row["Póliza"]||'').toString();
-        const hasMeterPhoto = !!quickMeterPhotosMap[polizaVal.trim()];
-        const statusColor = row._recentInspection ? '#dc3545' : (isVisited(polizaVal) ? '#6c757d' : color);
-        const icon = createIcon(i+1, statusColor, hasMeterPhoto);
+        function populateFirebaseFilters(rows) {
+            const coloniaSelect = document.getElementById('filterColoniaSelect');
+            const fechaSelect = document.getElementById('filterFechaSelect');
 
-        let marker = AppState.markersByKey.get(rowKey);
-        if (hasCoords && !marker) {
-          const popupHtml = `
+            const colonias = Array.from(new Set(rows.map(r => (r['Colonia'] || '').toString().trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
+            const fechas = Array.from(new Set(rows.map(r => formatImportDate(r.importadoEn)).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+
+            coloniaSelect.innerHTML = '<option value="">Colonia: todas</option>' + colonias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            fechaSelect.innerHTML = '<option value="">Fecha importación: todas</option>' + fechas.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+
+            coloniaSelect.value = filteredColonia;
+            fechaSelect.value = filteredFecha;
+        }
+
+        async function waitForFirebaseBridge(timeoutMs = 5000) {
+            const start = Date.now();
+            while (Date.now() - start < timeoutMs) {
+                if (window.firebaseBaseReady && typeof window.fetchBaseRowsFromFirebase === 'function') return true;
+                await delay(120);
+            }
+            return false;
+        }
+
+        async function loadData() {
+            document.getElementById('dataTableBody').innerHTML = '';
+            document.getElementById('legend').innerHTML = '';
+            for (const k in streetColors) delete streetColors[k];
+            resetMarkerStore();
+            currentData = [];
+
+            const mode = document.getElementById('viewModeSelect')?.value || 'latest';
+            try {
+                const ready = await waitForFirebaseBridge();
+                if (!ready) throw new Error('Firebase no listo');
+
+                let rows = await window.fetchBaseRowsFromFirebase(mode);
+                if (!rows.length) {
+                    setImportStatus('No se encontraron registros. Verifica reglas de lectura para BasePolizasUltimaActualizacion/BasePolizasGlobal/importaciones/BasePolizas.');
+                }
+
+                const [visitedRemote, inspectionStatus] = await Promise.all([
+                    (typeof window.fetchVisitedMapFromFirebase === 'function') ? window.fetchVisitedMapFromFirebase() : Promise.resolve({}),
+                    (typeof window.fetchRecentInspectionMap === 'function') ? window.fetchRecentInspectionMap() : Promise.resolve({
+                        recentMap: {},
+                        anyMap: {}
+                    })
+                ]);
+
+                const recentInspectionMap = inspectionStatus.recentMap || {};
+                const anyInspectionMap = inspectionStatus.anyMap || {};
+
+                visitedMap = {
+                    ...visitedMap,
+                    ...visitedRemote
+                };
+
+                rows = rows.map(r => {
+                    const pol = (r['Póliza'] || '').toString().trim();
+                    const recentDate = recentInspectionMap[pol] || '';
+                    const anyDate = anyInspectionMap[pol] || '';
+                    if (anyDate) visitedMap[pol] = true;
+                    return {
+                        ...r,
+                        _recentInspection: !!recentDate,
+                        _recentInspectionDate: recentDate,
+                        _hasInspection: !!anyDate
+                    };
+                });
+
+                localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
+
+                currentData = rows;
+                window.currentData = currentData;
+                filteredStreet = [];
+                filteredAdicional = [];
+                populateFirebaseFilters(rows);
+                if (currentSort.column !== null) applySort();
+                renderAll();
+                showTable();
+            } catch (err) {
+                console.error(err);
+                const code = err?.code || '';
+                if (code.includes('permission-denied')) {
+                    alert('Firebase respondió "Missing or insufficient permissions". Debes habilitar reglas para BasePolizas/BasePolizasUltimaActualizacion/BasePolizasGlobal.');
+                } else {
+                    alert('Firebase no listo o sin acceso. Verifica conexión y permisos de colecciones.');
+                }
+            }
+        }
+
+        // ---------- RENDER LISTA / MARCADORES ----------
+        function renderAll() {
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = '';
+
+            const list = currentData.filter(r => {
+
+                // FILTRO CALLE (múltiple)
+                if (filteredStreet.length > 0 &&
+                    !filteredStreet.includes(r["calle"] || 'Sin calle')) {
+                    return false;
+                }
+                // FILTRO ADICIONAL (múltiple)
+                if (filteredAdicional.length > 0 &&
+                    !filteredAdicional.includes((r["Adicional"] || '').toString())) {
+                    return false;
+                }
+                // FILTRO COLONIA (single)
+                if (filteredColonia &&
+                    ((r['Colonia'] || '').toString() !== filteredColonia)) {
+                    return false;
+                }
+                // FILTRO FECHA (single)¿
+                if (filteredFecha &&
+                    formatImportDate(r.importadoEn) !== filteredFecha) {
+                    return false;
+                }
+                return true;
+            });
+
+            const visibleKeys = new Set();
+            list.forEach((row, i) => {
+                const lat = parseFloat(row.lat),
+                    lng = parseFloat(row.lng);
+                const hasCoords = !isNaN(lat) && !isNaN(lng);
+
+                const rowKey = row._rowKey || getRowKey(row, i);
+                row._rowKey = rowKey;
+                visibleKeys.add(rowKey);
+
+                const street = row["calle"] || 'Sin calle';
+                const color = ensureColor(street);
+                const polizaVal = (row["Póliza"] || '').toString();
+                const hasMeterPhoto = !!quickMeterPhotosMap[polizaVal.trim()];
+                const statusColor = row._recentInspection ? '#dc3545' : (isVisited(polizaVal) ? '#6c757d' : color);
+                const icon = createIcon(i + 1, statusColor, hasMeterPhoto);
+
+                let marker = AppState.markersByKey.get(rowKey);
+                if (hasCoords && !marker) {
+                    const popupHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.25; position: relative; min-width:260px; padding-top:48px; padding-bottom:46px; box-sizing:border-box;">
               <div style="position:absolute; top:6px; left:8px; right:8px; display:flex; gap:6px;">
                 <button class="gmaps-btn popup-icon-btn" style="flex:1; background:#007bff; color:#fff; border:none; border-radius:6px;"> <img class="icon-inline light" src="https://img.icons8.com/?size=100&id=32215&format=png&color=FFFFFF" alt="Google Maps"><span>Google</span></button>
@@ -1037,32 +1427,34 @@
               </div>
             </div>`;
 
-          marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
-          marker._rowData = row;
-          marker._poliza = (row["Póliza"]||'').toString();
-          marker._rowKey = rowKey;
-          AppState.markersByKey.set(rowKey, marker);
-          AppState.markers.push(marker);
-        } else if (hasCoords && marker) {
-          marker._rowData = row;
-          marker._poliza = (row["Póliza"]||'').toString();
-          marker.setIcon(icon);
-          marker.setLatLng([lat, lng]);
-        }
+                    marker = L.marker([lat, lng], {
+                        icon
+                    }).bindPopup(popupHtml);
+                    marker._rowData = row;
+                    marker._poliza = (row["Póliza"] || '').toString();
+                    marker._rowKey = rowKey;
+                    AppState.markersByKey.set(rowKey, marker);
+                    AppState.markers.push(marker);
+                } else if (hasCoords && marker) {
+                    marker._rowData = row;
+                    marker._poliza = (row["Póliza"] || '').toString();
+                    marker.setIcon(icon);
+                    marker.setLatLng([lat, lng]);
+                }
 
-        if (hasCoords && marker && !map.hasLayer(marker)) marker.addTo(map);
-        if (hasCoords && marker) marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
+                if (hasCoords && marker && !map.hasLayer(marker)) marker.addTo(map);
+                if (hasCoords && marker) marker.setOpacity(isVisited(marker._poliza) ? 0.4 : 1);
 
-        const distanciaText = (row._distance && isFinite(row._distance))
-          ? (row._distance >= 1000 ? ((row._distance/1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m')
-          : '';
+                const distanciaText = (row._distance && isFinite(row._distance)) ?
+                    (row._distance >= 1000 ? ((row._distance / 1000).toFixed(2) + ' km') : Math.round(row._distance) + ' m') :
+                    '';
 
-        const visited = isVisited(polizaVal);
-        const tr = document.createElement('tr');
-        tr.style.background = (row._recentInspection ? '#dc354533' : (isVisited(polizaVal) ? '#6c757d33' : color + '22'));
-        if (visited) tr.style.opacity = '0.45';
+                const visited = isVisited(polizaVal);
+                const tr = document.createElement('tr');
+                tr.style.background = (row._recentInspection ? '#dc354533' : (isVisited(polizaVal) ? '#6c757d33' : color + '22'));
+                if (visited) tr.style.opacity = '0.45';
 
-        tr.innerHTML = `
+                tr.innerHTML = `
           <td style="width:34px; text-align:center;">
             <input type="checkbox" class="list-visited-checkbox" ${visited ? 'checked' : ''} aria-label="Visitado">
           </td>
@@ -1074,883 +1466,1052 @@
           </td>
           <td>${escapeHtml(row["Adicional"]||'')}</td>`;
 
-        const checkbox = tr.querySelector('input.list-visited-checkbox');
-        checkbox.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const checked = checkbox.checked;
-          setVisited(polizaVal, checked);
-          if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(polizaVal, checked);
-          tr.style.opacity = checked ? '0.45' : '1';
-          if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
+                const checkbox = tr.querySelector('input.list-visited-checkbox');
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const checked = checkbox.checked;
+                    setVisited(polizaVal, checked);
+                    if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(polizaVal, checked);
+                    tr.style.opacity = checked ? '0.45' : '1';
+                    if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
 
-          AppState.markers.forEach(mk => {
-            if (mk._poliza === polizaVal && mk.getPopup && mk.getPopup().isOpen && mk.getPopup().isOpen()) {
-              const popupEl = mk.getPopup().getElement();
-              if (popupEl) {
-                const popupCb = popupEl.querySelector('.popup-visited-checkbox');
-                if (popupCb) popupCb.checked = checked;
-              }
+                    AppState.markers.forEach(mk => {
+                        if (mk._poliza === polizaVal && mk.getPopup && mk.getPopup().isOpen && mk.getPopup().isOpen()) {
+                            const popupEl = mk.getPopup().getElement();
+                            if (popupEl) {
+                                const popupCb = popupEl.querySelector('.popup-visited-checkbox');
+                                if (popupCb) popupCb.checked = checked;
+                            }
+                        }
+                    });
+                });
+
+                tr.addEventListener('click', () => {
+                    if (!hasCoords || !marker) {
+                        alert('Esta póliza no tiene coordenadas válidas para mostrar en mapa.');
+                        return;
+                    }
+                    marker.openPopup();
+                    map.setView([lat, lng], 17);
+                    hideTable();
+                });
+
+                tbody.appendChild(tr);
+            });
+
+            AppState.markers.forEach(marker => {
+                if (!visibleKeys.has(marker._rowKey) && map.hasLayer(marker)) map.removeLayer(marker);
+            });
+        }
+
+        // Ordenamientos de columnas
+        function applySort() {
+            const col = currentSort.column;
+            const asc = currentSort.asc;
+            if (col === 0) {
+                currentData.sort((a, b) => {
+                    const va = isVisited((a['Póliza'] || '').toString()) ? 1 : 0;
+                    const vb = isVisited((b['Póliza'] || '').toString()) ? 1 : 0;
+                    return asc ? (va - vb) : (vb - va);
+                });
+            } else if (col === 1) {
+                currentData.sort((a, b) => {
+                    const na = parseFloat((a['Póliza'] || '').toString().replace(/[^\d.-]/g, '')) || 0;
+                    const nb = parseFloat((b['Póliza'] || '').toString().replace(/[^\d.-]/g, '')) || 0;
+                    return asc ? na - nb : nb - na;
+                });
+            } else if (col === 2) {
+                currentData.sort((a, b) => {
+                    const sa = (a['Nombre Contratante'] || '').toLowerCase();
+                    const sb = (b['Nombre Contratante'] || '').toLowerCase();
+                    return asc ? sa.localeCompare(sb, 'es') : sb.localeCompare(sa, 'es');
+                });
+            } else if (col === 3) {
+                currentData.sort((a, b) => {
+                    const ca = (a['calle'] || '').toLowerCase();
+                    const cb = (b['calle'] || '').toLowerCase();
+                    if (ca !== cb) return asc ? ca.localeCompare(cb, 'es') : cb.localeCompare(ca, 'es');
+                    const na = parseInt(a['Número finca'] || '') || 0;
+                    const nb = parseInt(b['Número finca'] || '') || 0;
+                    return asc ? na - nb : nb - na;
+                });
+            } else if (col === 4) {
+                currentData.sort((a, b) => {
+                    const aa = (a['Adicional'] || '').toString().toLowerCase();
+                    const bb = (b['Adicional'] || '').toString().toLowerCase();
+                    return asc ? aa.localeCompare(bb, 'es') : bb.localeCompare(aa, 'es');
+                });
             }
-          });
-        });
-
-        tr.addEventListener('click', () => {
-          if (!hasCoords || !marker) {
-            alert('Esta póliza no tiene coordenadas válidas para mostrar en mapa.');
-            return;
-          }
-          marker.openPopup();
-          map.setView([lat, lng], 17);
-          hideTable();
-        });
-
-        tbody.appendChild(tr);
-      });
-
-      AppState.markers.forEach(marker => {
-        if (!visibleKeys.has(marker._rowKey) && map.hasLayer(marker)) map.removeLayer(marker);
-      });
-    }
-
-    // Filtrado por calle (modal)
-    function toggleFilter(street, itemElement) {
-      const items = document.querySelectorAll('.legend-item');
-      if (filteredStreet === street) {
-        filteredStreet = null;
-        items.forEach(it => it.classList.remove('active'));
-      } else {
-        filteredStreet = street;
-        items.forEach(it => it.classList.toggle('active', it === itemElement));
-      }
-      renderAll();
-    }
-
-    // Ordenamientos de columnas
-    function applySort() {
-      const col = currentSort.column;
-      const asc = currentSort.asc;
-      if (col === 0) {
-        currentData.sort((a,b) => {
-          const va = isVisited((a['Póliza']||'').toString()) ? 1 : 0;
-          const vb = isVisited((b['Póliza']||'').toString()) ? 1 : 0;
-          return asc ? (va - vb) : (vb - va);
-        });
-      } else if (col === 1) {
-        currentData.sort((a,b) => {
-          const na = parseFloat((a['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;
-          const nb = parseFloat((b['Póliza']||'').toString().replace(/[^\d.-]/g,'')) || 0;
-          return asc ? na - nb : nb - na;
-        });
-      } else if (col === 2) {
-        currentData.sort((a,b) => {
-          const sa = (a['Nombre Contratante']||'').toLowerCase();
-          const sb = (b['Nombre Contratante']||'').toLowerCase();
-          return asc ? sa.localeCompare(sb,'es') : sb.localeCompare(sa,'es');
-        });
-      } else if (col === 3) {
-        currentData.sort((a,b) => {
-          const ca = (a['calle']||'').toLowerCase();
-          const cb = (b['calle']||'').toLowerCase();
-          if (ca !== cb) return asc ? ca.localeCompare(cb,'es') : cb.localeCompare(ca,'es');
-          const na = parseInt(a['Número finca']||'') || 0;
-          const nb = parseInt(b['Número finca']||'') || 0;
-          return asc ? na - nb : nb - na;
-        });
-      } else if (col === 4) {
-        currentData.sort((a,b) => {
-          const aa = (a['Adicional']||'').toString().toLowerCase();
-          const bb = (b['Adicional']||'').toString().toLowerCase();
-          return asc ? aa.localeCompare(bb,'es') : bb.localeCompare(aa,'es');
-        });
-      }
-      clearHeaderSortMarks();
-    }
-
-    // Headers click: ordenar por columna
-    document.querySelectorAll('th').forEach((th, idx) => {
-      th.addEventListener('click', () => {
-        currentSort.asc = (currentSort.column === idx) ? !currentSort.asc : true;
-        currentSort.column = idx;
-        applySort();
-        document.querySelectorAll('th').forEach(h => {
-          h.textContent = h.getAttribute('data-label') || h.textContent.replace(/[▲▼]/g,'');
-        });
-        th.textContent = (th.getAttribute('data-label') || th.textContent.replace(/[▲▼]/g,'')) + (currentSort.asc ? ' ▲' : ' ▼');
-        renderAll();
-      });
-    });
-
-    // ---------- BOTONES PRINCIPALES ----------
-    document.getElementById('locateBtn').onclick = () => {
-      if (!navigator.geolocation) { alert('Geolocalización no soportada'); return; }
-      navigator.geolocation.getCurrentPosition(pos => {
-        let originLat = pos.coords.latitude;
-        let originLng = pos.coords.longitude;
-        if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
-        userMarker = L.marker([originLat, originLng]).addTo(map).bindPopup('📍 Inicio de ruta').openPopup();
-        map.setView([originLat, originLng], 16);
-
-        const MAX_ROUTE_RECORDS = 500;
-        if (currentData.length > MAX_ROUTE_RECORDS) {
-          alert(`La base tiene ${currentData.length} registros. El modo ruta está limitado a ${MAX_ROUTE_RECORDS} para mantener rendimiento.`);
-          return;
+            clearHeaderSortMarks();
         }
 
-        let pendientes = currentData.slice();
-        let rutaOrdenada = [];
-
-        while (pendientes.length > 0) {
-          pendientes.forEach(r => {
-            const lat = parseFloat(r.lat);
-            const lng = parseFloat(r.lng);
-            r._distance = (isNaN(lat) || isNaN(lng)) ? Infinity : distanceMeters(originLat, originLng, lat, lng);
-          });
-
-          pendientes.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
-          const referencia = pendientes[0];
-          const calleRef = (referencia.calle || '').toLowerCase().trim();
-
-          const mismaCalle = pendientes.filter(r =>
-            (r.calle || '').toLowerCase().trim() === calleRef &&
-            (r._distance || Infinity) <= 100
-          );
-
-          let siguiente;
-          if (mismaCalle.length > 0) {
-            mismaCalle.sort((a, b) => a._distance - b._distance);
-            siguiente = mismaCalle[0];
-          } else {
-            siguiente = referencia;
-          }
-
-          rutaOrdenada.push(siguiente);
-          originLat = parseFloat(siguiente.lat);
-          originLng = parseFloat(siguiente.lng);
-          pendientes = pendientes.filter(r => r !== siguiente);
-        }
-
-        currentData = rutaOrdenada;
-        window.currentData = currentData;
-        renderAll();
-        showTable();
-      }, () => alert('No se pudo obtener ubicación'), { enableHighAccuracy: true, timeout: 10000 });
-    };
-
-    document.getElementById('refreshBtn').addEventListener('click', loadData);
-
-    const listPanel = document.getElementById('listPanel');
-    const actionMenu = document.getElementById('actionMenu');
-    const actionMenuBtn = document.getElementById('actionMenuBtn');
-
-    actionMenuBtn.addEventListener('click', () => {
-      actionMenu.classList.toggle('active');
-      actionMenu.setAttribute('aria-hidden', actionMenu.classList.contains('active') ? 'false' : 'true');
-    });
-
-    document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
-    document.getElementById('hideBtn').addEventListener('click', hideTable);
-
-    const importModal = document.getElementById('importModal');
-    const importExcelTbody = document.getElementById('importExcelTbody');
-    const importStatus = document.getElementById('importStatus');
-    const importProgressBar = document.getElementById('importProgressBar');
-    const importProgressText = document.getElementById('importProgressText');
-    const processImportBtn = document.getElementById('processImportBtn');
-    const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
-
-    function setImportStatus(text) {
-      importStatus.textContent = text;
-    }
-
-    function setImportProgress(done, total) {
-      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-      importProgressBar.style.width = `${pct}%`;
-      importProgressText.textContent = `${pct}%`;
-    }
-
-    function createImportRow(cells = []) {
-      const tr = document.createElement('tr');
-      importColumns.forEach((_, idx) => {
-        const td = document.createElement('td');
-        td.contentEditable = 'true';
-        td.textContent = cells[idx] || '';
-        tr.appendChild(td);
-      });
-      importExcelTbody.appendChild(tr);
-      return tr;
-    }
-
-    function ensureImportRows(min = 12) {
-      while (importExcelTbody.children.length < min) createImportRow();
-    }
-
-    function clearImportTable() {
-      importExcelTbody.innerHTML = '';
-      ensureImportRows();
-      setImportStatus('Tabla limpia. Lista para pegar datos.');
-      setImportProgress(0, 1);
-    }
-
-    function openImportModal() {
-      importModal.style.display = 'block';
-      importModal.setAttribute('aria-hidden', 'false');
-      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
-      const saved = localStorage.getItem(GEO_LOCAL_STORAGE_KEY) || '';
-      if (geocoderInput && saved && !geocoderInput.value) geocoderInput.value = saved;
-      if (!importExcelTbody.children.length) ensureImportRows();
-    }
-
-    function closeImportModal() {
-      importModal.style.display = 'none';
-      importModal.setAttribute('aria-hidden', 'true');
-    }
-
-    const RATE_DELAY_MS = 300;
-    const GEOCODE_RETRIES = 3;
-    const GEO_LOCAL_STORAGE_KEY = 'apps_script_geocoder_url_v1';
-
-    function buildAddress(row) {
-      const calle = (row['calle'] || '').toString().trim();
-      const num = (row['Número finca'] || '').toString().trim();
-      const colonia = (row['Colonia'] || '').toString().trim();
-      const municipio = (row['Municipio'] || '').toString().trim();
-      const parts = [];
-      if (calle) parts.push(calle + (num ? ` ${num}` : ''));
-      if (colonia) parts.push(colonia);
-      if (municipio) parts.push(municipio);
-      parts.push('Nuevo León, México');
-      return parts.join(', ');
-    }
-
-    function getAppsScriptGeocoderUrl() {
-      const input = document.getElementById('appsScriptGeocoderUrl');
-      const value = (input?.value || '').trim();
-      return value;
-    }
-
-    async function geocodeByAppScript(address) {
-      const baseUrl = getAppsScriptGeocoderUrl();
-      if (!baseUrl) return null;
-      const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}address=${encodeURIComponent(address)}`;
-      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!response.ok) return null;
-      const data = await response.json();
-      const lat = data?.lat ?? data?.location?.lat ?? data?.result?.lat;
-      const lng = data?.lng ?? data?.lon ?? data?.location?.lng ?? data?.result?.lng;
-      if (lat === undefined || lng === undefined) return null;
-      return { lat: String(lat), lng: String(lng), provider: 'apps-script' };
-    }
-
-    async function geocodeByNominatim(address) {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(address)}`;
-      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!response.ok) return null;
-      const list = await response.json();
-      if (!Array.isArray(list) || !list.length) return null;
-      return { lat: String(list[0].lat || ''), lng: String(list[0].lon || ''), provider: 'nominatim' };
-    }
-
-    async function geocodeAddress(row) {
-      const address = buildAddress(row);
-      if (!address) return { lat: '', lng: '', provider: 'none' };
-
-      for (let i = 0; i < GEOCODE_RETRIES; i++) {
-        try {
-          const appScript = await geocodeByAppScript(address);
-          if (appScript?.lat && appScript?.lng) return appScript;
-        } catch (_) {}
-
-        try {
-          const nominatim = await geocodeByNominatim(address);
-          if (nominatim?.lat && nominatim?.lng) return nominatim;
-        } catch (_) {}
-
-        await delay(RATE_DELAY_MS);
-      }
-
-      return { lat: '', lng: '', provider: 'none' };
-    }
-
-    async function processPastedImport() {
-      const rows = Array.from(importExcelTbody.querySelectorAll('tr'));
-      const parsed = rows.map(tr => {
-        const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
-        const obj = {};
-        importColumns.forEach((name, i) => { obj[name] = cells[i] || ''; });
-        return obj;
-      }).filter(r => importColumns.some(c => r[c]));
-
-      if (!parsed.length) {
-        alert('No hay datos para procesar.');
-        return;
-      }
-
-      const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
-      if (geocoderInput) localStorage.setItem(GEO_LOCAL_STORAGE_KEY, geocoderInput.value.trim());
-
-      processImportBtn.disabled = true;
-      processImportBtn.style.opacity = '0.7';
-      try {
-        setImportProgress(0, parsed.length);
-        setImportStatus(`Procesando ${parsed.length} filas...`);
-        const geocoded = [];
-        let found = 0;
-        for (let i = 0; i < parsed.length; i++) {
-          const row = parsed[i];
-          setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
-          const geo = await geocodeAddress(row);
-          if (geo.lat && geo.lng) found++;
-          geocoded.push({ ...row, lat: geo.lat, lng: geo.lng, geoProvider: geo.provider || 'none' });
-          setImportProgress(i + 1, parsed.length);
-          await delay(250);
-        }
-
-        window.pendingImportData = geocoded;
-        currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
-        window.currentData = currentData;
-        filteredStreet = null;
-        filteredAdicional = null;
-        if (currentSort.column !== null) applySort();
-        renderAll();
-        showTable();
-
-        const byProvider = geocoded.reduce((acc, r) => {
-          const key = r.geoProvider || 'none';
-          acc[key] = (acc[key] || 0) + 1;
-          return acc;
-        }, {});
-        const withoutCoords = parsed.length - found;
-        setImportStatus(`Geocoding completado. Coordenadas: ${found}/${parsed.length}. Sin coordenadas: ${withoutCoords}. Proveedor: ${JSON.stringify(byProvider)}. Guardando en Firebase...`);
-
-        if (typeof window.importDatabaseToFirebase === 'function') {
-          await window.importDatabaseToFirebase();
-        } else {
-          alert('Firebase aún no está listo.');
-        }
-
-        setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}. Sin coordenadas: ${parsed.length - found}.`);
-        document.getElementById('viewModeSelect').value = 'latest';
-        await loadData();
-      } finally {
-        processImportBtn.disabled = false;
-        processImportBtn.style.opacity = '1';
-      }
-    }
-
-    importExcelTbody.addEventListener('paste', (event) => {
-      const text = event.clipboardData?.getData('text/plain') || '';
-      if (!text) return;
-      event.preventDefault();
-
-      const rowChunks = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
-      const matrix = rowChunks.map(r => r.split('\t'));
-      if (!matrix.length) return;
-
-      const activeCell = document.activeElement;
-      let startRow = 0;
-      let startCol = 0;
-
-      if (activeCell && activeCell.tagName === 'TD' && activeCell.parentElement?.parentElement === importExcelTbody) {
-        const tr = activeCell.parentElement;
-        startRow = Array.from(importExcelTbody.children).indexOf(tr);
-        startCol = Array.from(tr.children).indexOf(activeCell);
-      }
-
-      while (importExcelTbody.children.length < startRow + matrix.length) createImportRow();
-
-      matrix.forEach((cells, rIdx) => {
-        const tr = importExcelTbody.children[startRow + rIdx];
-        cells.forEach((value, cIdx) => {
-          const col = startCol + cIdx;
-          if (col >= importColumns.length) return;
-          const td = tr.children[col];
-          if (td) td.textContent = value.trim();
+        // Headers click: ordenar por columna
+        document.querySelectorAll('th').forEach((th, idx) => {
+            th.addEventListener('click', () => {
+                currentSort.asc = (currentSort.column === idx) ? !currentSort.asc : true;
+                currentSort.column = idx;
+                applySort();
+                document.querySelectorAll('th').forEach(h => {
+                    h.textContent = h.getAttribute('data-label') || h.textContent.replace(/[▲▼]/g, '');
+                });
+                th.textContent = (th.getAttribute('data-label') || th.textContent.replace(/[▲▼]/g, '')) + (currentSort.asc ? ' ▲' : ' ▼');
+                renderAll();
+            });
         });
-      });
 
-      setImportStatus(`Pegado completado: ${matrix.length} fila(s).`);
-    });
+        // ---------- BOTONES PRINCIPALES ----------
+        document.getElementById('locateBtn').onclick = () => {
+            if (!navigator.geolocation) {
+                alert('Geolocalización no soportada');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(pos => {
+                let originLat = pos.coords.latitude;
+                let originLng = pos.coords.longitude;
+                if (userMarker) {
+                    map.removeLayer(userMarker);
+                    userMarker = null;
+                }
+                userMarker = L.marker([originLat, originLng]).addTo(map).bindPopup('📍 Inicio de ruta').openPopup();
+                map.setView([originLat, originLng], 16);
 
-    document.getElementById('importFirebaseBtn').addEventListener('click', openImportModal);
-    document.getElementById('closeImportModalBtn').addEventListener('click', closeImportModal);
-    document.getElementById('addImportRowBtn').addEventListener('click', () => createImportRow());
-    document.getElementById('clearImportTableBtn').addEventListener('click', clearImportTable);
-    document.getElementById('processImportBtn').addEventListener('click', processPastedImport);
-    importModal.addEventListener('click', (e) => {
-      if (e.target === importModal) closeImportModal();
-    });
+                const MAX_ROUTE_RECORDS = 500;
+                if (currentData.length > MAX_ROUTE_RECORDS) {
+                    alert(`La base tiene ${currentData.length} registros. El modo ruta está limitado a ${MAX_ROUTE_RECORDS} para mantener rendimiento.`);
+                    return;
+                }
 
-    const quickMeterPhotoInput = document.getElementById('quickMeterPhotoInput');
-    const meterPhotoViewer = document.getElementById('meterPhotoViewer');
-    const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
-    const meterPhotoViewerImg = document.getElementById('meterPhotoViewerImg');
-    const replaceMeterPhotoBtn = document.getElementById('replaceMeterPhotoBtn');
+                let pendientes = currentData.slice();
+                let rutaOrdenada = [];
 
-    function openMeterPhotoViewer(poliza) {
-      const cleanPoliza = (poliza || '').toString().trim();
-      const url = quickMeterPhotosMap[cleanPoliza];
-      if (!cleanPoliza || !url || !meterPhotoViewer || !meterPhotoViewerImg) {
-        alert('Esta póliza aún no tiene foto rápida.');
-        return;
-      }
-      window.__quickPhotoPoliza = cleanPoliza;
-      meterPhotoViewerImg.src = url;
-      meterPhotoViewer.style.display = 'flex';
-      meterPhotoViewer.setAttribute('aria-hidden', 'false');
-    }
+                while (pendientes.length > 0) {
+                    pendientes.forEach(r => {
+                        const lat = parseFloat(r.lat);
+                        const lng = parseFloat(r.lng);
+                        r._distance = (isNaN(lat) || isNaN(lng)) ? Infinity : distanceMeters(originLat, originLng, lat, lng);
+                    });
 
-    function closeMeterPhotoViewer() {
-      if (!meterPhotoViewer) return;
-      meterPhotoViewer.style.display = 'none';
-      meterPhotoViewer.setAttribute('aria-hidden', 'true');
-    }
+                    pendientes.sort((a, b) => (a._distance || Infinity) - (b._distance || Infinity));
+                    const referencia = pendientes[0];
+                    const calleRef = (referencia.calle || '').toLowerCase().trim();
+
+                    const mismaCalle = pendientes.filter(r =>
+                        (r.calle || '').toLowerCase().trim() === calleRef &&
+                        (r._distance || Infinity) <= 100
+                    );
+
+                    let siguiente;
+                    if (mismaCalle.length > 0) {
+                        mismaCalle.sort((a, b) => a._distance - b._distance);
+                        siguiente = mismaCalle[0];
+                    } else {
+                        siguiente = referencia;
+                    }
+
+                    rutaOrdenada.push(siguiente);
+                    originLat = parseFloat(siguiente.lat);
+                    originLng = parseFloat(siguiente.lng);
+                    pendientes = pendientes.filter(r => r !== siguiente);
+                }
+
+                currentData = rutaOrdenada;
+                window.currentData = currentData;
+                renderAll();
+                showTable();
+            }, () => alert('No se pudo obtener ubicación'), {
+                enableHighAccuracy: true,
+                timeout: 10000
+            });
+        };
+
+        document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+        const listPanel = document.getElementById('listPanel');
+        const actionMenu = document.getElementById('actionMenu');
+        const actionMenuBtn = document.getElementById('actionMenuBtn');
+
+        actionMenuBtn.addEventListener('click', () => {
+            actionMenu.classList.toggle('active');
+            actionMenu.setAttribute('aria-hidden', actionMenu.classList.contains('active') ? 'false' : 'true');
+        });
+
+        document.getElementById('toggleBtn').addEventListener('click', () => listPanel.classList.toggle('active'));
+        document.getElementById('hideBtn').addEventListener('click', hideTable);
+
+        const importModal = document.getElementById('importModal');
+        const importExcelTbody = document.getElementById('importExcelTbody');
+        const importStatus = document.getElementById('importStatus');
+        const importProgressBar = document.getElementById('importProgressBar');
+        const importProgressText = document.getElementById('importProgressText');
+        const processImportBtn = document.getElementById('processImportBtn');
+        const importColumns = ['Póliza', 'calle', 'Número finca', 'Colonia', 'Municipio', 'Nombre Contratante', 'Empresa', 'Inspector', 'Adicional'];
+
+        function setImportStatus(text) {
+            importStatus.textContent = text;
+        }
+
+        function setImportProgress(done, total) {
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            importProgressBar.style.width = `${pct}%`;
+            importProgressText.textContent = `${pct}%`;
+        }
+
+        function createImportRow(cells = []) {
+            const tr = document.createElement('tr');
+            importColumns.forEach((_, idx) => {
+                const td = document.createElement('td');
+                td.contentEditable = 'true';
+                td.textContent = cells[idx] || '';
+                tr.appendChild(td);
+            });
+            importExcelTbody.appendChild(tr);
+            return tr;
+        }
+
+        function ensureImportRows(min = 12) {
+            while (importExcelTbody.children.length < min) createImportRow();
+        }
+
+        function clearImportTable() {
+            importExcelTbody.innerHTML = '';
+            ensureImportRows();
+            setImportStatus('Tabla limpia. Lista para pegar datos.');
+            setImportProgress(0, 1);
+        }
+
+        function openImportModal() {
+            importModal.style.display = 'block';
+            importModal.setAttribute('aria-hidden', 'false');
+            const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+            const saved = localStorage.getItem(GEO_LOCAL_STORAGE_KEY) || '';
+            if (geocoderInput && saved && !geocoderInput.value) geocoderInput.value = saved;
+            if (!importExcelTbody.children.length) ensureImportRows();
+        }
+
+        function closeImportModal() {
+            importModal.style.display = 'none';
+            importModal.setAttribute('aria-hidden', 'true');
+        }
+
+        const RATE_DELAY_MS = 300;
+        const GEOCODE_RETRIES = 3;
+        const GEO_LOCAL_STORAGE_KEY = 'apps_script_geocoder_url_v1';
+
+        function buildAddress(row) {
+            const calle = (row['calle'] || '').toString().trim();
+            const num = (row['Número finca'] || '').toString().trim();
+            const colonia = (row['Colonia'] || '').toString().trim();
+            const municipio = (row['Municipio'] || '').toString().trim();
+            const parts = [];
+            if (calle) parts.push(calle + (num ? ` ${num}` : ''));
+            if (colonia) parts.push(colonia);
+            if (municipio) parts.push(municipio);
+            parts.push('Nuevo León, México');
+            return parts.join(', ');
+        }
+
+        function getAppsScriptGeocoderUrl() {
+            const input = document.getElementById('appsScriptGeocoderUrl');
+            const value = (input?.value || '').trim();
+            return value;
+        }
+
+        async function geocodeByAppScript(address) {
+            const baseUrl = getAppsScriptGeocoderUrl();
+            if (!baseUrl) return null;
+            const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}address=${encodeURIComponent(address)}`;
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            const lat = data?.lat ?? data?.location?.lat ?? data?.result?.lat;
+            const lng = data?.lng ?? data?.lon ?? data?.location?.lng ?? data?.result?.lng;
+            if (lat === undefined || lng === undefined) return null;
+            return {
+                lat: String(lat),
+                lng: String(lng),
+                provider: 'apps-script'
+            };
+        }
+
+        async function geocodeByNominatim(address) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(address)}`;
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) return null;
+            const list = await response.json();
+            if (!Array.isArray(list) || !list.length) return null;
+            return {
+                lat: String(list[0].lat || ''),
+                lng: String(list[0].lon || ''),
+                provider: 'nominatim'
+            };
+        }
+
+        async function geocodeAddress(row) {
+            const address = buildAddress(row);
+            if (!address) return {
+                lat: '',
+                lng: '',
+                provider: 'none'
+            };
+
+            for (let i = 0; i < GEOCODE_RETRIES; i++) {
+                try {
+                    const appScript = await geocodeByAppScript(address);
+                    if (appScript?.lat && appScript?.lng) return appScript;
+                } catch (_) {}
+
+                try {
+                    const nominatim = await geocodeByNominatim(address);
+                    if (nominatim?.lat && nominatim?.lng) return nominatim;
+                } catch (_) {}
+
+                await delay(RATE_DELAY_MS);
+            }
+
+            return {
+                lat: '',
+                lng: '',
+                provider: 'none'
+            };
+        }
+
+        async function processPastedImport() {
+            const rows = Array.from(importExcelTbody.querySelectorAll('tr'));
+            const parsed = rows.map(tr => {
+                const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
+                const obj = {};
+                importColumns.forEach((name, i) => {
+                    obj[name] = cells[i] || '';
+                });
+                return obj;
+            }).filter(r => importColumns.some(c => r[c]));
+
+            if (!parsed.length) {
+                alert('No hay datos para procesar.');
+                return;
+            }
+
+            const geocoderInput = document.getElementById('appsScriptGeocoderUrl');
+            if (geocoderInput) localStorage.setItem(GEO_LOCAL_STORAGE_KEY, geocoderInput.value.trim());
+
+            processImportBtn.disabled = true;
+            processImportBtn.style.opacity = '0.7';
+            try {
+                setImportProgress(0, parsed.length);
+                setImportStatus(`Procesando ${parsed.length} filas...`);
+                const geocoded = [];
+                let found = 0;
+                for (let i = 0; i < parsed.length; i++) {
+                    const row = parsed[i];
+                    setImportStatus(`Geocodificando ${i + 1}/${parsed.length}...`);
+                    const geo = await geocodeAddress(row);
+                    if (geo.lat && geo.lng) found++;
+                    geocoded.push({
+                        ...row,
+                        lat: geo.lat,
+                        lng: geo.lng,
+                        geoProvider: geo.provider || 'none'
+                    });
+                    setImportProgress(i + 1, parsed.length);
+                    await delay(250);
+                }
+
+                window.pendingImportData = geocoded;
+                currentData = geocoded.filter(r => !isNaN(parseFloat(r.lat)) && !isNaN(parseFloat(r.lng)));
+                window.currentData = currentData;
+                filteredStreet = [];
+                filteredAdicional = [];
+                if (currentSort.column !== null) applySort();
+                renderAll();
+                showTable();
+
+                const byProvider = geocoded.reduce((acc, r) => {
+                    const key = r.geoProvider || 'none';
+                    acc[key] = (acc[key] || 0) + 1;
+                    return acc;
+                }, {});
+                const withoutCoords = parsed.length - found;
+                setImportStatus(`Geocoding completado. Coordenadas: ${found}/${parsed.length}. Sin coordenadas: ${withoutCoords}. Proveedor: ${JSON.stringify(byProvider)}. Guardando en Firebase...`);
+
+                if (typeof window.importDatabaseToFirebase === 'function') {
+                    await window.importDatabaseToFirebase();
+                } else {
+                    alert('Firebase aún no está listo.');
+                }
+
+                setImportStatus(`Proceso finalizado. Coordenadas encontradas: ${found}/${parsed.length}. Sin coordenadas: ${parsed.length - found}.`);
+                document.getElementById('viewModeSelect').value = 'latest';
+                await loadData();
+            } finally {
+                processImportBtn.disabled = false;
+                processImportBtn.style.opacity = '1';
+            }
+        }
+
+        importExcelTbody.addEventListener('paste', (event) => {
+            const text = event.clipboardData?.getData('text/plain') || '';
+            if (!text) return;
+            event.preventDefault();
+
+            const rowChunks = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+            const matrix = rowChunks.map(r => r.split('\t'));
+            if (!matrix.length) return;
+
+            const activeCell = document.activeElement;
+            let startRow = 0;
+            let startCol = 0;
+
+            if (activeCell && activeCell.tagName === 'TD' && activeCell.parentElement?.parentElement === importExcelTbody) {
+                const tr = activeCell.parentElement;
+                startRow = Array.from(importExcelTbody.children).indexOf(tr);
+                startCol = Array.from(tr.children).indexOf(activeCell);
+            }
+
+            while (importExcelTbody.children.length < startRow + matrix.length) createImportRow();
+
+            matrix.forEach((cells, rIdx) => {
+                const tr = importExcelTbody.children[startRow + rIdx];
+                cells.forEach((value, cIdx) => {
+                    const col = startCol + cIdx;
+                    if (col >= importColumns.length) return;
+                    const td = tr.children[col];
+                    if (td) td.textContent = value.trim();
+                });
+            });
+
+            setImportStatus(`Pegado completado: ${matrix.length} fila(s).`);
+        });
+
+        document.getElementById('importFirebaseBtn').addEventListener('click', openImportModal);
+        document.getElementById('closeImportModalBtn').addEventListener('click', closeImportModal);
+        document.getElementById('addImportRowBtn').addEventListener('click', () => createImportRow());
+        document.getElementById('clearImportTableBtn').addEventListener('click', clearImportTable);
+        document.getElementById('processImportBtn').addEventListener('click', processPastedImport);
+        importModal.addEventListener('click', (e) => {
+            if (e.target === importModal) closeImportModal();
+        });
+
+        const quickMeterPhotoInput = document.getElementById('quickMeterPhotoInput');
+        const meterPhotoViewer = document.getElementById('meterPhotoViewer');
+        const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
+        const meterPhotoViewerImg = document.getElementById('meterPhotoViewerImg');
+        const replaceMeterPhotoBtn = document.getElementById('replaceMeterPhotoBtn');
+
+        function openMeterPhotoViewer(poliza) {
+            const cleanPoliza = (poliza || '').toString().trim();
+            const url = quickMeterPhotosMap[cleanPoliza];
+            if (!cleanPoliza || !url || !meterPhotoViewer || !meterPhotoViewerImg) {
+                alert('Esta póliza aún no tiene foto rápida.');
+                return;
+            }
+            window.__quickPhotoPoliza = cleanPoliza;
+            meterPhotoViewerImg.src = url;
+            meterPhotoViewer.style.display = 'flex';
+            meterPhotoViewer.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeMeterPhotoViewer() {
+            if (!meterPhotoViewer) return;
+            meterPhotoViewer.style.display = 'none';
+            meterPhotoViewer.setAttribute('aria-hidden', 'true');
+        }
 
 
-    quickMeterPhotoInput?.addEventListener('change', async (e) => {
-      const files = e.target.files ? Array.from(e.target.files) : [];
-      const file = files[0];
-      const poliza = (window.__quickPhotoPoliza || '').toString().trim();
-      if (!file || !poliza) { e.target.value = ''; return; }
-      if (files.length > 1) {
-        alert('En este popup solo se permite 1 fotografía. Se usará la primera seleccionada.');
-      }
-      try {
-        await (window.uploadQuickMeterPhoto ? window.uploadQuickMeterPhoto(poliza, file) : uploadQuickMeterPhoto(poliza, file));
-        alert('Foto rápida de medidor guardada correctamente.');
-        renderAll();
-      } catch (err) {
-        console.error(err);
-        alert('No se pudo guardar la foto rápida del medidor.');
-      } finally {
-        e.target.value = '';
-      }
-    });
+        quickMeterPhotoInput?.addEventListener('change', async (e) => {
+            const files = e.target.files ? Array.from(e.target.files) : [];
+            const file = files[0];
+            const poliza = (window.__quickPhotoPoliza || '').toString().trim();
+            if (!file || !poliza) {
+                e.target.value = '';
+                return;
+            }
+            if (files.length > 1) {
+                alert('En este popup solo se permite 1 fotografía. Se usará la primera seleccionada.');
+            }
+            try {
+                await (window.uploadQuickMeterPhoto ? window.uploadQuickMeterPhoto(poliza, file) : uploadQuickMeterPhoto(poliza, file));
+                alert('Foto rápida de medidor guardada correctamente.');
+                renderAll();
+            } catch (err) {
+                console.error(err);
+                alert('No se pudo guardar la foto rápida del medidor.');
+            } finally {
+                e.target.value = '';
+            }
+        });
 
-    meterPhotoViewer?.addEventListener('click', closeMeterPhotoViewer);
-    meterPhotoViewerContent?.addEventListener('click', (e) => e.stopPropagation());
-    replaceMeterPhotoBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!window.__quickPhotoPoliza) return;
-      closeMeterPhotoViewer();
-      quickMeterPhotoInput?.click();
-    });
+        meterPhotoViewer?.addEventListener('click', closeMeterPhotoViewer);
+        meterPhotoViewerContent?.addEventListener('click', (e) => e.stopPropagation());
+        replaceMeterPhotoBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!window.__quickPhotoPoliza) return;
+            closeMeterPhotoViewer();
+            quickMeterPhotoInput?.click();
+        });
 
-    document.getElementById('reloadFirebaseBtn').addEventListener('click', () => loadData());
-    document.getElementById('viewModeSelect').addEventListener('change', () => {
-      filteredColonia = '';
-      filteredFecha = '';
-      loadData();
-    });
-    document.getElementById('filterColoniaSelect').addEventListener('change', (e) => {
-      filteredColonia = e.target.value || '';
-      renderAll();
-    });
-    document.getElementById('filterFechaSelect').addEventListener('change', (e) => {
-      filteredFecha = e.target.value || '';
-      renderAll();
-    });
+        document.getElementById('reloadFirebaseBtn').addEventListener('click', () => loadData());
+        document.getElementById('viewModeSelect').addEventListener('change', () => {
+            filteredColonia = '';
+            filteredFecha = '';
+            loadData();
+        });
+        document.getElementById('filterColoniaSelect').addEventListener('change', (e) => {
+            filteredColonia = e.target.value || '';
+            renderAll();
+        });
+        document.getElementById('filterFechaSelect').addEventListener('change', (e) => {
+            filteredFecha = e.target.value || '';
+            renderAll();
+        });
 
-    const inspectionsModal = document.getElementById('inspectionsModal');
-    const inspectionPreviewModal = document.getElementById('inspectionPreviewModal');
+        const inspectionsModal = document.getElementById('inspectionsModal');
+        const inspectionPreviewModal = document.getElementById('inspectionPreviewModal');
 
-    function openInspectionsModal() {
-      inspectionsModal.style.display = 'block';
-      inspectionsModal.setAttribute('aria-hidden', 'false');
-    }
-    function closeInspectionsModal() {
-      inspectionsModal.style.display = 'none';
-      inspectionsModal.setAttribute('aria-hidden', 'true');
-    }
+        function openInspectionsModal() {
+            inspectionsModal.style.display = 'block';
+            inspectionsModal.setAttribute('aria-hidden', 'false');
+        }
 
-    function openInspectionPreview(item) {
-      if (!item) return;
-      const meta = document.getElementById('inspectionPreviewMeta');
-      const imagesWrap = document.getElementById('inspectionPreviewImages');
-      const jsonPre = document.getElementById('inspectionPreviewJson');
+        function closeInspectionsModal() {
+            inspectionsModal.style.display = 'none';
+            inspectionsModal.setAttribute('aria-hidden', 'true');
+        }
 
-      meta.innerHTML = `
+        function openInspectionPreview(item) {
+            if (!item) return;
+            const meta = document.getElementById('inspectionPreviewMeta');
+            const imagesWrap = document.getElementById('inspectionPreviewImages');
+            const jsonPre = document.getElementById('inspectionPreviewJson');
+
+            meta.innerHTML = `
         <strong>Póliza:</strong> ${escapeHtml(item.summary.poliza || '')} &nbsp;|&nbsp;
         <strong>Nombre:</strong> ${escapeHtml(item.summary.nombre || '')} &nbsp;|&nbsp;
         <strong>Fecha:</strong> ${escapeHtml(item.summary.fecha || '')}
       `;
 
-      const fotos = Array.isArray(item.summary.fotos) ? item.summary.fotos : [];
-      imagesWrap.innerHTML = fotos.length
-        ? fotos.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('')
-        : '<div style="font-size:12px;color:#666;">No hay imágenes en esta inspección.</div>';
+            const fotos = Array.isArray(item.summary.fotos) ? item.summary.fotos : [];
+            imagesWrap.innerHTML = fotos.length ?
+                fotos.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('') :
+                '<div style="font-size:12px;color:#666;">No hay imágenes en esta inspección.</div>';
 
-      jsonPre.textContent = JSON.stringify(item.raw, null, 2);
+            jsonPre.textContent = JSON.stringify(item.raw, null, 2);
 
-      inspectionPreviewModal.style.display = 'block';
-      inspectionPreviewModal.setAttribute('aria-hidden', 'false');
-    }
-
-    function closeInspectionPreview() {
-      inspectionPreviewModal.style.display = 'none';
-      inspectionPreviewModal.setAttribute('aria-hidden', 'true');
-    }
-
-    document.getElementById('viewInspectionsBtn').addEventListener('click', async () => {
-      openInspectionsModal();
-      if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
-    });
-
-    document.getElementById('inspectionsTableBody').addEventListener('click', (e) => {
-      const btn = e.target.closest('.inspection-preview-btn');
-      if (!btn) return;
-      const idx = Number(btn.getAttribute('data-idx') || '-1');
-      const item = Array.isArray(window.inspectionsCache) ? window.inspectionsCache[idx] : null;
-      if (item) openInspectionPreview(item);
-    });
-
-    document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
-    document.getElementById('closeInspectionPreviewBtn').addEventListener('click', closeInspectionPreview);
-
-    inspectionsModal.addEventListener('click', (e) => {
-      if (e.target === inspectionsModal) closeInspectionsModal();
-    });
-
-    inspectionPreviewModal.addEventListener('click', (e) => {
-      if (e.target === inspectionPreviewModal) closeInspectionPreview();
-    });
-
-    // ---------- VOZ ----------
-    let voiceCanceled = false;
-    function stopSpeech() { voiceCanceled = true; try { window.speechSynthesis.cancel(); } catch (e) { } }
-    function restoreAllVoiceButtons() {
-      const btns = document.querySelectorAll('.voice-btn');
-      btns.forEach(b => { b.innerHTML = '<img src="https://img.icons8.com/?size=100&id=85836&format=png&color=FFFFFF" alt="Reproducir"><span>Voz</span>'; b.style.background = '#28a745'; });
-    }
-    function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
-
-    async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
-      if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
-      if (speechSynthesis.speaking) { stopSpeech(); restoreAllVoiceButtons(); return; }
-      voiceCanceled = false;
-      if (btn) { btn.innerHTML = '<img src="https://img.icons8.com/?size=100&id=9976&format=png&color=FFFFFF" alt="Pausar"><span>Pausa</span>'; btn.style.background = '#dc3545'; }
-      const pol = (polizaRaw || '').toString().trim();
-
-      if (pol.length > 0) {
-        for (const ch of pol) {
-          if (voiceCanceled) break;
-          const u = new SpeechSynthesisUtterance(ch);
-          u.lang = 'es-MX';
-          u.rate = /^\d$/.test(ch) ? 1.00 : 0.9;
-          const p = new Promise(res => { u.onend = res; u.onerror = res; });
-          speechSynthesis.speak(u);
-          await p;
-          await delay(500);
+            inspectionPreviewModal.style.display = 'block';
+            inspectionPreviewModal.setAttribute('aria-hidden', 'false');
         }
-      }
 
-      if (voiceCanceled) { stopSpeech(); restoreAllVoiceButtons(); return; }
-      await delay(500);
-
-      if (nombreRaw && nombreRaw.toString().trim().length > 0) {
-        const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
-        for (const w of palabras) {
-          if (voiceCanceled) break;
-          const u = new SpeechSynthesisUtterance(w);
-          u.lang = 'es-MX';
-          u.rate = 1.0;
-          const p = new Promise(res => { u.onend = res; u.onerror = res; });
-          speechSynthesis.speak(u);
-          await p;
-          if (voiceCanceled) break;
-          await delay(w.length * 250);
+        function closeInspectionPreview() {
+            inspectionPreviewModal.style.display = 'none';
+            inspectionPreviewModal.setAttribute('aria-hidden', 'true');
         }
-      }
 
-      stopSpeech();
-      restoreAllVoiceButtons();
-    }
+        document.getElementById('viewInspectionsBtn').addEventListener('click', async () => {
+            openInspectionsModal();
+            if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
+        });
 
-    // Modo narrador automático
-    let autoModeActive = false;
-    async function narrarAutomaticamente() {
-      if (!('speechSynthesis' in window)) { alert('Tu navegador no soporta síntesis de voz.'); return; }
-      if (autoModeActive) {
-        autoModeActive = false;
-        if (speechSynthesis.speaking) speechSynthesis.cancel();
-        document.getElementById('autoNarrarBtn').classList.remove('is-active');
-        document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador">';
-        return;
-      }
-      autoModeActive = true;
-      document.getElementById('autoNarrarBtn').classList.add('is-active');
-      document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=61012&format=png&color=FFFFFF" alt="Detener">';
+        document.getElementById('inspectionsTableBody').addEventListener('click', (e) => {
+            const btn = e.target.closest('.inspection-preview-btn');
+            if (!btn) return;
+            const idx = Number(btn.getAttribute('data-idx') || '-1');
+            const item = Array.isArray(window.inspectionsCache) ? window.inspectionsCache[idx] : null;
+            if (item) openInspectionPreview(item);
+        });
 
-      const visibles = AppState.markers.filter(m => map.hasLayer(m));
-      for (let i = 0; i < visibles.length && autoModeActive; i++) {
-        const marker = visibles[i];
-        let row = marker._rowData;
-        if (!row) {
-          const lat = marker.getLatLng().lat;
-          const lng = marker.getLatLng().lng;
-          row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-5 && Math.abs(parseFloat(r.lng) - lng) < 1e-5);
+        document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
+        document.getElementById('closeInspectionPreviewBtn').addEventListener('click', closeInspectionPreview);
+
+        inspectionsModal.addEventListener('click', (e) => {
+            if (e.target === inspectionsModal) closeInspectionsModal();
+        });
+
+        inspectionPreviewModal.addEventListener('click', (e) => {
+            if (e.target === inspectionPreviewModal) closeInspectionPreview();
+        });
+
+        // ---------- VOZ ----------
+        let voiceCanceled = false;
+
+        function stopSpeech() {
+            voiceCanceled = true;
+            try {
+                window.speechSynthesis.cancel();
+            } catch (e) {}
         }
-        if (!row) continue;
-        map.setView(marker.getLatLng(), 17);
-        marker.openPopup();
-        await speakPolizaAndNombre(row['Póliza']||'', row['Nombre Contratante']||'', null);
-        await delay(2000);
-      }
-      autoModeActive = false;
-      document.getElementById('autoNarrarBtn').classList.remove('is-active');
-      document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador">';
-    }
-    document.getElementById('autoNarrarBtn').addEventListener('click', narrarAutomaticamente);
 
-    // ---------- popupopen: enganchar botones y checkbox (no marcar automáticamente) ----------
-    map.on('popupopen', e => {
-      const popupEl = e.popup.getElement();
-      const marker = e.popup._source;
-      const markerLat = marker.getLatLng().lat;
-      const markerLng = marker.getLatLng().lng;
-      const poliza = marker._poliza;
+        function restoreAllVoiceButtons() {
+            const btns = document.querySelectorAll('.voice-btn');
+            btns.forEach(b => {
+                b.innerHTML = '<img src="https://img.icons8.com/?size=100&id=85836&format=png&color=FFFFFF" alt="Reproducir"><span>Voz</span>';
+                b.style.background = '#28a745';
+            });
+        }
 
-      // Google Maps button
-      const gmapsBtn = popupEl.querySelector('.gmaps-btn');
-      if (gmapsBtn) {
-        gmapsBtn.onclick = (ev) => {
-          ev.preventDefault();
-          const link = getMapsLink(markerLat, markerLng);
-          window.location.href = link;
-        };
-      }
+        function delay(ms) {
+            return new Promise(res => setTimeout(res, ms));
+        }
 
-      // Waze button
-      const wazeBtn = popupEl.querySelector('.waze-btn');
-      if (wazeBtn) {
-        wazeBtn.onclick = (ev) => {
-          ev.preventDefault();
-          const link = getWazeLink(markerLat, markerLng);
-          window.location.href = link;
-        };
-      }
+        async function speakPolizaAndNombre(polizaRaw, nombreRaw, btn) {
+            if (!('speechSynthesis' in window)) {
+                alert('Tu navegador no soporta síntesis de voz.');
+                return;
+            }
+            if (speechSynthesis.speaking) {
+                stopSpeech();
+                restoreAllVoiceButtons();
+                return;
+            }
+            voiceCanceled = false;
+            if (btn) {
+                btn.innerHTML = '<img src="https://img.icons8.com/?size=100&id=9976&format=png&color=FFFFFF" alt="Pausar"><span>Pausa</span>';
+                btn.style.background = '#dc3545';
+            }
+            const pol = (polizaRaw || '').toString().trim();
 
-      // Acta button
-      const actaBtn = popupEl.querySelector('.acta-btn');
-      if (actaBtn) {
-        const row = marker._rowData || {};
-        if (row._recentInspection) {
-          actaBtn.disabled = true;
-          actaBtn.textContent = 'Inspección reciente';
-          actaBtn.style.background = '#6c757d';
-          actaBtn.style.cursor = 'not-allowed';
-          actaBtn.title = 'Esta póliza ya tiene inspección registrada en los últimos 3 meses';
-          actaBtn.onclick = (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
-          };
-        } else {
-          actaBtn.disabled = false;
-          actaBtn.textContent = 'Inspeccion';
-          actaBtn.style.background = '#0d6efd';
-          actaBtn.style.cursor = 'pointer';
-          actaBtn.title = '';
-
-          actaBtn.onclick = async (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-
-            const rowData = marker._rowData;
-            if (!rowData) {
-              alert('No se encontraron datos de la póliza');
-              return;
+            if (pol.length > 0) {
+                for (const ch of pol) {
+                    if (voiceCanceled) break;
+                    const u = new SpeechSynthesisUtterance(ch);
+                    u.lang = 'es-MX';
+                    u.rate = /^\d$/.test(ch) ? 1.00 : 0.9;
+                    const p = new Promise(res => {
+                        u.onend = res;
+                        u.onerror = res;
+                    });
+                    speechSynthesis.speak(u);
+                    await p;
+                    await delay(500);
+                }
             }
 
-            const pol = (rowData['Póliza'] || '').toString().trim();
-            const latestMap = (typeof window.fetchRecentInspectionMap === 'function') ? await window.fetchRecentInspectionMap() : {};
-            if (latestMap[pol]) {
-              rowData._recentInspection = true;
-              rowData._recentInspectionDate = latestMap[pol];
-              actaBtn.disabled = true;
-              actaBtn.textContent = 'Inspección reciente';
-              actaBtn.style.background = '#6c757d';
-              actaBtn.style.cursor = 'not-allowed';
-              alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
-              return;
+            if (voiceCanceled) {
+                stopSpeech();
+                restoreAllVoiceButtons();
+                return;
+            }
+            await delay(500);
+
+            if (nombreRaw && nombreRaw.toString().trim().length > 0) {
+                const palabras = nombreRaw.toString().trim().split(/\s+/).filter(Boolean);
+                for (const w of palabras) {
+                    if (voiceCanceled) break;
+                    const u = new SpeechSynthesisUtterance(w);
+                    u.lang = 'es-MX';
+                    u.rate = 1.0;
+                    const p = new Promise(res => {
+                        u.onend = res;
+                        u.onerror = res;
+                    });
+                    speechSynthesis.speak(u);
+                    await p;
+                    if (voiceCanceled) break;
+                    await delay(w.length * 250);
+                }
             }
 
-            const url = new URL('https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html');
-            url.searchParams.set('poliza', rowData['Póliza'] || '');
-            url.searchParams.set('nombre', rowData['Nombre Contratante'] || '');
-            url.searchParams.set('direccion', `${rowData['calle'] || ''} ${rowData['Número finca'] || ''}`);
-            url.searchParams.set('lat', rowData.lat || '');
-            url.searchParams.set('lng', rowData.lng || '');
-
-            window.open(url.toString(), '_blank');
-          };
+            stopSpeech();
+            restoreAllVoiceButtons();
         }
-      }
 
-      const meterPhotoMainBtn = popupEl.querySelector('.meter-photo-main-btn');
-      if (meterPhotoMainBtn) {
-        meterPhotoMainBtn.onclick = (ev) => {
-          ev.preventDefault();
-          window.__quickPhotoPoliza = poliza;
-          const quickInput = document.getElementById('quickMeterPhotoInput');
-          if (quickMeterPhotosMap[poliza]) {
-            const verFoto = confirm('Ya hay una foto cargada. ¿Deseas verla?');
-            if (verFoto) {
-              openMeterPhotoViewer(poliza);
-              return;
+        // Modo narrador automático
+        let autoModeActive = false;
+        async function narrarAutomaticamente() {
+            if (!('speechSynthesis' in window)) {
+                alert('Tu navegador no soporta síntesis de voz.');
+                return;
             }
-            const editarFoto = confirm('¿Deseas editarla/reemplazarla?');
-            if (editarFoto && quickInput) quickInput.click();
-            return;
-          }
-          if (quickInput) quickInput.click();
-        };
-      }
-
-      // Next button (NO marca automáticamente)
-      const nextBtn = popupEl.querySelector('.popup-next-btn');
-      if (nextBtn) {
-        nextBtn.onclick = (ev) => {
-          ev.preventDefault();
-          const visibles = AppState.markers.filter(m => map.hasLayer(m));
-          if (visibles.length === 0) return;
-          let idx = visibles.findIndex(m => m === marker);
-          if (idx < 0) return;
-          const nextMarker = visibles[(idx + 1) % visibles.length];
-          map.setView(nextMarker.getLatLng(), 17);
-          nextMarker.openPopup();
-        };
-      }
-
-      // Voice button (reusa lógica)
-      const voiceBtn = popupEl.querySelector('.voice-btn');
-      if (voiceBtn) {
-        voiceBtn.onclick = null;
-        let markerData = marker && marker._rowData;
-        if (!markerData) {
-          markerData = currentData.find(r =>
-            Math.abs(parseFloat(r.lat) - markerLat) < 1e-5 &&
-            Math.abs(parseFloat(r.lng) - markerLng) < 1e-5
-          );
-        }
-        if (markerData) {
-          voiceBtn.onclick = (ev) => {
-            ev.preventDefault();
-            if (speechSynthesis.speaking) { stopSpeech(); restoreAllVoiceButtons(); return; }
-            speakPolizaAndNombre(markerData['Póliza']||'', markerData['Nombre Contratante']||'', voiceBtn);
-          };
-        }
-      }
-
-      // Popup checkbox: sincronizar con lista y marcador
-      const popupCb = popupEl.querySelector('.popup-visited-checkbox');
-      if (popupCb) {
-        // set initial state from storage
-        popupCb.checked = isVisited(poliza);
-
-        // remove previous handler if any
-        popupCb._handler && popupCb.removeEventListener('change', popupCb._handler);
-
-        popupCb._handler = (ev) => {
-          const checked = popupCb.checked;
-          setVisited(poliza, checked);
-          if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(poliza, checked);
-
-          // update marker appearance
-          if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
-
-          // update row checkbox in list (if exists)
-          const rows = document.querySelectorAll('#dataTableBody tr');
-          for (const r of rows) {
-            const cellPol = r.children[1] && r.children[1].textContent && r.children[1].textContent.trim();
-            if (cellPol === poliza) {
-              const listCb = r.querySelector('input.list-visited-checkbox');
-              if (listCb) listCb.checked = checked;
-              r.style.opacity = checked ? '0.45' : '1';
-              break;
+            if (autoModeActive) {
+                autoModeActive = false;
+                if (speechSynthesis.speaking) speechSynthesis.cancel();
+                document.getElementById('autoNarrarBtn').classList.remove('is-active');
+                document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador">';
+                return;
             }
-          }
+            autoModeActive = true;
+            document.getElementById('autoNarrarBtn').classList.add('is-active');
+            document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=61012&format=png&color=FFFFFF" alt="Detener">';
+
+            const visibles = AppState.markers.filter(m => map.hasLayer(m));
+            for (let i = 0; i < visibles.length && autoModeActive; i++) {
+                const marker = visibles[i];
+                let row = marker._rowData;
+                if (!row) {
+                    const lat = marker.getLatLng().lat;
+                    const lng = marker.getLatLng().lng;
+                    row = currentData.find(r => Math.abs(parseFloat(r.lat) - lat) < 1e-5 && Math.abs(parseFloat(r.lng) - lng) < 1e-5);
+                }
+                if (!row) continue;
+                map.setView(marker.getLatLng(), 17);
+                marker.openPopup();
+                await speakPolizaAndNombre(row['Póliza'] || '', row['Nombre Contratante'] || '', null);
+                await delay(2000);
+            }
+            autoModeActive = false;
+            document.getElementById('autoNarrarBtn').classList.remove('is-active');
+            document.getElementById('autoNarrarBtn').innerHTML = '<img src="https://img.icons8.com/?size=100&id=59862&format=png&color=FFFFFF" alt="Narrador">';
+        }
+        document.getElementById('autoNarrarBtn').addEventListener('click', narrarAutomaticamente);
+
+        // ---------- popupopen: enganchar botones y checkbox (no marcar automáticamente) ----------
+        map.on('popupopen', e => {
+            const popupEl = e.popup.getElement();
+            const marker = e.popup._source;
+            const markerLat = marker.getLatLng().lat;
+            const markerLng = marker.getLatLng().lng;
+            const poliza = marker._poliza;
+
+            // Google Maps button
+            const gmapsBtn = popupEl.querySelector('.gmaps-btn');
+            if (gmapsBtn) {
+                gmapsBtn.onclick = (ev) => {
+                    ev.preventDefault();
+                    const link = getMapsLink(markerLat, markerLng);
+                    window.location.href = link;
+                };
+            }
+
+            // Waze button
+            const wazeBtn = popupEl.querySelector('.waze-btn');
+            if (wazeBtn) {
+                wazeBtn.onclick = (ev) => {
+                    ev.preventDefault();
+                    const link = getWazeLink(markerLat, markerLng);
+                    window.location.href = link;
+                };
+            }
+
+            // Acta button
+            const actaBtn = popupEl.querySelector('.acta-btn');
+            if (actaBtn) {
+                const row = marker._rowData || {};
+                if (row._recentInspection) {
+                    actaBtn.disabled = true;
+                    actaBtn.textContent = 'Inspección reciente';
+                    actaBtn.style.background = '#6c757d';
+                    actaBtn.style.cursor = 'not-allowed';
+                    actaBtn.title = 'Esta póliza ya tiene inspección registrada en los últimos 3 meses';
+                    actaBtn.onclick = (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
+                    };
+                } else {
+                    actaBtn.disabled = false;
+                    actaBtn.textContent = 'Inspeccion';
+                    actaBtn.style.background = '#0d6efd';
+                    actaBtn.style.cursor = 'pointer';
+                    actaBtn.title = '';
+
+                    actaBtn.onclick = async (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+
+                        const rowData = marker._rowData;
+                        if (!rowData) {
+                            alert('No se encontraron datos de la póliza');
+                            return;
+                        }
+
+                        const pol = (rowData['Póliza'] || '').toString().trim();
+                        const latestMap = (typeof window.fetchRecentInspectionMap === 'function') ? await window.fetchRecentInspectionMap() : {};
+                        if (latestMap[pol]) {
+                            rowData._recentInspection = true;
+                            rowData._recentInspectionDate = latestMap[pol];
+                            actaBtn.disabled = true;
+                            actaBtn.textContent = 'Inspección reciente';
+                            actaBtn.style.background = '#6c757d';
+                            actaBtn.style.cursor = 'not-allowed';
+                            alert('Esta póliza ya tiene inspección registrada en los últimos 3 meses.');
+                            return;
+                        }
+
+                        const url = new URL('https://aldairsierra-pruebas.github.io/APKWEBVIEWHTML/acta-inspeccion.html');
+                        url.searchParams.set('poliza', rowData['Póliza'] || '');
+                        url.searchParams.set('nombre', rowData['Nombre Contratante'] || '');
+                        url.searchParams.set('direccion', `${rowData['calle'] || ''} ${rowData['Número finca'] || ''}`);
+                        url.searchParams.set('lat', rowData.lat || '');
+                        url.searchParams.set('lng', rowData.lng || '');
+
+                        window.open(url.toString(), '_blank');
+                    };
+                }
+            }
+
+            const meterPhotoMainBtn = popupEl.querySelector('.meter-photo-main-btn');
+            if (meterPhotoMainBtn) {
+                meterPhotoMainBtn.onclick = (ev) => {
+                    ev.preventDefault();
+                    window.__quickPhotoPoliza = poliza;
+                    const quickInput = document.getElementById('quickMeterPhotoInput');
+                    if (quickMeterPhotosMap[poliza]) {
+                        const verFoto = confirm('Ya hay una foto cargada. ¿Deseas verla?');
+                        if (verFoto) {
+                            openMeterPhotoViewer(poliza);
+                            return;
+                        }
+                        const editarFoto = confirm('¿Deseas editarla/reemplazarla?');
+                        if (editarFoto && quickInput) quickInput.click();
+                        return;
+                    }
+                    if (quickInput) quickInput.click();
+                };
+            }
+
+            // Next button (NO marca automáticamente)
+            const nextBtn = popupEl.querySelector('.popup-next-btn');
+            if (nextBtn) {
+                nextBtn.onclick = (ev) => {
+                    ev.preventDefault();
+                    const visibles = AppState.markers.filter(m => map.hasLayer(m));
+                    if (visibles.length === 0) return;
+                    let idx = visibles.findIndex(m => m === marker);
+                    if (idx < 0) return;
+                    const nextMarker = visibles[(idx + 1) % visibles.length];
+                    map.setView(nextMarker.getLatLng(), 17);
+                    nextMarker.openPopup();
+                };
+            }
+
+            // Voice button (reusa lógica)
+            const voiceBtn = popupEl.querySelector('.voice-btn');
+            if (voiceBtn) {
+                voiceBtn.onclick = null;
+                let markerData = marker && marker._rowData;
+                if (!markerData) {
+                    markerData = currentData.find(r =>
+                        Math.abs(parseFloat(r.lat) - markerLat) < 1e-5 &&
+                        Math.abs(parseFloat(r.lng) - markerLng) < 1e-5
+                    );
+                }
+                if (markerData) {
+                    voiceBtn.onclick = (ev) => {
+                        ev.preventDefault();
+                        if (speechSynthesis.speaking) {
+                            stopSpeech();
+                            restoreAllVoiceButtons();
+                            return;
+                        }
+                        speakPolizaAndNombre(markerData['Póliza'] || '', markerData['Nombre Contratante'] || '', voiceBtn);
+                    };
+                }
+            }
+
+            // Popup checkbox: sincronizar con lista y marcador
+            const popupCb = popupEl.querySelector('.popup-visited-checkbox');
+            if (popupCb) {
+                // set initial state from storage
+                popupCb.checked = isVisited(poliza);
+
+                // remove previous handler if any
+                popupCb._handler && popupCb.removeEventListener('change', popupCb._handler);
+
+                popupCb._handler = (ev) => {
+                    const checked = popupCb.checked;
+                    setVisited(poliza, checked);
+                    if (typeof window.syncVisitedStatusToFirebase === 'function') window.syncVisitedStatusToFirebase(poliza, checked);
+
+                    // update marker appearance
+                    if (marker && marker.setOpacity) marker.setOpacity(checked ? 0.4 : 1);
+
+                    // update row checkbox in list (if exists)
+                    const rows = document.querySelectorAll('#dataTableBody tr');
+                    for (const r of rows) {
+                        const cellPol = r.children[1] && r.children[1].textContent && r.children[1].textContent.trim();
+                        if (cellPol === poliza) {
+                            const listCb = r.querySelector('input.list-visited-checkbox');
+                            if (listCb) listCb.checked = checked;
+                            r.style.opacity = checked ? '0.45' : '1';
+                            break;
+                        }
+                    }
+                };
+
+                popupCb.addEventListener('change', popupCb._handler);
+            }
+        });
+
+        map.on('popupclose', () => {
+            stopSpeech();
+            restoreAllVoiceButtons();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopSpeech();
+                restoreAllVoiceButtons();
+            }
+        });
+
+        // ---------- PANEL SHOW/HIDE y GESTOS ----------
+        function showTable() {
+            listPanel.classList.add('active');
+            listPanel.setAttribute('aria-hidden', 'false');
+        }
+
+        function hideTable() {
+            listPanel.classList.remove('active');
+            listPanel.setAttribute('aria-hidden', 'true');
+        }
+
+        // swipe down to hide
+        let startY = 0;
+        listPanel.addEventListener('touchstart', e => {
+            startY = e.touches[0].clientY;
+        }, {
+            passive: true
+        });
+        listPanel.addEventListener('touchend', e => {
+            const endY = e.changedTouches[0].clientY;
+            if (endY - startY > 80) hideTable();
+        }, {
+            passive: true
+        });
+
+        // handle tap toggles
+        const handle = document.getElementById('panelHandle');
+        handle.addEventListener('click', () => {
+            if (listPanel.classList.contains('active')) hideTable();
+            else showTable();
+        });
+
+        // ---------- MODAL CALLES ----------
+        function openStreetModal() {
+            renderStreetModal();
+            const m = document.getElementById('streetModal');
+            m.style.display = 'block';
+            m.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeStreetModal() {
+            const m = document.getElementById('streetModal');
+            m.style.display = 'none';
+            m.setAttribute('aria-hidden', 'true');
+        }
+
+        function renderStreetModal() {
+            const ul = document.getElementById('streetList');
+            ul.innerHTML = '';
+
+            const streets = Array.from(
+                new Set(currentData.map(r => (r["calle"] || 'Sin calle')))
+            ).sort((a, b) => a.localeCompare(b, 'es'));
+
+            // BOTÓN TODAS
+            const liAll = document.createElement('li');
+            liAll.textContent = 'Todas';
+            liAll.style.fontWeight = '700';
+            liAll.onclick = () => {
+                filteredStreet = [];
+                renderAll();
+                closeStreetModal();
+            };
+            ul.appendChild(liAll);
+
+            streets.forEach(calle => {
+                const li = document.createElement('li');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = filteredStreet.includes(calle);
+
+                checkbox.onchange = () => {
+                    if (checkbox.checked) {
+                        filteredStreet.push(calle);
+                    } else {
+                        filteredStreet = filteredStreet.filter(c => c !== calle);
+                    }
+                    renderAll();
+                };
+
+                const label = document.createElement('span');
+                label.textContent = ' ' + calle;
+
+                li.appendChild(checkbox);
+                li.appendChild(label);
+                ul.appendChild(li);
+            });
+        }
+
+        document.getElementById('streetModal').onclick = e => {
+            if (e.target.id === 'streetModal') closeStreetModal();
         };
+        document.getElementById('filterBtn').addEventListener('click', openStreetModal);
 
-        popupCb.addEventListener('change', popupCb._handler);
-      }
-    });
+        // ---------- MODAL ADICIONAL ----------
+        function openAdicionalModal() {
+            renderAdicionalModal();
+            const m = document.getElementById('adicionalModal');
+            m.style.display = 'block';
+            m.setAttribute('aria-hidden', 'false');
+        }
 
-    map.on('popupclose', () => {
-      stopSpeech();
-      restoreAllVoiceButtons();
-    });
+        function closeAdicionalModal() {
+            const m = document.getElementById('adicionalModal');
+            m.style.display = 'none';
+            m.setAttribute('aria-hidden', 'true');
+        }
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        stopSpeech();
-        restoreAllVoiceButtons();
-      }
-    });
+        function renderAdicionalModal() {
+            const ul = document.getElementById('adicionalList');
+            ul.innerHTML = '';
 
-    // ---------- PANEL SHOW/HIDE y GESTOS ----------
-    function showTable() { listPanel.classList.add('active'); listPanel.setAttribute('aria-hidden','false'); }
-    function hideTable() { listPanel.classList.remove('active'); listPanel.setAttribute('aria-hidden','true'); }
+            const adicionales = Array.from(
+                new Set(currentData.map(r => (r["Adicional"] || '').toString()))
+            ).sort((a, b) => a.localeCompare(b, 'es'));
 
-    // swipe down to hide
-    let startY = 0;
-    listPanel.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive:true });
-    listPanel.addEventListener('touchend', e => { const endY = e.changedTouches[0].clientY; if (endY - startY > 80) hideTable(); }, { passive:true });
+            const liAll = document.createElement('li');
+            liAll.textContent = 'Todos';
+            liAll.style.fontWeight = '700';
+            liAll.onclick = () => {
+                filteredAdicional = [];
+                renderAll();
+                closeAdicionalModal();
+            };
+            ul.appendChild(liAll);
 
-    // handle tap toggles
-    const handle = document.getElementById('panelHandle');
-    handle.addEventListener('click', () => {
-      if (listPanel.classList.contains('active')) hideTable(); else showTable();
-    });
+            adicionales.forEach(val => {
+                const display = val || '(vacío)';
+                const li = document.createElement('li');
 
-    // ---------- MODAL CALLES ----------
-    function openStreetModal() { renderStreetModal(); const m = document.getElementById('streetModal'); m.style.display = 'block'; m.setAttribute('aria-hidden','false'); }
-    function closeStreetModal() { const m = document.getElementById('streetModal'); m.style.display = 'none'; m.setAttribute('aria-hidden','true'); }
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = filteredAdicional.includes(val);
 
-    function renderStreetModal() {
-      const ul = document.getElementById('streetList');
-      ul.innerHTML = '';
-      const streets = Array.from(new Set(currentData.map(r => (r["calle"]||'Sin calle')))).sort((a,b) => a.localeCompare(b,'es'));
-      const liAll = document.createElement('li');
-      liAll.textContent = 'Todas'; liAll.style.fontWeight = '700';
-      liAll.onclick = () => { filteredStreet = null; renderAll(); closeStreetModal(); };
-      ul.appendChild(liAll);
-      streets.forEach(calle => {
-        const li = document.createElement('li');
-        li.textContent = calle;
-        li.onclick = () => { filteredStreet = calle; renderAll(); closeStreetModal(); };
-        ul.appendChild(li);
-      });
-    }
+                checkbox.onchange = () => {
+                    if (checkbox.checked) {
+                        filteredAdicional.push(val);
+                    } else {
+                        filteredAdicional = filteredAdicional.filter(v => v !== val);
+                    }
+                    renderAll();
+                };
 
-    document.getElementById('streetModal').onclick = e => { if (e.target.id === 'streetModal') closeStreetModal(); };
-    document.getElementById('filterBtn').addEventListener('click', openStreetModal);
+                const label = document.createElement('span');
+                label.textContent = ' ' + display;
 
-    // ---------- MODAL ADICIONAL ----------
-    function openAdicionalModal() { renderAdicionalModal(); const m = document.getElementById('adicionalModal'); m.style.display = 'block'; m.setAttribute('aria-hidden','false'); }
-    function closeAdicionalModal() { const m = document.getElementById('adicionalModal'); m.style.display = 'none'; m.setAttribute('aria-hidden','true'); }
+                li.appendChild(checkbox);
+                li.appendChild(label);
+                ul.appendChild(li);
+            });
+        }
 
-    function renderAdicionalModal() {
-      const ul = document.getElementById('adicionalList');
-      ul.innerHTML = '';
-      const adicionales = Array.from(new Set(currentData.map(r => (r["Adicional"]||'').toString()))).sort((a,b) => a.localeCompare(b,'es'));
-      const liAll = document.createElement('li'); liAll.textContent = 'Todos'; liAll.style.fontWeight = '700';
-      liAll.onclick = () => { filteredAdicional = null; renderAll(); closeAdicionalModal(); };
-      ul.appendChild(liAll);
-      adicionales.forEach(val => {
-        const display = val || '(vacío)';
-        const li = document.createElement('li');
-        li.textContent = display;
-        li.onclick = () => { filteredAdicional = val; renderAll(); closeAdicionalModal(); };
-        ul.appendChild(li);
-      });
-    }
+        document.getElementById('adicionalModal').onclick = e => {
+            if (e.target.id === 'adicionalModal') closeAdicionalModal();
+        };
+        document.getElementById('filterAdicionalBtn').addEventListener('click', openAdicionalModal);
 
-    document.getElementById('adicionalModal').onclick = e => { if (e.target.id === 'adicionalModal') closeAdicionalModal(); };
-    document.getElementById('filterAdicionalBtn').addEventListener('click', openAdicionalModal);
-
-    // ---------- INICIO ----------
-    loadData();
-  </script>
+        // ---------- INICIO ----------
+        loadData();
+    </script>
 </body>
+
 </html>
