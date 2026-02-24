@@ -1507,9 +1507,13 @@
 
 
     quickMeterPhotoInput?.addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
+      const files = e.target.files ? Array.from(e.target.files) : [];
+      const file = files[0];
       const poliza = (window.__quickPhotoPoliza || '').toString().trim();
       if (!file || !poliza) { e.target.value = ''; return; }
+      if (files.length > 1) {
+        alert('En este popup solo se permite 1 fotografía. Se usará la primera seleccionada.');
+      }
       try {
         await (window.uploadQuickMeterPhoto ? window.uploadQuickMeterPhoto(poliza, file) : uploadQuickMeterPhoto(poliza, file));
         alert('Foto rápida de medidor guardada correctamente.');

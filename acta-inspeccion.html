@@ -573,7 +573,7 @@
                     </div>
                     <input type="file" id="fotosMedidorCamara" name="fotosMedidorCamara" accept="image/*" capture="environment" multiple class="hidden">
                     <input type="file" id="fotosMedidorArchivo" name="fotosMedidorArchivo" accept="image/*" multiple class="hidden">
-                    <div class="small">Puede tomar o cargar varias fotos del medidor (JPG/PNG/WEBP).</div>
+                    <div class="small">Puede tomar o cargar hasta 5 fotos del medidor (JPG/PNG/WEBP).</div>
                     <ul class="foto-medidor-lista" id="fotosMedidorLista"></ul>
                 </div>
             </div>
@@ -1035,7 +1035,7 @@
         function addFotosMedidor(files) {
             const nuevas = Array.from(files || []).filter(file => file?.type?.startsWith('image/'));
             if (!nuevas.length) return;
-            fotosMedidorSeleccionadas = [...fotosMedidorSeleccionadas, ...nuevas].slice(0, 10);
+            fotosMedidorSeleccionadas = [...fotosMedidorSeleccionadas, ...nuevas].slice(0, 5);
             renderFotosMedidorLista();
         }
 
@@ -1113,8 +1113,8 @@
             }
 
             const fotos = Array.from(fotosMedidorSeleccionadas || []);
-            if (fotos.length > 10) {
-                alert('Máximo 10 fotos del medidor por inspección.');
+            if (fotos.length > 5) {
+                alert('Máximo 5 fotos del medidor por inspección.');
                 return false;
             }
             const noImagen = fotos.find(file => !file.type?.startsWith('image/'));
