@@ -123,6 +123,8 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
+            padding: 6px 10px;
+            font-size: 14px;
         }
 
         /* ELEMENTOS ESPECÍFICOS */
@@ -1379,7 +1381,18 @@
             const fotosMedidorArchivo = document.getElementById('fotosMedidorArchivo');
 
             btnTomarFotoMedidor?.addEventListener('click', () => fotosMedidorCamara?.click());
-            btnSubirFotoMedidor?.addEventListener('click', () => fotosMedidorArchivo?.click());
+            btnSubirFotoMedidor?.addEventListener('click', () => {
+                if (Array.isArray(fotosMedidorSeleccionadas) && fotosMedidorSeleccionadas.length > 0) {
+                    const ver = confirm('Ya cargaste fotografías. ¿Deseas verlas?');
+                    if (ver) {
+                        document.getElementById('fotosMedidorLista')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    }
+                    const editar = confirm('¿Deseas editar/agregar más fotografías?');
+                    if (!editar) return;
+                }
+                fotosMedidorArchivo?.click();
+            });
             fotosMedidorCamara?.addEventListener('change', (e) => {
                 addFotosMedidor(e.target.files);
                 e.target.value = '';
