@@ -756,6 +756,7 @@
         window.quickMeterPhotosMap = quickMeterPhotosMap;
         window.firebaseBaseReady = false;
         window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
+        window.resolveQuickMeterPhotoUrl = resolveQuickMeterPhotoUrl;
 
         async function refreshQuickMeterPhotosMap() {
             try {
@@ -764,10 +765,34 @@
                 snap.forEach(d => {
                     const row = d.data() || {};
                     const pol = (row.poliza || d.id || '').toString().trim();
-                    if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = row.ultimaFotoUrl;
+                    const url = (row.ultimaFotoUrl || '').toString().trim();
+                    const storagePath = (row.ultimaFotoStoragePath || '').toString().trim();
+                    if (pol && (url || storagePath)) {
+                        quickMeterPhotosMap[pol] = {
+                            url,
+                            storagePath
+                        };
+                    }
                 });
             } catch (err) {
                 console.warn('No se pudo cargar FotosMedidorRapidas', err);
+            }
+        }
+
+        async function resolveQuickMeterPhotoUrl(photoInfo) {
+            if (!photoInfo) return '';
+            if (typeof photoInfo === 'string') return photoInfo;
+            const cachedUrl = (photoInfo.url || '').toString().trim();
+            if (cachedUrl) return cachedUrl;
+            const storagePath = (photoInfo.storagePath || '').toString().trim();
+            if (!storagePath) return '';
+            try {
+                const url = await getDownloadURL(ref(storage, storagePath));
+                photoInfo.url = url;
+                return url;
+            } catch (err) {
+                console.warn('No se pudo resolver la URL de la foto rápida', err);
+                return '';
             }
         }
 
@@ -783,11 +808,15 @@
             await setDoc(doc(db, 'FotosMedidorRapidas', cleanPoliza), {
                 poliza: cleanPoliza,
                 ultimaFotoUrl: url,
+                ultimaFotoStoragePath: path,
                 ultimaActualizacion: new Date().toISOString()
             }, {
                 merge: true
             });
-            quickMeterPhotosMap[cleanPoliza] = url;
+            quickMeterPhotosMap[cleanPoliza] = {
+                url,
+                storagePath: path
+            };
             return url;
         }
 
@@ -1492,7 +1521,7 @@
                 const street = row["calle"] || 'Sin calle';
                 const color = ensureColor(street);
                 const polizaVal = (row["Póliza"] || '').toString();
-                const hasMeterPhoto = !!quickMeterPhotosMap[polizaVal.trim()];
+                const hasMeterPhoto = !!(quickMeterPhotosMap[polizaVal.trim()]?.url || quickMeterPhotosMap[polizaVal.trim()]?.storagePath || quickMeterPhotosMap[polizaVal.trim()]);
                 const statusColor = row._recentInspection ? '#dc3545' : (isVisited(polizaVal) ? '#6c757d' : color);
                 const icon = createIcon(i + 1, statusColor, hasMeterPhoto);
 
@@ -2013,14 +2042,19 @@
         const confirmMeterPhotoUploadBtn = document.getElementById('confirmMeterPhotoUploadBtn');
         let pendingQuickMeterPhoto = null;
 
-        function openMeterPhotoViewer(poliza) {
+        async function openMeterPhotoViewer(poliza) {
             const cleanPoliza = (poliza || '').toString().trim();
-            const url = quickMeterPhotosMap[cleanPoliza];
-            if (!cleanPoliza || !url || !meterPhotoViewer || !meterPhotoViewerImg) {
+            const photoInfo = quickMeterPhotosMap[cleanPoliza];
+            if (!cleanPoliza || !photoInfo || !meterPhotoViewer || !meterPhotoViewerImg) {
                 alert('Esta póliza aún no tiene foto rápida.');
                 return;
             }
             window.__quickPhotoPoliza = cleanPoliza;
+            const url = await (window.resolveQuickMeterPhotoUrl ? window.resolveQuickMeterPhotoUrl(photoInfo) : resolveQuickMeterPhotoUrl(photoInfo));
+            if (!url) {
+                alert('Esta póliza aún no tiene foto rápida.');
+                return;
+            }
             meterPhotoViewerImg.src = url;
             meterPhotoViewer.style.display = 'flex';
             meterPhotoViewer.setAttribute('aria-hidden', 'false');
