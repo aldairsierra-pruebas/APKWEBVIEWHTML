@@ -429,25 +429,114 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            width: min(560px, 96vw);
+            background: #fff;
+            border-radius: 14px;
+            padding: 14px;
+            box-sizing: border-box;
         }
 
         #meterPhotoViewer img {
-            max-width: 96vw;
-            max-height: 82vh;
+            width: 100%;
+            max-width: 520px;
+            max-height: 68vh;
             border-radius: 10px;
-            border: 2px solid #fff;
+            border: 1px solid #ddd;
             object-fit: contain;
+            background: #f8f9fa;
         }
 
-        #replaceMeterPhotoBtn {
-            padding: 8px 12px;
+        .meter-photo-actions {
+            display: flex;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #replaceMeterPhotoBtn,
+        #closeMeterPhotoViewerBtn,
+        #confirmMeterPhotoUploadBtn,
+        #cancelMeterPhotoUploadBtn {
+            padding: 10px 14px;
             border: 1px solid #ddd;
             border-radius: 8px;
-            background: #6f42c1;
-            color: #fff;
             cursor: pointer;
             font-weight: 700;
+        }
+
+        #replaceMeterPhotoBtn,
+        #confirmMeterPhotoUploadBtn {
+            background: #6f42c1;
+            color: #fff;
+            border-color: #6f42c1;
+        }
+
+        #closeMeterPhotoViewerBtn,
+        #cancelMeterPhotoUploadBtn {
+            background: #fff;
+            color: #333;
+        }
+
+        #meterPhotoConfirmModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100001;
+            padding: 12px;
+        }
+
+        #meterPhotoConfirmContent {
+            background: #fff;
+            width: min(560px, 96vw);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-sizing: border-box;
+            align-items: center;
+            text-align: center;
+        }
+
+        #meterPhotoConfirmImg {
+            width: 100%;
+            max-width: 520px;
+            max-height: 54vh;
+            object-fit: contain;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+
+        #meterPhotoConfirmText {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+
+            #meterPhotoViewerContent,
+            #meterPhotoConfirmContent {
+                width: min(520px, 98vw);
+                padding: 12px;
+                gap: 10px;
+            }
+
+            #replaceMeterPhotoBtn,
+            #closeMeterPhotoViewerBtn,
+            #confirmMeterPhotoUploadBtn,
+            #cancelMeterPhotoUploadBtn {
+                flex: 1 1 44%;
+                min-width: 120px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -469,8 +558,20 @@
         </div>
     </div>
     <input type="file" id="quickMeterPhotoInput" accept="image/*" capture="environment" class="hidden">
+    <div id="meterPhotoConfirmModal" aria-hidden="true">
+        <div id="meterPhotoConfirmContent">
+            <img id="meterPhotoConfirmImg" alt="Vista previa de foto rápida">
+            <p id="meterPhotoConfirmText">¿Desea subir esta fotografia?</p>
+            <div class="meter-photo-actions">
+                <button id="cancelMeterPhotoUploadBtn" type="button">Cancelar</button>
+                <button id="confirmMeterPhotoUploadBtn" type="button">Subir</button>
+            </div>
+        </div>
+    </div>
     <div id="meterPhotoViewer" aria-hidden="true">
-        <div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor"><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div>
+        <div id="meterPhotoViewerContent"><img id="meterPhotoViewerImg" alt="Foto de medidor">
+            <div class="meter-photo-actions"><button id="closeMeterPhotoViewerBtn" type="button">Cerrar</button><button id="replaceMeterPhotoBtn" type="button">Reemplazar foto</button></div>
+        </div>
     </div>
 
     <!-- PANEL LISTA -->
@@ -1431,13 +1532,13 @@
                         icon
                     }).bindPopup(popupHtml);
                     marker._rowData = row;
-                    marker._poliza = (row["Póliza"] || '').toString();
+                    marker._poliza = (row["Póliza"] || '').toString().trim();
                     marker._rowKey = rowKey;
                     AppState.markersByKey.set(rowKey, marker);
                     AppState.markers.push(marker);
                 } else if (hasCoords && marker) {
                     marker._rowData = row;
-                    marker._poliza = (row["Póliza"] || '').toString();
+                    marker._poliza = (row["Póliza"] || '').toString().trim();
                     marker.setIcon(icon);
                     marker.setLatLng([lat, lng]);
                 }
@@ -1903,7 +2004,14 @@
         const meterPhotoViewer = document.getElementById('meterPhotoViewer');
         const meterPhotoViewerContent = document.getElementById('meterPhotoViewerContent');
         const meterPhotoViewerImg = document.getElementById('meterPhotoViewerImg');
+        const closeMeterPhotoViewerBtn = document.getElementById('closeMeterPhotoViewerBtn');
         const replaceMeterPhotoBtn = document.getElementById('replaceMeterPhotoBtn');
+        const meterPhotoConfirmModal = document.getElementById('meterPhotoConfirmModal');
+        const meterPhotoConfirmContent = document.getElementById('meterPhotoConfirmContent');
+        const meterPhotoConfirmImg = document.getElementById('meterPhotoConfirmImg');
+        const cancelMeterPhotoUploadBtn = document.getElementById('cancelMeterPhotoUploadBtn');
+        const confirmMeterPhotoUploadBtn = document.getElementById('confirmMeterPhotoUploadBtn');
+        let pendingQuickMeterPhoto = null;
 
         function openMeterPhotoViewer(poliza) {
             const cleanPoliza = (poliza || '').toString().trim();
@@ -1924,8 +2032,33 @@
             meterPhotoViewer.setAttribute('aria-hidden', 'true');
         }
 
+        function openMeterPhotoConfirmModal(file, poliza) {
+            if (!file || !poliza || !meterPhotoConfirmModal || !meterPhotoConfirmImg) return;
+            pendingQuickMeterPhoto = {
+                file,
+                poliza: (poliza || '').toString().trim()
+            };
+            const previewUrl = URL.createObjectURL(file);
+            meterPhotoConfirmImg.src = previewUrl;
+            meterPhotoConfirmImg.dataset.previewUrl = previewUrl;
+            meterPhotoConfirmModal.style.display = 'flex';
+            meterPhotoConfirmModal.setAttribute('aria-hidden', 'false');
+        }
 
-        quickMeterPhotoInput?.addEventListener('change', async (e) => {
+        function closeMeterPhotoConfirmModal() {
+            if (!meterPhotoConfirmModal) return;
+            const previewUrl = meterPhotoConfirmImg?.dataset?.previewUrl;
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            if (meterPhotoConfirmImg) {
+                meterPhotoConfirmImg.src = '';
+                meterPhotoConfirmImg.dataset.previewUrl = '';
+            }
+            pendingQuickMeterPhoto = null;
+            meterPhotoConfirmModal.style.display = 'none';
+            meterPhotoConfirmModal.setAttribute('aria-hidden', 'true');
+        }
+
+        quickMeterPhotoInput?.addEventListener('change', (e) => {
             const files = e.target.files ? Array.from(e.target.files) : [];
             const file = files[0];
             const poliza = (window.__quickPhotoPoliza || '').toString().trim();
@@ -1936,20 +2069,46 @@
             if (files.length > 1) {
                 alert('En este popup solo se permite 1 fotografía. Se usará la primera seleccionada.');
             }
+            openMeterPhotoConfirmModal(file, poliza);
+            e.target.value = '';
+        });
+
+        confirmMeterPhotoUploadBtn?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!pendingQuickMeterPhoto?.file || !pendingQuickMeterPhoto?.poliza) return;
+            const {
+                file,
+                poliza
+            } = pendingQuickMeterPhoto;
             try {
                 await (window.uploadQuickMeterPhoto ? window.uploadQuickMeterPhoto(poliza, file) : uploadQuickMeterPhoto(poliza, file));
                 alert('Foto rápida de medidor guardada correctamente.');
+                closeMeterPhotoConfirmModal();
                 renderAll();
+                openMeterPhotoViewer(poliza);
             } catch (err) {
                 console.error(err);
                 alert('No se pudo guardar la foto rápida del medidor.');
-            } finally {
-                e.target.value = '';
             }
         });
 
+        cancelMeterPhotoUploadBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMeterPhotoConfirmModal();
+        });
+
+        meterPhotoConfirmModal?.addEventListener('click', closeMeterPhotoConfirmModal);
+        meterPhotoConfirmContent?.addEventListener('click', (e) => e.stopPropagation());
+
         meterPhotoViewer?.addEventListener('click', closeMeterPhotoViewer);
         meterPhotoViewerContent?.addEventListener('click', (e) => e.stopPropagation());
+        closeMeterPhotoViewerBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMeterPhotoViewer();
+        });
         replaceMeterPhotoBtn?.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2250,16 +2409,11 @@
             if (meterPhotoMainBtn) {
                 meterPhotoMainBtn.onclick = (ev) => {
                     ev.preventDefault();
-                    window.__quickPhotoPoliza = poliza;
+                    const cleanPoliza = (poliza || '').toString().trim();
+                    window.__quickPhotoPoliza = cleanPoliza;
                     const quickInput = document.getElementById('quickMeterPhotoInput');
-                    if (quickMeterPhotosMap[poliza]) {
-                        const verFoto = confirm('Ya hay una foto cargada. ¿Deseas verla?');
-                        if (verFoto) {
-                            openMeterPhotoViewer(poliza);
-                            return;
-                        }
-                        const editarFoto = confirm('¿Deseas editarla/reemplazarla?');
-                        if (editarFoto && quickInput) quickInput.click();
+                    if (quickMeterPhotosMap[cleanPoliza]) {
+                        openMeterPhotoViewer(cleanPoliza);
                         return;
                     }
                     if (quickInput) quickInput.click();
