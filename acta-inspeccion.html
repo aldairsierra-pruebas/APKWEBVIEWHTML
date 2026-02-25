@@ -1136,7 +1136,7 @@
             for (const file of files) {
                 if (!file.type?.startsWith('image/')) continue;
                 const cleanName = (file.name || 'foto-medidor').replace(/[^a-zA-Z0-9._-]/g, '_');
-                const path = `inspecciones/${safePoliza}/medidor/${timestamp}_${cleanName}`;
+                const path = `medidor-rapido/inspecciones/${safePoliza}/medidor/${timestamp}_${cleanName}`;
                 const fileRef = ref(storage, path);
                 const snap = await uploadBytes(fileRef, file);
                 const url = await getDownloadURL(snap.ref);

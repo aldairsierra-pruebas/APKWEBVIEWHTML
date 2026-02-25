@@ -1170,6 +1170,18 @@
     <script>
         const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
 
+        if (typeof window.L === 'undefined' || typeof window.L.map !== 'function') {
+            document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;font-family:Arial,sans-serif;background:#f8f9fa;">
+            <div style="max-width:520px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.08);">
+                <h2 style="margin:0 0 8px;font-size:20px;color:#212529;">No se pudo cargar el mapa</h2>
+                <p style="margin:0 0 10px;color:#495057;line-height:1.45;">La librería de mapa (Leaflet) no respondió. Sin ella la pantalla principal queda en blanco.</p>
+                <p style="margin:0;color:#6c757d;font-size:13px;">Verifique conexión a internet y que el dominio <strong>unpkg.com</strong> no esté bloqueado en su WebView/restricciones corporativas.</p>
+            </div>
+        </div>`;
+            throw new Error('Leaflet no disponible');
+        }
+
         // ---------- MAPA ----------
         const map = L.map('map').setView([25.6866, -100.3161], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
