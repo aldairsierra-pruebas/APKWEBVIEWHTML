@@ -757,6 +757,25 @@
         window.firebaseBaseReady = false;
         window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
 
+        function buildStorageMediaUrl(path) {
+            const encodedPath = encodeURIComponent((path || '').toString().replace(/^\/+/, ''));
+            return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodedPath}?alt=media`;
+        }
+
+        function normalizeStorageMediaUrl(rawUrl = '') {
+            const val = (rawUrl || '').toString().trim();
+            if (!val) return '';
+            if (val.includes('/o?name=')) {
+                const marker = 'name=';
+                const idx = val.indexOf(marker);
+                if (idx >= 0) {
+                    const encodedPath = val.slice(idx + marker.length).split('&')[0];
+                    if (encodedPath) return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodedPath}?alt=media`;
+                }
+            }
+            return val;
+        }
+
         async function refreshQuickMeterPhotosMap() {
             try {
                 const snap = await getDocs(collection(db, 'FotosMedidorRapidas'));
@@ -764,7 +783,7 @@
                 snap.forEach(d => {
                     const row = d.data() || {};
                     const pol = (row.poliza || d.id || '').toString().trim();
-                    if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = row.ultimaFotoUrl;
+                    if (pol && row.ultimaFotoUrl) quickMeterPhotosMap[pol] = normalizeStorageMediaUrl(row.ultimaFotoUrl);
                 });
             } catch (err) {
                 console.warn('No se pudo cargar FotosMedidorRapidas', err);
@@ -779,7 +798,8 @@
             const path = `medidor-rapido/${cleanPoliza}/${Date.now()}_${cleanName}`;
             const fileRef = ref(storage, path);
             const snap = await uploadBytes(fileRef, file);
-            const url = await getDownloadURL(snap.ref);
+            await getDownloadURL(snap.ref);
+            const url = buildStorageMediaUrl(path);
             await setDoc(doc(db, 'FotosMedidorRapidas', cleanPoliza), {
                 poliza: cleanPoliza,
                 ultimaFotoUrl: url,
