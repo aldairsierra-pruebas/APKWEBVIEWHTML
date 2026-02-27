@@ -890,6 +890,58 @@
             }
         };
 
+        function normalizeInspectionPhotoEntries(raw = []) {
+            if (!Array.isArray(raw)) return [];
+            return raw.map(item => {
+                if (typeof item === 'string') {
+                    const val = item.trim();
+                    if (!val) return null;
+                    return /^https?:\/\//i.test(val) ? {
+                        url: val,
+                        storagePath: ''
+                    } : {
+                        url: '',
+                        storagePath: val
+                    };
+                }
+                if (item && typeof item === 'object') {
+                    const url = (item.url || item.downloadURL || item.downloadUrl || '').toString().trim();
+                    const storagePath = (item.path || item.storagePath || item.ruta || '').toString().trim();
+                    if (!url && !storagePath) return null;
+                    return {
+                        url,
+                        storagePath
+                    };
+                }
+                return null;
+            }).filter(Boolean);
+        }
+
+        async function resolveStoragePathUrl(storagePath) {
+            const cleanPath = (storagePath || '').toString().trim();
+            if (!cleanPath) return '';
+            try {
+                return await getDownloadURL(ref(storage, cleanPath));
+            } catch (err) {
+                console.warn('No se pudo resolver URL desde storagePath', cleanPath, err?.code || err);
+                return '';
+            }
+        }
+
+        async function resolveInspectionPhotoUrls(entries = []) {
+            const resolved = [];
+            for (const item of entries) {
+                const existingUrl = (item?.url || '').toString().trim();
+                if (existingUrl) {
+                    resolved.push(existingUrl);
+                    continue;
+                }
+                const fromPath = await resolveStoragePathUrl(item?.storagePath || '');
+                if (fromPath) resolved.push(fromPath);
+            }
+            return Array.from(new Set(resolved.filter(Boolean)));
+        }
+
         function extractInspectionSummary(raw = {}) {
             const poliza = (raw?.cliente?.poliza || raw?.cuestionario?.datosCliente?.poliza || raw?.datosCliente?.poliza || raw?.poliza || '').toString().trim();
             const nombre = (raw?.cliente?.nombre || raw?.cuestionario?.datosCliente?.nombre || raw?.datosCliente?.nombre || '').toString();
@@ -900,11 +952,12 @@
             const fechaRaw = raw?.inspeccion?.fecha || raw?.cuestionario?.datosMedidor?.fechaInspeccion || raw?.createdAt || raw?.created_at || '';
             const dt = parseInspectionDate(fechaRaw);
             const fechaIso = dt ? dt.toISOString() : '';
-            const fotos = [
+            const fotosRaw = [
                 ...(Array.isArray(raw?.cuestionario?.datosMedidor?.fotografiasMedidor) ? raw.cuestionario.datosMedidor.fotografiasMedidor : []),
                 ...(Array.isArray(raw?.fotosMedidor) ? raw.fotosMedidor : []),
                 ...(Array.isArray(raw?.imagenes) ? raw.imagenes : [])
-            ].filter(v => typeof v === 'string' && v.trim());
+            ];
+            const fotos = normalizeInspectionPhotoEntries(fotosRaw);
 
             return {
                 poliza,
@@ -920,6 +973,7 @@
         window.fetchRecentInspectionMap = async function fetchRecentInspectionMap() {
             const recentMap = {};
             const anyMap = {};
+            const photosMap = {};
             try {
                 const snapshot = await getDocs(collection(db, 'Inspecciones'));
                 const threshold = new Date();
@@ -930,6 +984,9 @@
                     if (!summary.poliza) return;
 
                     anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+                    if (!photosMap[summary.poliza]) photosMap[summary.poliza] = [];
+                    photosMap[summary.poliza].push(...summary.fotos);
+
                     const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
                     if (!dt || dt < threshold) return;
                     const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
@@ -940,7 +997,8 @@
             }
             return {
                 recentMap,
-                anyMap
+                anyMap,
+                photosMap
             };
         };
 
@@ -1127,12 +1185,15 @@
                     unsubInspectionsRealtime = onSnapshot(collection(db, 'Inspecciones'), (snapshot) => {
                         const recentMap = {};
                         const anyMap = {};
+                        const photosMap = {};
                         const threshold = new Date();
                         threshold.setMonth(threshold.getMonth() - 3);
                         snapshot.forEach(d => {
                             const summary = extractInspectionSummary(d.data() || {});
                             if (!summary.poliza) return;
                             anyMap[summary.poliza] = summary.fechaIso || anyMap[summary.poliza] || new Date().toISOString();
+                            if (!photosMap[summary.poliza]) photosMap[summary.poliza] = [];
+                            photosMap[summary.poliza].push(...summary.fotos);
                             const dt = summary.fechaIso ? new Date(summary.fechaIso) : null;
                             if (!dt || dt < threshold) return;
                             const prev = recentMap[summary.poliza] ? parseInspectionDate(recentMap[summary.poliza]) : null;
@@ -1140,9 +1201,11 @@
                         });
                         window.recentInspectionRealtimeMap = recentMap;
                         window.anyInspectionRealtimeMap = anyMap;
+                        window.inspectionPhotosRealtimeMap = photosMap;
                         if (typeof window.onRecentInspectionRealtimeUpdate === 'function') window.onRecentInspectionRealtimeUpdate({
                             recentMap,
-                            anyMap
+                            anyMap,
+                            photosMap
                         });
                     }, (err) => console.warn('Realtime Inspecciones no disponible', err?.code || err));
                 } catch (err) {
@@ -1198,6 +1261,7 @@
 
     <script>
         const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
+        let inspectionPhotosMap = {};
 
         // ---------- MAPA ----------
         const map = L.map('map').setView([25.6866, -100.3161], 12);
@@ -1240,6 +1304,7 @@
         window.onRecentInspectionRealtimeUpdate = function onRecentInspectionRealtimeUpdate(payload = {}) {
             const recentMap = payload.recentMap || {};
             const anyMap = payload.anyMap || {};
+            inspectionPhotosMap = payload.photosMap || inspectionPhotosMap || {};
             currentData = currentData.map(r => {
                 const pol = (r['Póliza'] || '').toString().trim();
                 const recentDate = recentMap[pol] || '';
@@ -1249,7 +1314,8 @@
                     ...r,
                     _recentInspection: !!recentDate,
                     _recentInspectionDate: recentDate,
-                    _hasInspection: !!anyDate
+                    _hasInspection: !!anyDate,
+                    _hasImages: !!((inspectionPhotosMap[pol] && inspectionPhotosMap[pol].length) || quickMeterPhotosMap[pol])
                 };
             });
             localStorage.setItem(VISITED_KEY, JSON.stringify(visitedMap));
@@ -1438,6 +1504,7 @@
 
                 const recentInspectionMap = inspectionStatus.recentMap || {};
                 const anyInspectionMap = inspectionStatus.anyMap || {};
+                inspectionPhotosMap = inspectionStatus.photosMap || {};
 
                 visitedMap = {
                     ...visitedMap,
@@ -1453,7 +1520,8 @@
                         ...r,
                         _recentInspection: !!recentDate,
                         _recentInspectionDate: recentDate,
-                        _hasInspection: !!anyDate
+                        _hasInspection: !!anyDate,
+                        _hasImages: !!((inspectionPhotosMap[pol] && inspectionPhotosMap[pol].length) || quickMeterPhotosMap[pol])
                     };
                 });
 
@@ -1521,7 +1589,11 @@
                 const street = row["calle"] || 'Sin calle';
                 const color = ensureColor(street);
                 const polizaVal = (row["Póliza"] || '').toString();
-                const hasMeterPhoto = !!(quickMeterPhotosMap[polizaVal.trim()]?.url || quickMeterPhotosMap[polizaVal.trim()]?.storagePath || quickMeterPhotosMap[polizaVal.trim()]);
+                const cleanPolizaVal = polizaVal.trim();
+                const hasQuickPhoto = !!(quickMeterPhotosMap[cleanPolizaVal]?.url || quickMeterPhotosMap[cleanPolizaVal]?.storagePath || quickMeterPhotosMap[cleanPolizaVal]);
+                const hasInspectionPhotos = !!(inspectionPhotosMap[cleanPolizaVal] && inspectionPhotosMap[cleanPolizaVal].length);
+                const hasAnyImages = hasQuickPhoto || hasInspectionPhotos;
+                const hasMeterPhoto = hasAnyImages;
                 const statusColor = row._recentInspection ? '#dc3545' : (isVisited(polizaVal) ? '#6c757d' : color);
                 const icon = createIcon(i + 1, statusColor, hasMeterPhoto);
 
@@ -1547,8 +1619,9 @@
 
               <div style="position:absolute; bottom:6px; left:6px; right:6px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
                 <div style="display:flex; align-items:center; gap:6px;">
-                  <button class="acta-btn popup-icon-btn" style="background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer;"><img class="icon-inline light" src="https://img.icons8.com/?size=100&id=85147&format=png&color=FFFFFF" alt="Inspección"><span>Acta</span></button>
+                  <button class="acta-btn popup-icon-btn" style="background:#0d6efd; color:#fff; border:none; border-radius:6px; cursor:pointer; ${hasAnyImages ? 'display:none;' : ''}"><img class="icon-inline light" src="https://img.icons8.com/?size=100&id=85147&format=png&color=FFFFFF" alt="Inspección"><span>Acta</span></button>
                   <button class="meter-photo-main-btn popup-icon-btn" style="background:#6f42c1; color:#fff; border:none; border-radius:6px; cursor:pointer;"><img class="icon-inline light" src="https://img.icons8.com/?size=100&id=GiNKOzxL3w6e&format=png&color=FFFFFF" alt="Foto medidor"><span>Foto</span></button>
+                  <button class="view-poliza-photos-btn popup-icon-btn" style="background:#198754; color:#fff; border:none; border-radius:6px; cursor:pointer; ${hasAnyImages ? '' : 'display:none;'}"><img class="icon-inline light" src="https://img.icons8.com/?size=100&id=85181&format=png&color=FFFFFF" alt="Ver fotos"><span>Ver</span></button>
                   <label style="display:inline-flex; align-items:center; gap:4px; font-size:11px; background:#f8f9fa; border:1px solid #ddd; border-radius:999px; padding:2px 6px;">
                     <input type="checkbox" class="popup-visited-checkbox" style="width:12px; height:12px; margin:0;"> <span>Visitado</span>
                   </label>
@@ -2042,6 +2115,35 @@
         const confirmMeterPhotoUploadBtn = document.getElementById('confirmMeterPhotoUploadBtn');
         let pendingQuickMeterPhoto = null;
 
+        async function openPolizaPhotosViewer(poliza) {
+            const cleanPoliza = (poliza || '').toString().trim();
+            if (!cleanPoliza) return;
+            const inspectionEntries = Array.isArray(inspectionPhotosMap[cleanPoliza]) ? inspectionPhotosMap[cleanPoliza] : [];
+            const inspectionUrls = await resolveInspectionPhotoUrls(inspectionEntries);
+            const quickInfo = quickMeterPhotosMap[cleanPoliza];
+            const quickUrl = quickInfo ? await (window.resolveQuickMeterPhotoUrl ? window.resolveQuickMeterPhotoUrl(quickInfo) : resolveQuickMeterPhotoUrl(quickInfo)) : '';
+            const urls = Array.from(new Set([...(quickUrl ? [quickUrl] : []), ...inspectionUrls]));
+
+            const meta = document.getElementById('inspectionPreviewMeta');
+            const imagesWrap = document.getElementById('inspectionPreviewImages');
+            const jsonPre = document.getElementById('inspectionPreviewJson');
+            if (!urls.length) {
+                alert('Esta póliza aún no tiene imágenes registradas.');
+                return;
+            }
+
+            meta.innerHTML = `<strong>Póliza:</strong> ${escapeHtml(cleanPoliza)} &nbsp;|&nbsp; <strong>Total imágenes:</strong> ${urls.length}`;
+            imagesWrap.innerHTML = urls.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('');
+            jsonPre.textContent = JSON.stringify({
+                poliza: cleanPoliza,
+                quickPhoto: quickInfo || null,
+                inspectionPhotos: inspectionEntries
+            }, null, 2);
+
+            inspectionPreviewModal.style.display = 'block';
+            inspectionPreviewModal.setAttribute('aria-hidden', 'false');
+        }
+
         async function openMeterPhotoViewer(poliza) {
             const cleanPoliza = (poliza || '').toString().trim();
             const photoInfo = quickMeterPhotosMap[cleanPoliza];
@@ -2179,7 +2281,7 @@
             inspectionsModal.setAttribute('aria-hidden', 'true');
         }
 
-        function openInspectionPreview(item) {
+        async function openInspectionPreview(item) {
             if (!item) return;
             const meta = document.getElementById('inspectionPreviewMeta');
             const imagesWrap = document.getElementById('inspectionPreviewImages');
@@ -2192,8 +2294,9 @@
       `;
 
             const fotos = Array.isArray(item.summary.fotos) ? item.summary.fotos : [];
-            imagesWrap.innerHTML = fotos.length ?
-                fotos.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('') :
+            const fotoUrls = await resolveInspectionPhotoUrls(fotos);
+            imagesWrap.innerHTML = fotoUrls.length ?
+                fotoUrls.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" style="width:100%;height:140px;object-fit:cover;border:1px solid #ddd;border-radius:8px;"></a>`).join('') :
                 '<div style="font-size:12px;color:#666;">No hay imágenes en esta inspección.</div>';
 
             jsonPre.textContent = JSON.stringify(item.raw, null, 2);
@@ -2212,12 +2315,12 @@
             if (typeof window.loadInspectionsFromFirebase === 'function') await window.loadInspectionsFromFirebase();
         });
 
-        document.getElementById('inspectionsTableBody').addEventListener('click', (e) => {
+        document.getElementById('inspectionsTableBody').addEventListener('click', async (e) => {
             const btn = e.target.closest('.inspection-preview-btn');
             if (!btn) return;
             const idx = Number(btn.getAttribute('data-idx') || '-1');
             const item = Array.isArray(window.inspectionsCache) ? window.inspectionsCache[idx] : null;
-            if (item) openInspectionPreview(item);
+            if (item) await openInspectionPreview(item);
         });
 
         document.getElementById('closeInspectionsModalBtn').addEventListener('click', closeInspectionsModal);
@@ -2437,6 +2540,15 @@
                         window.open(url.toString(), '_blank');
                     };
                 }
+            }
+
+            const viewPolizaPhotosBtn = popupEl.querySelector('.view-poliza-photos-btn');
+            if (viewPolizaPhotosBtn) {
+                viewPolizaPhotosBtn.onclick = async (ev) => {
+                    ev.preventDefault();
+                    const cleanPoliza = (poliza || '').toString().trim();
+                    await openPolizaPhotosViewer(cleanPoliza);
+                };
             }
 
             const meterPhotoMainBtn = popupEl.querySelector('.meter-photo-main-btn');
