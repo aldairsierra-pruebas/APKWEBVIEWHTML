@@ -798,15 +798,18 @@
 
         async function resolveQuickMeterPhotoUrl(photoInfo) {
             if (!photoInfo) return '';
-            if (typeof photoInfo === 'string') return photoInfo;
+            if (typeof photoInfo === 'string') return await resolveStoragePathUrl(photoInfo);
+
             const cachedUrl = (photoInfo.url || '').toString().trim();
             if (/^https?:\/\//i.test(cachedUrl)) return cachedUrl;
-            const storagePath = normalizeQuickMeterStoragePath(photoInfo.storagePath || '');
+
+            const candidatePath = cachedUrl || photoInfo.storagePath || photoInfo.ultimaFotoStoragePath || '';
+            const storagePath = normalizeQuickMeterStoragePath(candidatePath);
             if (!storagePath) return '';
             if (/^https?:\/\//i.test(storagePath)) return storagePath;
+
             try {
-                const storageRef = storagePath.startsWith('gs://') ? ref(storage, storagePath) : ref(storage, storagePath);
-                const url = await getDownloadURL(storageRef);
+                const url = await getDownloadURL(ref(storage, storagePath));
                 photoInfo.url = url;
                 photoInfo.storagePath = storagePath;
                 return url;
@@ -942,8 +945,7 @@
             if (!cleanPath) return '';
             if (/^https?:\/\//i.test(cleanPath)) return cleanPath;
             try {
-                const storageRef = cleanPath.startsWith('gs://') ? ref(storage, cleanPath) : ref(storage, cleanPath);
-                return await getDownloadURL(storageRef);
+                return await getDownloadURL(ref(storage, cleanPath));
             } catch (err) {
                 console.warn('No se pudo resolver URL desde storagePath', cleanPath, err?.code || err);
                 return '';
