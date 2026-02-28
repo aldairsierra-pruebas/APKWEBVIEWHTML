@@ -951,6 +951,7 @@
                 return '';
             }
         }
+        window.resolveStoragePathUrl = resolveStoragePathUrl;
 
         async function resolveInspectionPhotoUrls(entries = []) {
             const resolved = [];
@@ -965,6 +966,7 @@
             }
             return Array.from(new Set(resolved.filter(Boolean)));
         }
+        window.resolveInspectionPhotoUrls = resolveInspectionPhotoUrls;
 
         function extractInspectionSummary(raw = {}) {
             const poliza = normalizePolizaKey(raw?.cliente?.poliza || raw?.cuestionario?.datosCliente?.poliza || raw?.datosCliente?.poliza || raw?.poliza || '');
@@ -1287,6 +1289,8 @@
         const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
         const normalizePolizaKey = window.normalizePolizaKey || (v => (v || '').toString().trim());
         const normalizeQuickMeterStoragePath = window.normalizeQuickMeterStoragePath || (v => (v || '').toString().trim());
+        const resolveStoragePathUrl = window.resolveStoragePathUrl || (async () => '');
+        const resolveInspectionPhotoUrls = window.resolveInspectionPhotoUrls || (async () => []);
         let inspectionPhotosMap = {};
 
         // ---------- MAPA ----------
