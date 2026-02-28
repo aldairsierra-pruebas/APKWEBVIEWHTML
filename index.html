@@ -755,6 +755,7 @@
         const quickMeterPhotosMap = {};
         window.quickMeterPhotosMap = quickMeterPhotosMap;
         window.firebaseBaseReady = false;
+        window.lastPhotoResolveErrors = [];
         window.uploadQuickMeterPhoto = uploadQuickMeterPhoto;
         window.resolveQuickMeterPhotoUrl = resolveQuickMeterPhotoUrl;
 
@@ -771,6 +772,43 @@
             if (raw.startsWith('gs://')) return `gs://${raw.slice(5).replace(/^\/+/, '')}`;
             return raw.replace(/^\/+/, '');
         }
+
+        function parseStorageBucketFromPath(path = '') {
+            const val = (path || '').toString().trim();
+            const match = val.match(/^gs:\/\/([^/]+)\//i);
+            return match ? match[1].toLowerCase() : '';
+        }
+
+        function classifyStorageResolveIssue(code = '', cleanPath = '') {
+            const normalizedCode = (code || '').toString();
+            const configuredBucket = (firebaseConfig?.storageBucket || '').toString().toLowerCase();
+            const requestedBucket = parseStorageBucketFromPath(cleanPath);
+            const isBucketMismatch = !!(requestedBucket && configuredBucket && requestedBucket !== configuredBucket);
+
+            if (isBucketMismatch || normalizedCode === 'storage/bucket-not-found' || normalizedCode === 'storage/project-not-found') {
+                return {
+                    key: 'bucket-diferente',
+                    label: 'Bucket distinto al configurado'
+                };
+            }
+            if (normalizedCode === 'storage/unauthorized' || normalizedCode === 'storage/unauthenticated') {
+                return {
+                    key: 'permisos',
+                    label: 'Permisos insuficientes'
+                };
+            }
+            if (normalizedCode === 'storage/object-not-found' || normalizedCode === 'storage/invalid-url' || normalizedCode === 'storage/invalid-argument') {
+                return {
+                    key: 'path-invalido-o-no-encontrado',
+                    label: 'Path inválido o archivo no encontrado'
+                };
+            }
+            return {
+                key: 'desconocido',
+                label: 'Error no clasificado'
+            };
+        }
+
         window.normalizePolizaKey = normalizePolizaKey;
         window.normalizeQuickMeterStoragePath = normalizeQuickMeterStoragePath;
 
@@ -947,7 +985,18 @@
             try {
                 return await getDownloadURL(ref(storage, cleanPath));
             } catch (err) {
-                console.warn('No se pudo resolver URL desde storagePath', cleanPath, err?.code || err);
+                const code = err?.code || 'storage/unknown';
+                const issue = classifyStorageResolveIssue(code, cleanPath);
+                if (!Array.isArray(window.lastPhotoResolveErrors)) window.lastPhotoResolveErrors = [];
+                window.lastPhotoResolveErrors.push({
+                    code,
+                    cleanPath,
+                    issueKey: issue.key,
+                    issueLabel: issue.label,
+                    message: err?.message || '',
+                    at: new Date().toISOString()
+                });
+                console.warn('No se pudo resolver URL desde storagePath', cleanPath, code);
                 return '';
             }
         }
@@ -2161,6 +2210,7 @@
         async function openPolizaPhotosViewer(poliza) {
             const cleanPoliza = normalizePolizaKey(poliza);
             if (!cleanPoliza) return;
+            window.lastPhotoResolveErrors = [];
             const inspectionEntries = Array.isArray(inspectionPhotosMap[cleanPoliza]) ? inspectionPhotosMap[cleanPoliza] : [];
             const inspectionUrls = await resolveInspectionPhotoUrls(inspectionEntries);
             const quickInfo = quickMeterPhotosMap[cleanPoliza];
@@ -2190,11 +2240,56 @@
 
             if (!urls.length) {
                 const diagnostics = [];
+                const configuredBucket = (firebaseConfig?.storageBucket || '').toString();
+                const technicalDetails = [];
                 if (!quickInfo && !inspectionEntries.length) diagnostics.push('No hay entradas en quickMeterPhotosMap ni inspectionPhotosMap para esta póliza.');
                 if (quickInfo && !quickUrl) diagnostics.push('Existe foto rápida en metadata, pero no se pudo resolver su URL.');
-                if (inspectionEntries.length && !inspectionUrls.length) diagnostics.push('Existen fotos de inspección en metadata, pero no se pudieron resolver URLs.');
+                if (inspectionEntries.length && !inspectionUrls.length) {
+                    diagnostics.push('Existen fotos de inspección en metadata, pero no se pudieron resolver URLs.');
+                    const attemptedInspectionPaths = inspectionEntries
+                        .map(item => normalizeQuickMeterStoragePath(item?.storagePath || item?.path || item?.ruta || ''))
+                        .filter(Boolean);
+                    const inspectionErrorMap = new Map();
+                    (window.lastPhotoResolveErrors || []).forEach(err => {
+                        const path = normalizeQuickMeterStoragePath(err?.cleanPath || '');
+                        if (!path || !attemptedInspectionPaths.includes(path)) return;
+                        if (!inspectionErrorMap.has(path)) inspectionErrorMap.set(path, []);
+                        inspectionErrorMap.get(path).push(err);
+                    });
+
+                    const codeSet = new Set();
+                    const issueSet = new Set();
+                    inspectionErrorMap.forEach(errs => errs.forEach(err => {
+                        if (err?.code) codeSet.add(err.code);
+                        if (err?.issueLabel) issueSet.add(err.issueLabel);
+                    }));
+
+                    if (codeSet.size) diagnostics.push(`Códigos detectados: ${Array.from(codeSet).join(', ')}`);
+
+                    const missingPathIssue = issueSet.has('Path inválido o archivo no encontrado');
+                    const permissionIssue = issueSet.has('Permisos insuficientes');
+                    const bucketIssue = issueSet.has('Bucket distinto al configurado');
+                    diagnostics.push(`Clasificación: ${missingPathIssue ? 'path inválido/no encontrado' : 'sin evidencia'} | ${permissionIssue ? 'permisos' : 'sin evidencia'} | ${bucketIssue ? 'bucket distinto' : 'sin evidencia'}`);
+
+                    if (attemptedInspectionPaths.length) {
+                        technicalDetails.push('Paths inspección intentados:');
+                        attemptedInspectionPaths.forEach(path => {
+                            const errs = inspectionErrorMap.get(path) || [];
+                            const labels = Array.from(new Set(errs.map(e => e?.issueLabel).filter(Boolean)));
+                            const codes = Array.from(new Set(errs.map(e => e?.code).filter(Boolean)));
+                            technicalDetails.push(`- ${path}`);
+                            if (labels.length || codes.length) {
+                                technicalDetails.push(`  • ${labels.join(' / ')}${codes.length ? ` (${codes.join(', ')})` : ''}`);
+                            } else {
+                                technicalDetails.push('  • Sin error capturado para este path en esta sesión.');
+                            }
+                        });
+                    }
+                    if (configuredBucket) technicalDetails.push(`Bucket configurado en app: ${configuredBucket}`);
+                }
                 const details = diagnostics.length ? `\n\nDiagnóstico:\n- ${diagnostics.join('\n- ')}` : '';
-                alert(`Esta póliza aún no tiene imágenes accesibles.${details}`);
+                const technicalBlock = technicalDetails.length ? `\n\nDetalle técnico (soporte):\n${technicalDetails.join('\n')}` : '';
+                alert(`Esta póliza aún no tiene imágenes accesibles.${details}${technicalBlock}`);
                 return;
             }
 
