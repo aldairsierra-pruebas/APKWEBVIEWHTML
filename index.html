@@ -786,8 +786,18 @@
                     const row = d.data() || {};
                     const pol = normalizePolizaKey(row.poliza || d.id || '');
                     const url = (row.ultimaFotoUrl || '').toString().trim();
-                    const storagePath = normalizeQuickMeterStoragePath(row.ultimaFotoStoragePath || '');
-                    if (pol && (url || storagePath)) {
+                    const rawStoragePath = row.ultimaFotoStoragePath || row.storagePath || row.path || row.ruta || '';
+                    const storagePath = normalizeQuickMeterStoragePath(rawStoragePath);
+                    const hasMinimalMetadata = !!(
+                        row.ultimaFotoStoragePath ||
+                        row.storagePath ||
+                        row.path ||
+                        row.ruta ||
+                        row.ultimaActualizacion ||
+                        row.updatedAt ||
+                        row.createdAt
+                    );
+                    if (pol && (url || storagePath || hasMinimalMetadata)) {
                         quickMeterPhotosMap[pol] = {
                             url,
                             storagePath
