@@ -1336,6 +1336,7 @@
 
     <script>
         const quickMeterPhotosMap = window.quickMeterPhotosMap || {};
+        const moduleScriptsSupported = 'noModule' in HTMLScriptElement.prototype;
         const normalizePolizaKey = window.normalizePolizaKey || (v => (v || '').toString().trim());
         const normalizeQuickMeterStoragePath = window.normalizeQuickMeterStoragePath || (v => (v || '').toString().trim());
         const resolveStoragePathUrl = window.resolveStoragePathUrl || (async () => '');
@@ -1555,6 +1556,7 @@
         }
 
         async function waitForFirebaseBridge(timeoutMs = 5000) {
+            if (!moduleScriptsSupported) return false;
             const start = Date.now();
             while (Date.now() - start < timeoutMs) {
                 if (window.firebaseBaseReady && typeof window.fetchBaseRowsFromFirebase === 'function') return true;
@@ -1632,6 +1634,10 @@
                 const code = err?.code || '';
                 if (code.includes('permission-denied')) {
                     alert('Firebase respondió "Missing or insufficient permissions". Debes habilitar reglas para BasePolizas/BasePolizasUltimaActualizacion/BasePolizasGlobal.');
+                } else if (!moduleScriptsSupported) {
+                    alert('Este visor no puede iniciar Firebase porque el WebView/navegador no soporta scripts ES Module. Actualiza Android System WebView o abre el visor en Chrome actualizado.');
+                } else if (!window.firebaseBaseReady) {
+                    alert('Firebase no terminó de inicializar. Revisa conexión a internet y que el dominio permita cargar https://www.gstatic.com/firebasejs/.');
                 } else {
                     alert('Firebase no listo o sin acceso. Verifica conexión y permisos de colecciones.');
                 }
