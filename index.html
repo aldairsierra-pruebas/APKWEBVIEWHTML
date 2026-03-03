@@ -749,6 +749,8 @@
             appId: "1:803053462437:web:b2f4ccb8cd63c489c77e4c"
         };
 
+        window.firebaseConfig = firebaseConfig;
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
@@ -2246,7 +2248,7 @@
 
             if (!urls.length) {
                 const diagnostics = [];
-                const configuredBucket = (firebaseConfig?.storageBucket || '').toString();
+                const configuredBucket = (window.firebaseConfig?.storageBucket || '').toString();
                 const technicalDetails = [];
                 if (!quickInfo && !inspectionEntries.length) diagnostics.push('No hay entradas en quickMeterPhotosMap ni inspectionPhotosMap para esta póliza.');
                 if (quickInfo && !quickUrl) diagnostics.push('Existe foto rápida en metadata, pero no se pudo resolver su URL.');
